@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head><title>Pick Date</title></head>
+<body>
+  <h2>{{ name }}, pick a date</h2>
+  <p>Time remaining: <span id="timer">30</span>s</p>
+  <form method="post" id="pickForm">
+  {% for d in dates %}
+    <label><input type="radio" name="date" value="{{ d }}"> {{ d }}</label><br>
+  {% endfor %}
+    <button type="submit">Select</button>
+  </form>
+  <script>
+    let t = 30;
+    let timer = setInterval(function(){
+      t--; document.getElementById('timer').innerText = t;
+      if(t<=0){ document.getElementById('pickForm').submit(); }
+    },1000);
+  </script>
+</body>
+</html>
