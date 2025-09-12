@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}RWU Scheduler{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+  <div id="loader" class="loader">
+    <img src="{{ url_for('static', filename='hawk.svg') }}" alt="RWU Hawk">
+  </div>
+  <div id="content" class="content" style="display:none;">
+    {% block content %}{% endblock %}
+  </div>
+  <script src="{{ url_for('static', filename='loader.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

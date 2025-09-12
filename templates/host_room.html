@@ -1,20 +1,23 @@
-<!doctype html>
-<html>
-<head><title>Host Room</title></head>
-<body>
-  <h2>Room {{ code }}</h2>
-  <h3>Participants</h3>
-  <ul>
-  {% for p in participants %}
-    <li>{{ p }} <a href="{{ url_for('kick', code=code, name=p) }}">Kick</a></li>
-  {% endfor %}
-  </ul>
-  <form method="post" action="{{ url_for('set_order', code=code) }}">
-    <label>Order (comma separated names): <input name="order" value="{{ ','.join(order) }}"></label>
-    <button type="submit">Set Order</button>
-  </form>
-  <p><a href="{{ url_for('start', code=code) }}">Start Picking</a></p>
-  <p><a href="{{ url_for('undo', code=code) }}">Undo Last Pick</a></p>
-  <p><a href="{{ url_for('export', code=code) }}">Export Results</a></p>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Host Room{% endblock %}
+{% block content %}
+<h2>Room {{ code }}</h2>
+<h3>Participants</h3>
+<ul>
+{% for p in participants %}
+  <li>{{ p }} <a class="button" href="{{ url_for('kick', code=code, name=p) }}">Kick</a></li>
+{% endfor %}
+</ul>
+<form method="post" action="{{ url_for('set_order', code=code) }}">
+  <label>Weekday Order (comma separated names):
+    <input name="weekday_order" value="{{ ','.join(weekday_order) }}">
+  </label>
+  <label>Weekend Order (comma separated names):
+    <input name="weekend_order" value="{{ ','.join(weekend_order) }}">
+  </label>
+  <button type="submit">Set Orders</button>
+</form>
+<p><a class="button" href="{{ url_for('start', code=code) }}">Start Picking</a></p>
+<p><a class="button" href="{{ url_for('undo', code=code) }}">Undo Last Pick</a></p>
+<p><a class="button" href="{{ url_for('export', code=code) }}">Export Results</a></p>
+{% endblock %}

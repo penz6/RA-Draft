@@ -1,17 +1,16 @@
-<!doctype html>
-<html>
-<head>
-  <title>RWU Scheduler</title>
-  <style>
-    body { text-align: center; font-family: Arial, sans-serif; }
-    #logo { opacity: 0; animation: fadeIn 2s forwards; }
-    @keyframes fadeIn { to { opacity: 1; } }
-    a { display: block; margin-top: 20px; }
-  </style>
-</head>
-<body>
-    <img id="logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAIAAABM5OhcAAADC0lEQVR4nO3cS0hUYRiH8Xec8RotJFBTLHWsDDMdKmeozDYZtWiTQVBRiyIQWlfYhaArRBeICJPIRWS0C7GFIJZhpUylWOmYtsiULgtFkqhxpsXAEGG7/pwxnt/qg/MdeBcP33dWx2UFuwz415KcHgD/J8KCBGFBgrAgQViQICxIEBYkCAsShAUJwoIEYUGCsCBBWJAgLEgQFiQICxKEBQnCggRhQYKwIEFYkCAsSBAWJAgLEoQFCcKCBGFBgrAgQViQICxIEBYkEjes6be3OprrH9079qLldLV/+e2LB3ds9cce9T48e/n47tj6yok9tVsqzWyiryH+7u9rOMLj9AB/9eNneOPOM2ZWtiz/ztW6a01ta8qL7rc+nz8vLRyO+Cu8sW3+Cu+56w8cnRSzSNwTK64/NJqXndkVDK0uKzSzgK+4teNVRnpqakpyssedkZ7y6euk0zPiT4l7YsXVVJW1P33zeuhj0aIsl8u1dtXSzu7B3KxMX+nimZlIT++I0wNiFokbVkqyp6O5PtnjKfEuLK05HI1GB4bHlhbmVJYXXWpszc9dEPAVh8Mzj7sHnJ4Us0jcqzD2jbWu9tSFGy37ajeYWVdwqLLcm56WMvXte1cwFPAV+33FnT2Dsf2RSNTtTjIzj9sdDkecHB2JHFZc25P+ynKvmXUFh/Zur+oPjZrZwPD4koKcvOzM9x++xLb19I1sWr/CzDXVl/X0cT86LHGvwrjBkbGVJflJSa5nL99VB0oa7rabWTQaHf88MTk1Hd926GTTzfP7j9ZtM7MDRxodGxdmZubiP+9QmANXIeYiwoIEYUGCsCBBWJAgLEgQFiQICxKEBQnCggRhQYKwIEFYkCAsSBAWJAgLEoQFCcKCBGFBgrAgQViQICxIEBYkCAsShAUJwoIEYUGCsCBBWJAgLEgQFiQICxKEBQnCggRhQYKwIEFYkCAsSBAWJAgLEoQFCcKCBGFBgrAgQViQICxIEBYkCAsShAUJwoIEYUGCsCBBWJAgLEgQFiQICxKEBQnCggRhQeIXAzqaGUXfXS0AAAAASUVORK5CYII=" alt="RWU Logo" width="200">
-    <a href="{{ url_for('host_login') }}">Host Login</a>
-    <a href="{{ url_for('join') }}">Join Room</a>
-  </body>
-</html>
+{% extends "base.html" %}
+{% block title %}RWU Scheduler{% endblock %}
+{% block head %}
+<style>
+#logo { opacity: 0; animation: fadeIn 2s forwards; }
+@keyframes fadeIn { to { opacity: 1; } }
+.center a { display: block; margin-top: 20px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="center">
+  <img id="logo" src="{{ url_for('static', filename='hawk.svg') }}" alt="RWU Logo" width="200">
+  <a class="button" href="{{ url_for('host_login') }}">Host Login</a>
+  <a class="button" href="{{ url_for('join') }}">Join Room</a>
+</div>
+{% endblock %}
