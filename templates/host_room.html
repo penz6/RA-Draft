@@ -5,19 +5,44 @@
 <h3>Participants</h3>
 <ul>
 {% for p in participants %}
-  <li>{{ p }} <a class="button" href="{{ url_for('kick', code=code, name=p) }}">Kick</a></li>
+  <li>{{ p }}
+    <form style="display:inline" method="post" action="{{ url_for('kick', code=code, name=p) }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Kick</button>
+    </form>
+  </li>
 {% endfor %}
 </ul>
-<form method="post" action="{{ url_for('set_order', code=code) }}">
-  <label>Weekday Order (comma separated names):
-    <input name="weekday_order" value="{{ ','.join(weekday_order) }}">
-  </label>
-  <label>Weekend Order (comma separated names):
-    <input name="weekend_order" value="{{ ','.join(weekend_order) }}">
-  </label>
-  <button type="submit">Set Orders</button>
+<form method="post" action="{{ url_for('randomize', code=code) }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <button type="submit">Randomize Order</button>
 </form>
-<p><a class="button" href="{{ url_for('start', code=code) }}">Start Picking</a></p>
-<p><a class="button" href="{{ url_for('undo', code=code) }}">Undo Last Pick</a></p>
+{% if weekday_order %}
+<h3>Weekday Order</h3>
+<p>{{ ', '.join(weekday_order) }}</p>
+<h3>Weekend Order</h3>
+<p>{{ ', '.join(weekend_order) }}</p>
+{% endif %}
+
+<h3>Adjust Day Types</h3>
+<ul class="date-list">
+{% for d in dates %}
+  <li>{{ d }} - {% if d in weekend_overrides or d.weekday() in [4,5] and d not in weekday_overrides %}Weekend{% else %}Weekday{% endif %}
+    <form style="display:inline" method="post" action="{{ url_for('toggle_day', code=code, date=d.isoformat()) }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Toggle</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+
+<form method="post" action="{{ url_for('start', code=code) }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <button type="submit">Start Picking</button>
+</form>
+<form method="post" action="{{ url_for('undo', code=code) }}">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <button type="submit">Undo Last Pick</button>
+</form>
 <p><a class="button" href="{{ url_for('export', code=code) }}">Export Results</a></p>
 {% endblock %}

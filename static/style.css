@@ -5,7 +5,7 @@
 
 body {
     font-family: Arial, sans-serif;
-    background: #f4f4f4;
+    background: #ffffff;
     color: var(--rwu-blue);
     margin: 0;
     padding: 0;
@@ -63,11 +63,15 @@ button:hover, a.button:hover {
 .table-style table { border-collapse: collapse; margin-bottom: 20px; }
 .table-style table { width: 100%; }
 .table-style th, .table-style td { width: 40px; height: 40px; text-align: center; border: 1px solid #ccc; position: relative; }
-.table-style .weekday { background-color: #e6f0ff; }
-.table-style .weekend { background-color: #fff0e6; }
+.table-style .weekday { background-color: rgba(0,45,114,0.1); }
+.table-style .weekend { background-color: rgba(242,169,0,0.2); }
 .table-style .full { background-color: #cccccc; color: #888888; }
 .table-style .pick { width: 20px; height: 20px; border-radius: 50%; background: var(--rwu-blue); color: #ffffff; font-size: 12px; line-height: 20px; display: inline-block; margin: 1px; }
 .table-style .selectable { cursor: pointer; }
+.table-style .chosen { outline: 2px solid var(--rwu-gold); }
+
+.date-list { list-style: none; padding: 0; }
+.date-list li { margin: 4px 0; }
 
 #timer { font-size: 24px; }
 .flash { animation: flash 1s steps(1, start) infinite; color: red; }

@@ -3,10 +3,13 @@
 {% block content %}
 <h2>{{ name }}, pick a date</h2>
 <div>Time remaining: <span id="timer">30</span>s</div>
+{% if up_next %}<div>Up next: {{ up_next }}</div>{% endif %}
 <form method="post" id="pickForm">
-  <input type="hidden" name="date" id="selectedDate">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="dates" id="selectedDates">
+  <div id="calendar" class="table-style"></div>
+  <button type="submit">Submit Picks</button>
 </form>
-<div id="calendar" class="table-style"></div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -14,6 +17,7 @@ const start = new Date("{{ start }}");
 const end = new Date("{{ end }}");
 const picks = {{ picks|tojson }};
 const allowed = new Set({{ allowed|tojson }});
+const selected = new Set();
 
 function buildCalendar(){
   let current = new Date(start);
@@ -54,8 +58,13 @@ function buildCalendar(){
       if(!cell.classList.contains('full') && allowed.has(iso)){
         cell.classList.add('selectable');
         cell.addEventListener('click', ()=>{
-          document.getElementById('selectedDate').value=iso;
-          document.getElementById('pickForm').submit();
+          if(selected.has(iso)){
+            selected.delete(iso);
+            cell.classList.remove('chosen');
+          } else {
+            selected.add(iso);
+            cell.classList.add('chosen');
+          }
         });
       } else {
         cell.classList.add('full');
@@ -83,6 +92,9 @@ function beep(){
   osc.start();
   osc.stop(audioCtx.currentTime+0.1);
 }
+form.addEventListener('submit', ()=>{
+  document.getElementById('selectedDates').value = Array.from(selected).join(',');
+});
 const countdown=setInterval(()=>{
   t--;
   timerEl.textContent=t;
