@@ -1,4 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, session
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    send_file,
+    session,
+    abort,
+)
 import uuid
 from datetime import datetime, timedelta
 from io import StringIO, BytesIO
@@ -6,6 +15,7 @@ import csv
 import os
 import pickle
 import logging
+import secrets
 from filelock import FileLock
 
 app = Flask(__name__)
@@ -31,6 +41,10 @@ def load_rooms():
                 for r in rooms.values():
                     if not hasattr(r, 'current_picker'):
                         r.current_picker = None
+                    if not hasattr(r, 'weekend_overrides'):
+                        r.weekend_overrides = set()
+                    if not hasattr(r, 'weekday_overrides'):
+                        r.weekday_overrides = set()
     except (IOError, pickle.PickleError) as exc:
         logging.error("Failed to load rooms: %s", exc)
         rooms = {}
@@ -48,6 +62,22 @@ def save_rooms():
 
 load_rooms()
 
+
+def generate_csrf_token():
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(16)
+    return session['_csrf_token']
+
+
+def verify_csrf():
+    token = session.get('_csrf_token')
+    form_token = request.form.get('_csrf_token')
+    if not token or token != form_token:
+        abort(400)
+
+
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
 class Room:
     def __init__(self, host, start_date, end_date):
         self.host = host
@@ -63,6 +93,8 @@ class Room:
         self.phase = 'weekday'
         self.history = []
         self.current_picker = None
+        self.weekend_overrides = set()
+        self.weekday_overrides = set()
 
     def add_participant(self, name):
         if name not in self.participants:
@@ -126,8 +158,76 @@ class Room:
 
     def available_for_current_phase(self):
         if self.phase == 'weekday':
-            return [d for d in self.available_dates if d.weekday() not in (4, 5)]
-        return [d for d in self.available_dates if d.weekday() in (4, 5)]
+            return [
+                d
+                for d in self.available_dates
+                if (
+                    d.weekday() not in (4, 5) or d in self.weekday_overrides
+                )
+                and d not in self.weekend_overrides
+            ]
+        return [
+            d
+            for d in self.available_dates
+            if (
+                d.weekday() in (4, 5) or d in self.weekend_overrides
+            )
+            and d not in self.weekday_overrides
+        ]
+
+    def upcoming_picker(self):
+        phase = self.phase
+        wd_idx = self.weekday_index
+        we_idx = self.weekend_index
+        if phase == 'weekday':
+            avail = [
+                d
+                for d in self.available_dates
+                if (
+                    d.weekday() not in (4, 5) or d in self.weekday_overrides
+                )
+                and d not in self.weekend_overrides
+            ]
+        else:
+            avail = [
+                d
+                for d in self.available_dates
+                if (
+                    d.weekday() in (4, 5) or d in self.weekend_overrides
+                )
+                and d not in self.weekday_overrides
+            ]
+        if not avail:
+            if phase == 'weekday':
+                phase = 'weekend'
+                we_idx = 0
+                avail = [
+                    d
+                    for d in self.available_dates
+                    if (
+                        d.weekday() in (4, 5) or d in self.weekend_overrides
+                    )
+                    and d not in self.weekday_overrides
+                ]
+                if not avail:
+                    return None
+            else:
+                return None
+        if phase == 'weekday':
+            return self.weekday_order[wd_idx] if self.weekday_order else None
+        return self.weekend_order[we_idx] if self.weekend_order else None
+
+    def toggle_day_type(self, date):
+        if date in self.weekend_overrides:
+            self.weekend_overrides.remove(date)
+            return
+        if date in self.weekday_overrides:
+            self.weekday_overrides.remove(date)
+            return
+        if date.weekday() in (4, 5):
+            self.weekday_overrides.add(date)
+        else:
+            self.weekend_overrides.add(date)
 
     def undo_last(self):
         if not self.history:
@@ -163,6 +263,7 @@ def index():
 @app.route('/host', methods=['GET', 'POST'])
 def host_login():
     if request.method == 'POST':
+        verify_csrf()
         session['host'] = request.form['name']
         return redirect(url_for('create_room'))
     return render_template('host_login.html')
@@ -173,6 +274,7 @@ def create_room():
     if not host:
         return redirect(url_for('host_login'))
     if request.method == 'POST':
+        verify_csrf()
         start = datetime.fromisoformat(request.form['start']).date()
         end = datetime.fromisoformat(request.form['end']).date()
         code = uuid.uuid4().hex[:6]
@@ -184,6 +286,7 @@ def create_room():
 @app.route('/join', methods=['GET', 'POST'])
 def join():
     if request.method == 'POST':
+        verify_csrf()
         code = request.form['code']
         name = request.form['name']
         room = rooms.get(code)
@@ -205,12 +308,16 @@ def host_room(code):
         participants=room.participants,
         weekday_order=room.weekday_order,
         weekend_order=room.weekend_order,
+        dates=room.available_dates,
+        weekend_overrides=room.weekend_overrides,
+        weekday_overrides=room.weekday_overrides,
     )
 
-@app.route('/kick/<code>/<name>')
+@app.route('/kick/<code>/<name>', methods=['POST'])
 def kick(code, name):
     room = rooms.get(code)
     if room and session.get('host') == room.host:
+        verify_csrf()
         room.remove_participant(name)
         save_rooms()
     return redirect(url_for('host_room', code=code))
@@ -219,6 +326,7 @@ def kick(code, name):
 def set_order(code):
     room = rooms.get(code)
     if room and session.get('host') == room.host:
+        verify_csrf()
         weekday_order = request.form.get('weekday_order', '')
         weekend_order = request.form.get('weekend_order', '')
         weekday_names = [n.strip() for n in weekday_order.split(',') if n.strip()]
@@ -227,11 +335,12 @@ def set_order(code):
         save_rooms()
     return redirect(url_for('host_room', code=code))
 
-@app.route('/start/<code>')
+@app.route('/start/<code>', methods=['POST'])
 def start(code):
     room = rooms.get(code)
     if not room or session.get('host') != room.host or (not room.weekday_order and not room.weekend_order):
         return redirect(url_for('host_room', code=code))
+    verify_csrf()
     name = room.next_picker()
     room.current_picker = name
     save_rooms()
@@ -251,6 +360,7 @@ def pick(code, name):
             return redirect(url_for('pick', code=code, name=current))
         return redirect(url_for('host_room', code=code))
     if request.method == 'POST':
+        verify_csrf()
         date_str = request.form.get('date')
         if date_str:
             date_obj = datetime.fromisoformat(date_str).date()
@@ -267,6 +377,7 @@ def pick(code, name):
     for participant, date in room.picks.items():
         picks_by_date.setdefault(date.isoformat(), []).append(participant)
     allowed_dates = [d.isoformat() for d in sorted(room.available_for_current_phase())]
+    next_name = room.upcoming_picker()
     return render_template(
         'pick.html',
         name=name,
@@ -274,24 +385,49 @@ def pick(code, name):
         end=room.end_date.isoformat(),
         picks=picks_by_date,
         allowed=allowed_dates,
+        up_next=next_name,
     )
 
-@app.route('/undo/<code>')
+@app.route('/undo/<code>', methods=['POST'])
 def undo(code):
     room = rooms.get(code)
     if room and session.get('host') == room.host:
+        verify_csrf()
         room.undo_last()
         save_rooms()
     return redirect(url_for('host_room', code=code))
+
+@app.route('/toggle_day/<code>/<date>', methods=['POST'])
+def toggle_day(code, date):
+    room = rooms.get(code)
+    if room and session.get('host') == room.host and not room.history:
+        verify_csrf()
+        room.toggle_day_type(datetime.fromisoformat(date).date())
+        save_rooms()
+    return redirect(url_for('host_room', code=code))
+
 
 @app.route('/export/<code>')
 def export(code):
     room = rooms.get(code)
     if not room:
         return redirect(url_for('index'))
-    csv_data = room.export_csv()
-    data = BytesIO(csv_data.getvalue().encode())
-    return send_file(data, mimetype='text/csv', as_attachment=True, download_name=f'{code}_results.csv')
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    y = 750
+    p.setFont("Helvetica", 12)
+    p.drawString(30, y, "Participant - Date")
+    y -= 20
+    for name, date in room.picks.items():
+        p.drawString(30, y, f"{name} - {date}")
+        y -= 20
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name=f'{code}_results.pdf')
 
 if __name__ == '__main__':
     app.run(debug=True)
