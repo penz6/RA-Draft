@@ -1,11 +1,9 @@
-<!doctype html>
-<html>
-<head><title>Host Login</title></head>
-<body>
-  <h2>Host Login</h2>
-  <form method="post">
-    <label>Name: <input name="name" required></label>
-    <button type="submit">Login</button>
-  </form>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Host Login{% endblock %}
+{% block content %}
+<h2>Host Login</h2>
+<form method="post">
+  <label>Name: <input name="name" required></label>
+  <button type="submit">Login</button>
+</form>
+{% endblock %}

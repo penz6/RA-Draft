@@ -1,12 +1,10 @@
-<!doctype html>
-<html>
-<head><title>Create Room</title></head>
-<body>
-  <h2>Create Room</h2>
-  <form method="post">
-    <label>Start Date: <input type="date" name="start" required></label><br>
-    <label>End Date: <input type="date" name="end" required></label><br>
-    <button type="submit">Create</button>
-  </form>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Create Room{% endblock %}
+{% block content %}
+<h2>Create Room</h2>
+<form method="post">
+  <label>Start Date: <input type="date" name="start" required></label><br>
+  <label>End Date: <input type="date" name="end" required></label><br>
+  <button type="submit">Create</button>
+</form>
+{% endblock %}

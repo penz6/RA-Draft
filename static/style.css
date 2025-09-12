@@ -1,0 +1,88 @@
+:root {
+  --rwu-blue: #002D72;
+  --rwu-gold: #F2A900;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
+    color: var(--rwu-blue);
+    margin: 0;
+    padding: 0;
+}
+
+h1, h2, h3 {
+  color: var(--rwu-blue);
+}
+
+button, a.button {
+  background: var(--rwu-blue);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button:hover, a.button:hover {
+  background: var(--rwu-gold);
+  color: #000;
+}
+
+.loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loader img {
+  width: 100px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.content {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.table-style table { border-collapse: collapse; margin-bottom: 20px; }
+.table-style table { width: 100%; }
+.table-style th, .table-style td { width: 40px; height: 40px; text-align: center; border: 1px solid #ccc; position: relative; }
+.table-style .weekday { background-color: #e6f0ff; }
+.table-style .weekend { background-color: #fff0e6; }
+.table-style .full { background-color: #cccccc; color: #888888; }
+.table-style .pick { width: 20px; height: 20px; border-radius: 50%; background: var(--rwu-blue); color: #ffffff; font-size: 12px; line-height: 20px; display: inline-block; margin: 1px; }
+.table-style .selectable { cursor: pointer; }
+
+#timer { font-size: 24px; }
+.flash { animation: flash 1s steps(1, start) infinite; color: red; }
+@keyframes flash { 50% { opacity: 0; } }
+
+.center { text-align: center; }
+
+@media (max-width: 600px) {
+  button, input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 8px 0;
+  }
+  label { display: block; margin: 8px 0; }
+  .table-style th, .table-style td { width: 30px; height: 30px; }
+  #timer { font-size: 20px; }
+}
+
