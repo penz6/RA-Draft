@@ -3,7 +3,9 @@
 {% block content %}
 <h2>{{ name }}, pick a date</h2>
 <div>Time remaining: <span id="timer">30</span>s</div>
+{% if up_next %}<div>Up next: {{ up_next }}</div>{% endif %}
 <form method="post" id="pickForm">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="date" id="selectedDate">
 </form>
 <div id="calendar" class="table-style"></div>
