@@ -1,6 +1,6 @@
 <section class="card">
 <h2>Assignments</h2>
 <ul>{% for a in picks %}<li><strong>{{ a.name }}</strong> — {{ a.duty_date }}</li>{% else %}<li>No assignments yet.</li>{% endfor %}</ul>
-{% if calendar_google_link %}<p><strong>Your assignment:</strong> <a href="{{ calendar_google_link }}">Google Calendar</a> · <a href="{{ calendar_ics_link }}">ICS</a></p>{% endif %}
+{% if calendar_ics_link %}<p><strong>Your assignment:</strong> <a href="{{ calendar_ics_link }}">Download all-day iCal (.ics)</a></p>{% endif %}
 {% if can_manage %}{% include 'session_hra_controls_v2.html' %}{% endif %}
 </section>
