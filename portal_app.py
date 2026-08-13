@@ -2,7 +2,16 @@ import os
 
 from flask import flash, redirect, render_template, session, url_for
 
-from core import allowed_email, app, current_user, db, login_required, oauth, require_csrf
+from core import (
+    app,
+    audit,
+    current_user,
+    db,
+    google_identity_allowed,
+    login_required,
+    oauth,
+    require_csrf,
+)
 
 
 @app.route("/")
@@ -23,43 +32,73 @@ def login():
     if not getattr(oauth, "google", None):
         flash("Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.", "error")
         return render_template("index.html")
-    return oauth.google.authorize_redirect(url_for("auth_callback", _external=True))
+    return oauth.google.authorize_redirect(
+        url_for("auth_callback", _external=True),
+        hd="*",
+    )
 
 
 @app.route("/auth/callback")
 def auth_callback():
     token = oauth.google.authorize_access_token()
     info = token.get("userinfo") or oauth.google.userinfo(token=token)
-    email = (info.get("email") or "").lower()
-    if not info.get("email_verified") or not allowed_email(email):
+    email = (info.get("email") or "").strip().lower()
+    google_sub = (info.get("sub") or "").strip()
+
+    if not google_identity_allowed(info):
         session.clear()
-        flash("Sign in with an @g.rwu.edu or @rwu.edu Google account.", "error")
+        flash("Sign in with a verified RWU Google Workspace account.", "error")
         return redirect(url_for("index"))
 
-    user = db().execute(
-        "SELECT * FROM users WHERE google_sub=? OR email=?",
-        (info["sub"], email),
-    ).fetchone()
+    conn = db()
+    user = conn.execute("SELECT * FROM users WHERE google_sub=?", (google_sub,)).fetchone()
+    is_new = user is None
+
     if user:
-        db().execute(
-            "UPDATE users SET google_sub=?, email=?, name=? WHERE id=?",
-            (info["sub"], email, info.get("name") or email, user["id"]),
+        email_owner = conn.execute(
+            "SELECT id FROM users WHERE email=? AND id<>?",
+            (email, user["id"]),
+        ).fetchone()
+        if email_owner:
+            session.clear()
+            flash("This RWU email is already linked to another account. Ask an admin to resolve it.", "error")
+            return redirect(url_for("index"))
+        conn.execute(
+            "UPDATE users SET email=?, name=? WHERE id=?",
+            (email, info.get("name") or email, user["id"]),
         )
         uid = user["id"]
     else:
+        email_owner = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+        if email_owner:
+            session.clear()
+            flash("This RWU email is already linked to another account. Ask an admin to resolve it.", "error")
+            return redirect(url_for("index"))
+
         admin_emails = {
             item.strip().lower()
             for item in os.environ.get("ADMIN_EMAILS", "").split(",")
             if item.strip()
         }
         role = "ADMIN" if email in admin_emails else "RA"
-        cur = db().execute(
+        cur = conn.execute(
             "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
-            (info["sub"], email, info.get("name") or email, role),
+            (google_sub, email, info.get("name") or email, role),
         )
         uid = cur.lastrowid
-    db().commit()
+        audit(
+            "auth.user_created",
+            "user",
+            uid,
+            {"role": role},
+            actor_user_id=uid,
+        )
+
+    session.clear()
     session["uid"] = uid
+    session.permanent = True
+    audit("auth.login", "user", uid, {"new_user": is_new}, actor_user_id=uid)
+    conn.commit()
     return redirect(url_for("dashboard"))
 
 
