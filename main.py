@@ -1,433 +1,414 @@
-from flask import (
-    Flask,
-    render_template,
-    request,
-    redirect,
-    url_for,
-    send_file,
-    session,
-    abort,
-)
-import uuid
-from datetime import datetime, timedelta
-from io import StringIO, BytesIO
-import csv
 import os
-import pickle
-import logging
 import secrets
-from filelock import FileLock
+import sqlite3
+from datetime import datetime, timedelta
+from functools import wraps
+from pathlib import Path
+from urllib.parse import urlencode
+
+from authlib.integrations.flask_client import OAuth
+from flask import Flask, Response, abort, flash, g, redirect, render_template, request, session, url_for
+
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = os.environ.get("DATABASE_PATH", str(BASE_DIR / "ra_draft.db"))
 
 app = Flask(__name__)
-app.secret_key = 'dev-secret'
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
-logging.basicConfig(level=logging.INFO)
+oauth = OAuth(app)
+if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
+    oauth.register(
+        name="google",
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
-ROOMS_FILE = 'rooms.pkl'
-LOCK_FILE = f'{ROOMS_FILE}.lock'
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS buildings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL
+);
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  google_sub TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'RA' CHECK(role IN ('RA','HRA','ADMIN')),
+  building_id INTEGER REFERENCES buildings(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS draft_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  building_id INTEGER NOT NULL REFERENCES buildings(id),
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  shift_start TEXT NOT NULL DEFAULT '19:00',
+  shift_end TEXT NOT NULL DEFAULT '07:00',
+  capacity INTEGER NOT NULL DEFAULT 1,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS session_order (
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  position INTEGER NOT NULL,
+  PRIMARY KEY(session_id, user_id),
+  UNIQUE(session_id, position)
+);
+CREATE TABLE IF NOT EXISTS assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  duty_date TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(session_id, user_id)
+);
+"""
 
-rooms = {}
+
+def db():
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
+    return g.db
 
 
-def load_rooms():
-    """Load rooms data from disk."""
-    global rooms
-    try:
-        lock = FileLock(LOCK_FILE)
-        with lock:
-            if os.path.exists(ROOMS_FILE):
-                with open(ROOMS_FILE, 'rb') as f:
-                    rooms = pickle.load(f)
-                for r in rooms.values():
-                    if not hasattr(r, 'current_picker'):
-                        r.current_picker = None
-                    if not hasattr(r, 'weekend_overrides'):
-                        r.weekend_overrides = set()
-                    if not hasattr(r, 'weekday_overrides'):
-                        r.weekday_overrides = set()
-    except (IOError, pickle.PickleError) as exc:
-        logging.error("Failed to load rooms: %s", exc)
-        rooms = {}
+@app.teardown_appcontext
+def close_db(_exc):
+    conn = g.pop("db", None)
+    if conn:
+        conn.close()
 
 
-def save_rooms():
-    """Persist rooms data to disk."""
-    try:
-        lock = FileLock(LOCK_FILE)
-        with lock, open(ROOMS_FILE, 'wb') as f:
-            pickle.dump(rooms, f)
-    except (IOError, pickle.PickleError) as exc:
-        logging.error("Failed to save rooms: %s", exc)
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.executescript(SCHEMA)
+    conn.commit()
+    conn.close()
 
 
-load_rooms()
+init_db()
 
 
-def generate_csrf_token():
-    if '_csrf_token' not in session:
-        session['_csrf_token'] = secrets.token_hex(16)
-    return session['_csrf_token']
+def csrf_token():
+    session.setdefault("csrf", secrets.token_hex(16))
+    return session["csrf"]
 
 
-def verify_csrf():
-    token = session.get('_csrf_token')
-    form_token = request.form.get('_csrf_token')
-    if not token or token != form_token:
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+def require_csrf():
+    if request.form.get("csrf") != session.get("csrf"):
         abort(400)
 
 
-app.jinja_env.globals['csrf_token'] = generate_csrf_token
+def current_user():
+    uid = session.get("uid")
+    if not uid:
+        return None
+    return db().execute(
+        "SELECT users.*, buildings.name AS building_name FROM users LEFT JOIN buildings ON buildings.id=users.building_id WHERE users.id=?",
+        (uid,),
+    ).fetchone()
 
-class Room:
-    def __init__(self, host, start_date, end_date):
-        self.host = host
-        self.start_date = start_date
-        self.end_date = end_date
-        self.available_dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
-        self.participants = []
-        self.picks = {}
-        self.weekday_order = []
-        self.weekend_order = []
-        self.weekday_index = 0
-        self.weekend_index = 0
-        self.phase = 'weekday'
-        self.history = []
-        self.current_picker = None
-        self.weekend_overrides = set()
-        self.weekday_overrides = set()
 
-    def add_participant(self, name):
-        if name not in self.participants:
-            self.participants.append(name)
+@app.context_processor
+def inject_user():
+    return {"me": current_user()}
 
-    def remove_participant(self, name):
-        if name in self.participants:
-            self.participants.remove(name)
-        if name in self.weekday_order:
-            self.weekday_order.remove(name)
-        if name in self.weekend_order:
-            self.weekend_order.remove(name)
-        if name in self.picks:
-            date = self.picks.pop(name)
-            if sum(1 for d in self.picks.values() if d == date) < 2 and date not in self.available_dates:
-                self.available_dates.append(date)
-                self.available_dates.sort()
-        self.history = [n for n in self.history if n != name]
-        if self.current_picker == name:
-            self.current_picker = self.next_picker()
 
-    def set_order(self, weekday_list, weekend_list):
-        self.weekday_order = [n for n in weekday_list if n in self.participants]
-        self.weekend_order = [n for n in weekend_list if n in self.participants]
-        self.weekday_index = 0
-        self.weekend_index = 0
-        self.phase = 'weekday'
-        self.history = []
-        self.current_picker = None
+def login_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        if not current_user():
+            return redirect(url_for("login"))
+        return fn(*args, **kwargs)
+    return wrapped
 
-    def next_picker(self):
-        available = self.available_for_current_phase()
-        if not available:
-            if self.phase == 'weekday':
-                self.phase = 'weekend'
-                self.weekend_index = 0
-                available = self.available_for_current_phase()
-                if not available:
-                    return None
-            else:
-                return None
-        if self.phase == 'weekday':
-            name = self.weekday_order[self.weekday_index]
-            self.weekday_index = (self.weekday_index + 1) % len(self.weekday_order)
-            return name
-        name = self.weekend_order[self.weekend_index]
-        self.weekend_index = (self.weekend_index + 1) % len(self.weekend_order)
-        return name
 
-    def register_pick(self, name, date):
-        if name != self.current_picker:
-            return False
-        if sum(1 for d in self.picks.values() if d == date) >= 2:
-            return False
-        self.picks[name] = date
-        self.history.append(name)
-        if sum(1 for d in self.picks.values() if d == date) >= 2 and date in self.available_dates:
-            self.available_dates.remove(date)
-        self.current_picker = None
-        return True
+def roles(*allowed):
+    def deco(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            user = current_user()
+            if not user:
+                return redirect(url_for("login"))
+            if user["role"] not in allowed:
+                abort(403)
+            return fn(*args, **kwargs)
+        return wrapped
+    return deco
 
-    def available_for_current_phase(self):
-        if self.phase == 'weekday':
-            return [
-                d
-                for d in self.available_dates
-                if (
-                    d.weekday() not in (4, 5) or d in self.weekday_overrides
-                )
-                and d not in self.weekend_overrides
-            ]
-        return [
-            d
-            for d in self.available_dates
-            if (
-                d.weekday() in (4, 5) or d in self.weekend_overrides
-            )
-            and d not in self.weekday_overrides
-        ]
 
-    def upcoming_picker(self):
-        phase = self.phase
-        wd_idx = self.weekday_index
-        we_idx = self.weekend_index
-        if phase == 'weekday':
-            avail = [
-                d
-                for d in self.available_dates
-                if (
-                    d.weekday() not in (4, 5) or d in self.weekday_overrides
-                )
-                and d not in self.weekend_overrides
-            ]
-        else:
-            avail = [
-                d
-                for d in self.available_dates
-                if (
-                    d.weekday() in (4, 5) or d in self.weekend_overrides
-                )
-                and d not in self.weekday_overrides
-            ]
-        if not avail:
-            if phase == 'weekday':
-                phase = 'weekend'
-                we_idx = 0
-                avail = [
-                    d
-                    for d in self.available_dates
-                    if (
-                        d.weekday() in (4, 5) or d in self.weekend_overrides
-                    )
-                    and d not in self.weekday_overrides
-                ]
-                if not avail:
-                    return None
-            else:
-                return None
-        if phase == 'weekday':
-            return self.weekday_order[wd_idx] if self.weekday_order else None
-        return self.weekend_order[we_idx] if self.weekend_order else None
+def session_row(session_id):
+    return db().execute(
+        "SELECT s.*, b.name building_name, u.name creator_name FROM draft_sessions s JOIN buildings b ON b.id=s.building_id JOIN users u ON u.id=s.created_by WHERE s.id=?",
+        (session_id,),
+    ).fetchone()
 
-    def toggle_day_type(self, date):
-        if date in self.weekend_overrides:
-            self.weekend_overrides.remove(date)
-            return
-        if date in self.weekday_overrides:
-            self.weekday_overrides.remove(date)
-            return
-        if date.weekday() in (4, 5):
-            self.weekday_overrides.add(date)
-        else:
-            self.weekend_overrides.add(date)
 
-    def undo_last(self):
-        if not self.history:
-            self.current_picker = None
-            return
-        name = self.history.pop()
-        if name in self.picks:
-            date = self.picks.pop(name)
-            if sum(1 for d in self.picks.values() if d == date) < 2 and date not in self.available_dates:
-                self.available_dates.append(date)
-                self.available_dates.sort()
-            if date.weekday() in (4, 5):
-                self.phase = 'weekend'
-                self.weekend_index = self.weekend_order.index(name)
-            else:
-                self.phase = 'weekday'
-                self.weekday_index = self.weekday_order.index(name)
-        self.current_picker = name
+def can_manage(user, row):
+    return user and (user["role"] == "ADMIN" or (user["role"] == "HRA" and user["building_id"] == row["building_id"]))
 
-    def export_csv(self):
-        output = StringIO()
-        writer = csv.writer(output)
-        writer.writerow(['Participant', 'Date'])
-        for name, date in self.picks.items():
-            writer.writerow([name, date])
-        output.seek(0)
-        return output
 
-@app.route('/')
+def ordered_people(session_id):
+    return db().execute(
+        "SELECT u.id,u.name,u.email,o.position,a.duty_date FROM session_order o JOIN users u ON u.id=o.user_id LEFT JOIN assignments a ON a.session_id=o.session_id AND a.user_id=u.id WHERE o.session_id=? ORDER BY o.position",
+        (session_id,),
+    ).fetchall()
+
+
+def next_picker(session_id):
+    return db().execute(
+        "SELECT u.* FROM session_order o JOIN users u ON u.id=o.user_id LEFT JOIN assignments a ON a.session_id=o.session_id AND a.user_id=o.user_id WHERE o.session_id=? AND a.id IS NULL ORDER BY o.position LIMIT 1",
+        (session_id,),
+    ).fetchone()
+
+
+def dates_for(row):
+    start = datetime.fromisoformat(row["start_date"]).date()
+    end = datetime.fromisoformat(row["end_date"]).date()
+    out = []
+    day = start
+    while day <= end:
+        out.append(day.isoformat())
+        day += timedelta(days=1)
+    return out
+
+
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/host', methods=['GET', 'POST'])
-def host_login():
-    if request.method == 'POST':
-        verify_csrf()
-        session['host'] = request.form['name']
-        return redirect(url_for('create_room'))
-    return render_template('host_login.html')
 
-@app.route('/create', methods=['GET', 'POST'])
-def create_room():
-    host = session.get('host')
-    if not host:
-        return redirect(url_for('host_login'))
-    if request.method == 'POST':
-        verify_csrf()
-        start = datetime.fromisoformat(request.form['start']).date()
-        end = datetime.fromisoformat(request.form['end']).date()
-        code = uuid.uuid4().hex[:6]
-        rooms[code] = Room(host, start, end)
-        save_rooms()
-        return redirect(url_for('host_room', code=code))
-    return render_template('create_room.html')
+@app.route("/login")
+def login():
+    if current_user():
+        return redirect(url_for("dashboard"))
+    if not getattr(oauth, "google", None):
+        flash("Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.", "error")
+        return render_template("index.html")
+    return oauth.google.authorize_redirect(url_for("auth_callback", _external=True))
 
-@app.route('/join', methods=['GET', 'POST'])
-def join():
-    if request.method == 'POST':
-        verify_csrf()
-        code = request.form['code']
-        name = request.form['name']
-        room = rooms.get(code)
-        if room:
-            room.add_participant(name)
-            save_rooms()
-            session['participant'] = name
-            return render_template('join_success.html', code=code, name=name)
-    return render_template('join_room.html')
 
-@app.route('/host/<code>')
-def host_room(code):
-    room = rooms.get(code)
-    if not room:
-        return redirect(url_for('index'))
-    return render_template(
-        'host_room.html',
-        code=code,
-        participants=room.participants,
-        weekday_order=room.weekday_order,
-        weekend_order=room.weekend_order,
-        dates=room.available_dates,
-        weekend_overrides=room.weekend_overrides,
-        weekday_overrides=room.weekday_overrides,
+@app.route("/auth/callback")
+def auth_callback():
+    token = oauth.google.authorize_access_token()
+    info = token.get("userinfo") or oauth.google.userinfo(token=token)
+    email = info["email"].lower()
+    user = db().execute("SELECT * FROM users WHERE google_sub=? OR email=?", (info["sub"], email)).fetchone()
+    if user:
+        db().execute("UPDATE users SET google_sub=?, email=?, name=? WHERE id=?", (info["sub"], email, info.get("name") or email, user["id"]))
+        uid = user["id"]
+    else:
+        admin_emails = {x.strip().lower() for x in os.environ.get("ADMIN_EMAILS", "").split(",") if x.strip()}
+        role = "ADMIN" if email in admin_emails else "RA"
+        cur = db().execute("INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)", (info["sub"], email, info.get("name") or email, role))
+        uid = cur.lastrowid
+    db().commit()
+    session["uid"] = uid
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    require_csrf()
+    session.clear()
+    return redirect(url_for("index"))
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    user = current_user()
+    if user["role"] == "ADMIN":
+        sessions = db().execute("SELECT s.*,b.name building_name FROM draft_sessions s JOIN buildings b ON b.id=s.building_id ORDER BY s.created_at DESC").fetchall()
+    else:
+        sessions = db().execute("SELECT s.*,b.name building_name FROM draft_sessions s JOIN buildings b ON b.id=s.building_id WHERE s.building_id=? ORDER BY s.created_at DESC", (user["building_id"],)).fetchall() if user["building_id"] else []
+    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    ras = db().execute("SELECT * FROM users WHERE building_id=? AND role='RA' ORDER BY name", (user["building_id"],)).fetchall() if user["building_id"] else []
+    return render_template("dashboard.html", sessions=sessions, buildings=buildings, ras=ras)
+
+
+@app.route("/sessions", methods=["POST"])
+@roles("HRA", "ADMIN")
+def create_session():
+    require_csrf()
+    user = current_user()
+    building_id = int(request.form.get("building_id") or user["building_id"] or 0)
+    if user["role"] == "HRA" and building_id != user["building_id"]:
+        abort(403)
+    start, end = request.form["start_date"], request.form["end_date"]
+    if end < start:
+        flash("End date must be on or after start date.", "error")
+        return redirect(url_for("dashboard"))
+    cur = db().execute(
+        "INSERT INTO draft_sessions(name,building_id,start_date,end_date,shift_start,shift_end,capacity,created_by) VALUES(?,?,?,?,?,?,?,?)",
+        (request.form["name"].strip(), building_id, start, end, request.form.get("shift_start", "19:00"), request.form.get("shift_end", "07:00"), max(1, int(request.form.get("capacity", 1))), user["id"]),
     )
+    sid = cur.lastrowid
+    ids = [int(x) for x in request.form.getlist("ra_ids")]
+    for pos, uid in enumerate(ids, start=1):
+        allowed = db().execute("SELECT 1 FROM users WHERE id=? AND building_id=? AND role='RA'", (uid, building_id)).fetchone()
+        if allowed:
+            db().execute("INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,?)", (sid, uid, pos))
+    db().commit()
+    return redirect(url_for("view_session", session_id=sid))
 
-@app.route('/kick/<code>/<name>', methods=['POST'])
-def kick(code, name):
-    room = rooms.get(code)
-    if room and session.get('host') == room.host:
-        verify_csrf()
-        room.remove_participant(name)
-        save_rooms()
-    return redirect(url_for('host_room', code=code))
 
-@app.route('/set_order/<code>', methods=['POST'])
-def set_order(code):
-    room = rooms.get(code)
-    if room and session.get('host') == room.host:
-        verify_csrf()
-        weekday_order = request.form.get('weekday_order', '')
-        weekend_order = request.form.get('weekend_order', '')
-        weekday_names = [n.strip() for n in weekday_order.split(',') if n.strip()]
-        weekend_names = [n.strip() for n in weekend_order.split(',') if n.strip()]
-        room.set_order(weekday_names, weekend_names)
-        save_rooms()
-    return redirect(url_for('host_room', code=code))
+@app.route("/sessions/<int:session_id>")
+@login_required
+def view_session(session_id):
+    row = session_row(session_id)
+    if not row:
+        abort(404)
+    user = current_user()
+    if user["role"] != "ADMIN" and user["building_id"] != row["building_id"]:
+        abort(403)
+    people = ordered_people(session_id)
+    picks = db().execute("SELECT a.*,u.name FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.session_id=? ORDER BY a.duty_date,u.name", (session_id,)).fetchall()
+    counts = {r["duty_date"]: r["n"] for r in db().execute("SELECT duty_date,COUNT(*) n FROM assignments WHERE session_id=? GROUP BY duty_date", (session_id,)).fetchall()}
+    return render_template("session.html", draft=row, people=people, picks=picks, counts=counts, dates=dates_for(row), next=next_picker(session_id), can_manage=can_manage(user, row))
 
-@app.route('/start/<code>', methods=['POST'])
-def start(code):
-    room = rooms.get(code)
-    if not room or session.get('host') != room.host or (not room.weekday_order and not room.weekend_order):
-        return redirect(url_for('host_room', code=code))
-    verify_csrf()
-    name = room.next_picker()
-    room.current_picker = name
-    save_rooms()
+
+@app.route("/sessions/<int:session_id>/pick", methods=["POST"])
+@login_required
+def pick_shift(session_id):
+    require_csrf()
+    row = session_row(session_id)
+    user = current_user()
+    if not row or row["status"] != "OPEN":
+        abort(400)
+    picker = next_picker(session_id)
+    if not picker or picker["id"] != user["id"]:
+        abort(403)
+    duty_date = request.form["duty_date"]
+    if duty_date not in dates_for(row):
+        abort(400)
+    count = db().execute("SELECT COUNT(*) n FROM assignments WHERE session_id=? AND duty_date=?", (session_id, duty_date)).fetchone()["n"]
+    if count >= row["capacity"]:
+        flash("That duty date is full.", "error")
+    else:
+        db().execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (session_id, user["id"], duty_date, user["id"]))
+        db().commit()
+        flash("Duty shift selected.", "success")
+    return redirect(url_for("view_session", session_id=session_id))
+
+
+@app.route("/sessions/<int:session_id>/assign", methods=["POST"])
+@roles("HRA", "ADMIN")
+def manual_assign(session_id):
+    require_csrf()
+    row = session_row(session_id)
+    user = current_user()
+    if not row or not can_manage(user, row):
+        abort(403)
+    uid = int(request.form["user_id"])
+    duty_date = request.form.get("duty_date", "")
+    allowed = db().execute("SELECT 1 FROM session_order WHERE session_id=? AND user_id=?", (session_id, uid)).fetchone()
+    if not allowed:
+        abort(400)
+    db().execute("DELETE FROM assignments WHERE session_id=? AND user_id=?", (session_id, uid))
+    if duty_date:
+        if duty_date not in dates_for(row):
+            abort(400)
+        count = db().execute("SELECT COUNT(*) n FROM assignments WHERE session_id=? AND duty_date=?", (session_id, duty_date)).fetchone()["n"]
+        if count >= row["capacity"]:
+            flash("That date is already at capacity.", "error")
+            db().commit()
+            return redirect(url_for("view_session", session_id=session_id))
+        db().execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (session_id, uid, duty_date, user["id"]))
+    db().commit()
+    flash("Assignment updated.", "success")
+    return redirect(url_for("view_session", session_id=session_id))
+
+
+@app.route("/sessions/<int:session_id>/status", methods=["POST"])
+@roles("HRA", "ADMIN")
+def session_status(session_id):
+    require_csrf()
+    row = session_row(session_id)
+    if not row or not can_manage(current_user(), row):
+        abort(403)
+    status = request.form.get("status")
+    if status not in ("OPEN", "CLOSED"):
+        abort(400)
+    db().execute("UPDATE draft_sessions SET status=? WHERE id=?", (status, session_id))
+    db().commit()
+    return redirect(url_for("view_session", session_id=session_id))
+
+
+def ics_escape(text):
+    return str(text).replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
+
+
+@app.route("/calendar/<int:assignment_id>.ics")
+@login_required
+def calendar_ics(assignment_id):
+    a = db().execute("SELECT a.*,s.name session_name,s.shift_start,s.shift_end,b.name building_name FROM assignments a JOIN draft_sessions s ON s.id=a.session_id JOIN buildings b ON b.id=s.building_id WHERE a.id=?", (assignment_id,)).fetchone()
+    if not a or (current_user()["role"] != "ADMIN" and a["user_id"] != current_user()["id"]):
+        abort(403)
+    start = datetime.fromisoformat(f"{a['duty_date']}T{a['shift_start']}")
+    end = datetime.fromisoformat(f"{a['duty_date']}T{a['shift_end']}")
+    if end <= start:
+        end += timedelta(days=1)
+    body = "\r\n".join(["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//RA Draft//Duty Scheduler//EN","BEGIN:VEVENT",f"UID:ra-draft-{assignment_id}@local",f"DTSTART:{start.strftime('%Y%m%dT%H%M%S')}",f"DTEND:{end.strftime('%Y%m%dT%H%M%S')}",f"SUMMARY:{ics_escape(a['session_name'])} Duty",f"LOCATION:{ics_escape(a['building_name'])}","END:VEVENT","END:VCALENDAR",""])
+    return Response(body, mimetype="text/calendar", headers={"Content-Disposition": f"attachment; filename=duty-{a['duty_date']}.ics"})
+
+
+@app.route("/calendar/<int:assignment_id>/google")
+@login_required
+def calendar_google(assignment_id):
+    a = db().execute("SELECT a.*,s.name session_name,s.shift_start,s.shift_end,b.name building_name FROM assignments a JOIN draft_sessions s ON s.id=a.session_id JOIN buildings b ON b.id=s.building_id WHERE a.id=?", (assignment_id,)).fetchone()
+    if not a or (current_user()["role"] != "ADMIN" and a["user_id"] != current_user()["id"]):
+        abort(403)
+    start = datetime.fromisoformat(f"{a['duty_date']}T{a['shift_start']}")
+    end = datetime.fromisoformat(f"{a['duty_date']}T{a['shift_end']}")
+    if end <= start:
+        end += timedelta(days=1)
+    params = {"action":"TEMPLATE","text":f"{a['session_name']} Duty","dates":f"{start.strftime('%Y%m%dT%H%M%S')}/{end.strftime('%Y%m%dT%H%M%S')}","location":a["building_name"],"details":"RA duty shift"}
+    return redirect("https://calendar.google.com/calendar/render?" + urlencode(params))
+
+
+@app.route("/admin")
+@roles("ADMIN")
+def admin():
+    users = db().execute("SELECT u.*,b.name building_name FROM users u LEFT JOIN buildings b ON b.id=u.building_id ORDER BY u.name").fetchall()
+    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    return render_template("admin.html", users=users, buildings=buildings)
+
+
+@app.route("/admin/buildings", methods=["POST"])
+@roles("ADMIN")
+def add_building():
+    require_csrf()
+    name = request.form["name"].strip()
     if name:
-        return redirect(url_for('pick', code=code, name=name))
-    return redirect(url_for('host_room', code=code))
-
-@app.route('/pick/<code>/<name>', methods=['GET', 'POST'])
-def pick(code, name):
-    room = rooms.get(code)
-    if not room:
-        return redirect(url_for('index'))
-    if session.get('participant') != name or room.current_picker != name:
-        # redirect to the current picker if someone tries to skip the order
-        current = room.current_picker
-        if current:
-            return redirect(url_for('pick', code=code, name=current))
-        return redirect(url_for('host_room', code=code))
-    if request.method == 'POST':
-        verify_csrf()
-        date_str = request.form.get('date')
-        if date_str:
-            date_obj = datetime.fromisoformat(date_str).date()
-            if date_obj in room.available_dates:
-                if room.register_pick(name, date_obj):
-                    next_name = room.next_picker()
-                    room.current_picker = next_name
-                    save_rooms()
-                    if next_name:
-                        return redirect(url_for('pick', code=code, name=next_name))
-                    return redirect(url_for('host_room', code=code))
-        return redirect(url_for('pick', code=code, name=name))
-    picks_by_date = {}
-    for participant, date in room.picks.items():
-        picks_by_date.setdefault(date.isoformat(), []).append(participant)
-    allowed_dates = [d.isoformat() for d in sorted(room.available_for_current_phase())]
-    next_name = room.upcoming_picker()
-    return render_template(
-        'pick.html',
-        name=name,
-        start=room.start_date.isoformat(),
-        end=room.end_date.isoformat(),
-        picks=picks_by_date,
-        allowed=allowed_dates,
-        up_next=next_name,
-    )
-
-@app.route('/undo/<code>', methods=['POST'])
-def undo(code):
-    room = rooms.get(code)
-    if room and session.get('host') == room.host:
-        verify_csrf()
-        room.undo_last()
-        save_rooms()
-    return redirect(url_for('host_room', code=code))
-
-@app.route('/toggle_day/<code>/<date>', methods=['POST'])
-def toggle_day(code, date):
-    room = rooms.get(code)
-    if room and session.get('host') == room.host and not room.history:
-        verify_csrf()
-        room.toggle_day_type(datetime.fromisoformat(date).date())
-        save_rooms()
-    return redirect(url_for('host_room', code=code))
+        db().execute("INSERT OR IGNORE INTO buildings(name) VALUES(?)", (name,))
+        db().commit()
+    return redirect(url_for("admin"))
 
 
-@app.route('/export/<code>')
-def export(code):
-    room = rooms.get(code)
-    if not room:
-        return redirect(url_for('index'))
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
+@app.route("/admin/users/<int:user_id>", methods=["POST"])
+@roles("ADMIN")
+def edit_user(user_id):
+    require_csrf()
+    role = request.form["role"]
+    building_id = request.form.get("building_id") or None
+    if role not in ("RA", "HRA", "ADMIN"):
+        abort(400)
+    db().execute("UPDATE users SET role=?,building_id=? WHERE id=?", (role, building_id, user_id))
+    db().commit()
+    return redirect(url_for("admin"))
 
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    y = 750
-    p.setFont("Helvetica", 12)
-    p.drawString(30, y, "Participant - Date")
-    y -= 20
-    for name, date in room.picks.items():
-        p.drawString(30, y, f"{name} - {date}")
-        y -= 20
-    p.showPage()
-    p.save()
-    buffer.seek(0)
-    return send_file(buffer, mimetype='application/pdf', as_attachment=True, download_name=f'{code}_results.pdf')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")

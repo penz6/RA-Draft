@@ -1,16 +1,1 @@
-{% extends "base.html" %}
-{% block title %}RWU Scheduler{% endblock %}
-{% block head %}
-<style>
-#logo { opacity: 0; animation: fadeIn 2s forwards; }
-@keyframes fadeIn { to { opacity: 1; } }
-.center a { display: block; margin-top: 20px; }
-</style>
-{% endblock %}
-{% block content %}
-<div class="center">
-  <img id="logo" src="{{ url_for('static', filename='hawk.svg') }}" alt="RWU Logo" width="200">
-  <a class="button" href="{{ url_for('host_login') }}">Host Login</a>
-  <a class="button" href="{{ url_for('join') }}">Join Room</a>
-</div>
-{% endblock %}
+{% extends 'base.html' %}{% block content %}<section class="hero"><h1>RA Duty Draft</h1><p>Pick residence-life duty shifts in the order set by your HRA.</p>{% if me %}<a class="button" href="{{ url_for('dashboard') }}">Open portal</a>{% else %}<a class="button" href="{{ url_for('login') }}">Continue with Google</a>{% endif %}</section>{% endblock %}
