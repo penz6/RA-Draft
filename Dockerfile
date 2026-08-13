@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /data \
@@ -16,6 +16,7 @@ RUN useradd --create-home --uid 10001 appuser \
 
 COPY --chown=appuser:appuser . .
 
+VOLUME ["/data"]
 USER appuser
 EXPOSE 8000
 

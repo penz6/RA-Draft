@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-head"><div><h1>Duty Sessions</h1><p>Your building's current and past duty drafts.</p></div></div>
+{% if me.role in ['HRA','ADMIN'] %}
+<section class="card">
+  <h2>Create session</h2>
+  {% if me.role == 'HRA' and not me.building_id %}
+  <p class="muted">An admin must assign your building before you can create a session.</p>
+  {% else %}
+  <form method="post" action="{{ url_for('create_session') }}" class="grid-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Name<input name="name" required placeholder="Fall duty draft"></label>
+    {% if me.role=='ADMIN' %}<label>Building<select name="building_id" required>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></label>{% endif %}
+    <label>Start date<input type="date" name="start_date" required></label>
+    <label>End date<input type="date" name="end_date" required></label>
+    <label>Shift starts<input type="time" name="shift_start" value="19:00" required></label>
+    <label>Shift ends<input type="time" name="shift_end" value="07:00" required></label>
+    <label>RAs per date<input type="number" min="1" name="capacity" value="2" required></label>
+    <fieldset class="full">
+      <legend>Participants and draft order</legend>
+      <p class="muted">Everyone is selected by default. Uncheck anyone who should not participate, and change the order numbers if needed.</p>
+      {% for ra in ras %}
+      <div class="admin-user">
+        <label class="check"><input type="checkbox" name="ra_ids" value="{{ ra.id }}" checked><span>{{ ra.name }}{% if me.role=='ADMIN' and ra.building_name %} <span class="muted">— {{ ra.building_name }}</span>{% endif %}</span></label>
+        <label>Order<input type="number" name="order_{{ ra.id }}" min="1" value="{{ loop.index }}"></label>
+      </div>
+      {% else %}<p>No RAs are assigned to this building yet.</p>{% endfor %}
+    </fieldset>
+    <button class="button" type="submit">Create session</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+<section class="card"><h2>Sessions</h2><div class="table-wrap"><table><thead><tr><th>Name</th><th>Building</th><th>Dates</th><th>Status</th></tr></thead><tbody>{% for s in sessions %}<tr><td><a href="{{ url_for('view_session',session_id=s.id) }}">{{ s.name }}</a></td><td>{{ s.building_name }}</td><td>{{ s.start_date }} – {{ s.end_date }}</td><td><span class="pill">{{ s.status }}</span></td></tr>{% else %}<tr><td colspan="4">No sessions yet.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
