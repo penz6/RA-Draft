@@ -5,8 +5,8 @@ services:
     environment:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET in .env}
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:?Set CF_ACCESS_TEAM_DOMAIN in .env}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:?Set CF_ACCESS_AUD in .env}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       DATABASE_PATH: /data/ra_draft.db
     volumes:
@@ -23,12 +23,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.7.2
     restart: unless-stopped
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}"]
     depends_on:
       - ra-draft
     cap_drop:

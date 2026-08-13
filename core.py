@@ -5,22 +5,48 @@ import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlparse
 
-from authlib.integrations.flask_client import OAuth
-from flask import Flask, abort, g, redirect, request, session, url_for
+import jwt
+from flask import Flask, abort, g, request, session
+from jwt import PyJWKClient
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = os.environ.get("DATABASE_PATH", str(BASE_DIR / "ra_draft.db"))
 ALLOWED_EMAIL_DOMAINS = {"g.rwu.edu", "rwu.edu"}
-ALLOWED_HOSTED_DOMAINS = {"g.rwu.edu", "rwu.edu"}
+ADMIN_EMAILS = {
+    item.strip().lower()
+    for item in os.environ.get("ADMIN_EMAILS", "").split(",")
+    if item.strip()
+}
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "").strip().lower()
+CF_ACCESS_TEAM_DOMAIN = os.environ.get("CF_ACCESS_TEAM_DOMAIN", "").strip().rstrip("/")
+CF_ACCESS_AUD = os.environ.get("CF_ACCESS_AUD", "").strip()
+
 if len(SECRET_KEY) < 32:
     raise RuntimeError("SECRET_KEY must be set to at least 32 characters.")
 if not PUBLIC_HOST or "://" in PUBLIC_HOST or "/" in PUBLIC_HOST:
     raise RuntimeError("PUBLIC_HOST must be set to the public hostname only, for example duty.example.edu.")
+
+team_url = urlparse(CF_ACCESS_TEAM_DOMAIN)
+if (
+    team_url.scheme != "https"
+    or not team_url.hostname
+    or not team_url.hostname.endswith(".cloudflareaccess.com")
+    or team_url.path not in ("", "/")
+):
+    raise RuntimeError(
+        "CF_ACCESS_TEAM_DOMAIN must be an HTTPS Cloudflare Access team domain, "
+        "for example https://example.cloudflareaccess.com."
+    )
+if len(CF_ACCESS_AUD) < 16:
+    raise RuntimeError("CF_ACCESS_AUD must be set to the Cloudflare Access Application Audience (AUD) tag.")
+
+CF_ACCESS_CERTS_URL = f"{CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs"
+_access_jwks = PyJWKClient(CF_ACCESS_CERTS_URL, cache_jwk_set=True, lifespan=300, timeout=5)
 
 app = Flask(__name__)
 app.config.update(
@@ -34,19 +60,7 @@ app.config.update(
     TRUSTED_HOSTS=[PUBLIC_HOST],
     MAX_CONTENT_LENGTH=1024 * 1024,
 )
-# Production is designed for one trusted Cloudflare Tunnel/proxy hop.
-# Do not expose the Gunicorn port directly to the Internet.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-oauth = OAuth(app)
-if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
-    oauth.register(
-        name="google",
-        client_id=os.environ["GOOGLE_CLIENT_ID"],
-        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
-        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-        client_kwargs={"scope": "openid email profile"},
-    )
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS buildings (
@@ -55,7 +69,7 @@ CREATE TABLE IF NOT EXISTS buildings (
 );
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  google_sub TEXT UNIQUE NOT NULL,
+  access_sub TEXT UNIQUE NOT NULL,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'RA' CHECK(role IN ('RA','HRA','ADMIN')),
@@ -107,6 +121,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS pending_identity_claims (
+  email TEXT PRIMARY KEY,
+  access_sub TEXT UNIQUE NOT NULL,
+  seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -126,6 +145,16 @@ def close_db(_exc):
         conn.close()
 
 
+def migrate_users_identity(conn):
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "google_sub" in columns and "access_sub" not in columns:
+        conn.execute("ALTER TABLE users RENAME COLUMN google_sub TO access_sub")
+        conn.execute(
+            "UPDATE users SET access_sub='legacy-google:' || access_sub "
+            "WHERE access_sub NOT LIKE 'legacy-google:%'"
+        )
+
+
 def init_db():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10)
@@ -133,6 +162,7 @@ def init_db():
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA busy_timeout = 10000")
     conn.executescript(SCHEMA)
+    migrate_users_identity(conn)
     conn.commit()
     conn.close()
 
@@ -143,15 +173,8 @@ init_db()
 @app.after_request
 def security_headers(response):
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "base-uri 'none'; "
-        "object-src 'none'; "
-        "frame-ancestors 'none'; "
-        "form-action 'self'; "
-        "img-src 'self' data:; "
-        "style-src 'self'; "
-        "script-src 'self'; "
-        "connect-src 'self'"
+        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; "
+        "form-action 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'"
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -182,15 +205,124 @@ def require_csrf():
         abort(400)
 
 
-def current_user():
-    uid = session.get("uid")
-    if not uid:
+def allowed_email(email):
+    parts = email.lower().rsplit("@", 1)
+    return len(parts) == 2 and parts[1] in ALLOWED_EMAIL_DOMAINS
+
+
+def verify_access_token(token, signing_key=None):
+    key = signing_key if signing_key is not None else _access_jwks.get_signing_key_from_jwt(token)
+    return jwt.decode(
+        token,
+        key,
+        algorithms=["RS256"],
+        audience=CF_ACCESS_AUD,
+        issuer=CF_ACCESS_TEAM_DOMAIN,
+        options={"require": ["exp", "iat", "nbf", "iss", "aud", "sub"]},
+    )
+
+
+def access_identity_allowed(claims):
+    email = (claims.get("email") or "").strip().lower()
+    return bool(claims.get("type") == "app" and claims.get("sub") and allowed_email(email))
+
+
+def access_claims():
+    if "access_claims" in g:
+        return g.access_claims
+    token = request.headers.get("Cf-Access-Jwt-Assertion", "").strip()
+    if not token:
+        g.access_claims = None
         return None
-    return db().execute(
-        "SELECT users.*, buildings.name AS building_name FROM users "
+    try:
+        claims = verify_access_token(token)
+    except Exception as exc:
+        app.logger.warning("Cloudflare Access JWT validation failed: %s", type(exc).__name__)
+        abort(403)
+    if not access_identity_allowed(claims):
+        abort(403)
+    g.access_claims = claims
+    return claims
+
+
+def audit(action, target_type=None, target_id=None, details=None, actor_user_id=None):
+    actor = actor_user_id
+    if actor is None:
+        cached = g.get("current_user")
+        if cached:
+            actor = cached["id"]
+    serialized = json.dumps(details, sort_keys=True, separators=(",", ":")) if details is not None else None
+    db().execute(
+        "INSERT INTO audit_log(actor_user_id,action,target_type,target_id,details) VALUES(?,?,?,?,?)",
+        (actor, action, target_type, target_id, serialized),
+    )
+
+
+def current_user():
+    if "current_user" in g:
+        return g.current_user
+    claims = access_claims()
+    if not claims:
+        g.current_user = None
+        return None
+
+    access_sub = str(claims["sub"]).strip()
+    email = (claims.get("email") or "").strip().lower()
+    display_name = (claims.get("name") or email).strip()
+    conn = db()
+    user = conn.execute("SELECT * FROM users WHERE access_sub=?", (access_sub,)).fetchone()
+
+    if user:
+        email_owner = conn.execute("SELECT id FROM users WHERE email=? AND id<>?", (email, user["id"])).fetchone()
+        if email_owner:
+            abort(403)
+        if user["email"] != email or user["name"] != display_name:
+            conn.execute("UPDATE users SET email=?,name=? WHERE id=?", (email, display_name, user["id"]))
+            audit("auth.profile_update", "user", user["id"], {"email": email}, actor_user_id=user["id"])
+            conn.commit()
+    else:
+        email_owner = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        if email_owner:
+            if (
+                email in ADMIN_EMAILS
+                and email_owner["role"] == "ADMIN"
+                and str(email_owner["access_sub"]).startswith("legacy-google:")
+            ):
+                conn.execute("UPDATE users SET access_sub=?,name=? WHERE id=?", (access_sub, display_name, email_owner["id"]))
+                audit("auth.legacy_admin_rebind", "user", email_owner["id"], {"email": email}, actor_user_id=email_owner["id"])
+                conn.commit()
+                user = conn.execute("SELECT * FROM users WHERE id=?", (email_owner["id"],)).fetchone()
+            else:
+                conn.execute(
+                    "INSERT INTO pending_identity_claims(email,access_sub) VALUES(?,?) "
+                    "ON CONFLICT(email) DO UPDATE SET access_sub=excluded.access_sub,seen_at=CURRENT_TIMESTAMP",
+                    (email, access_sub),
+                )
+                conn.commit()
+                abort(403, description="Your verified Cloudflare identity does not match the stored account identity. An RA Draft admin must approve the identity change.")
+        else:
+            role = "ADMIN" if email in ADMIN_EMAILS else "RA"
+            cur = conn.execute("INSERT INTO users(access_sub,email,name,role) VALUES(?,?,?,?)", (access_sub, email, display_name, role))
+            uid = cur.lastrowid
+            audit("auth.user_created", "user", uid, {"role": role}, actor_user_id=uid)
+            conn.commit()
+            user = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+
+    g.current_user = conn.execute(
+        "SELECT users.*,buildings.name AS building_name FROM users "
         "LEFT JOIN buildings ON buildings.id=users.building_id WHERE users.id=?",
-        (uid,),
+        (user["id"],),
     ).fetchone()
+    return g.current_user
+
+
+@app.before_request
+def require_cloudflare_access():
+    if request.path == "/healthz" or request.path.startswith("/static/"):
+        return None
+    if not current_user():
+        abort(403)
+    return None
 
 
 @app.context_processor
@@ -202,7 +334,7 @@ def login_required(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
         if not current_user():
-            return redirect(url_for("login"))
+            abort(403)
         return fn(*args, **kwargs)
     return wrapped
 
@@ -212,40 +344,11 @@ def roles(*allowed):
         @wraps(fn)
         def wrapped(*args, **kwargs):
             user = current_user()
-            if not user:
-                return redirect(url_for("login"))
-            if user["role"] not in allowed:
+            if not user or user["role"] not in allowed:
                 abort(403)
             return fn(*args, **kwargs)
         return wrapped
     return deco
-
-
-def allowed_email(email):
-    parts = email.lower().rsplit("@", 1)
-    return len(parts) == 2 and parts[1] in ALLOWED_EMAIL_DOMAINS
-
-
-def google_identity_allowed(info):
-    email = (info.get("email") or "").strip().lower()
-    hosted_domain = (info.get("hd") or "").strip().lower()
-    return bool(
-        info.get("sub")
-        and info.get("email_verified")
-        and allowed_email(email)
-        and hosted_domain in ALLOWED_HOSTED_DOMAINS
-    )
-
-
-def audit(action, target_type=None, target_id=None, details=None, actor_user_id=None):
-    actor = actor_user_id if actor_user_id is not None else session.get("uid")
-    serialized = None
-    if details is not None:
-        serialized = json.dumps(details, sort_keys=True, separators=(",", ":"))
-    db().execute(
-        "INSERT INTO audit_log(actor_user_id,action,target_type,target_id,details) VALUES(?,?,?,?,?)",
-        (actor, action, target_type, target_id, serialized),
-    )
 
 
 def session_row(session_id):
@@ -257,10 +360,7 @@ def session_row(session_id):
 
 
 def can_manage(user, row):
-    return user and (
-        user["role"] == "ADMIN"
-        or (user["role"] == "HRA" and user["building_id"] == row["building_id"])
-    )
+    return user and (user["role"] == "ADMIN" or (user["role"] == "HRA" and user["building_id"] == row["building_id"]))
 
 
 def ordered_people(session_id):
