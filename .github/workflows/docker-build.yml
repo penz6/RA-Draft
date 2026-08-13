@@ -1,0 +1,39 @@
+name: Docker Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build image
+        run: docker build --tag ra-draft:ci .
+
+      - name: Start container
+        run: docker run --detach --name ra-draft-ci --publish 8000:8000 --env SECRET_KEY=ci-test ra-draft:ci
+
+      - name: Verify container health
+        shell: bash
+        run: |
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/healthz; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs ra-draft-ci
+          exit 1
+
+      - name: Clean up container
+        if: always()
+        run: docker rm --force ra-draft-ci || true

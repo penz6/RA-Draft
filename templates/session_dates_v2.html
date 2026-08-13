@@ -1,0 +1,12 @@
+<section class="card">
+<h2>Available duty dates</h2>
+<p class="muted">Up to {{ draft.capacity }} RAs may be assigned to each date.</p>
+{% if next and me.id == next.id and draft.status == 'OPEN' %}
+<form method="post" action="{{ url_for('choose_shift', session_id=draft.id) }}">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<label>Duty date<select name="duty_date" required>{% for d in dates %}{% if counts.get(d,0) < draft.capacity %}<option value="{{ d }}">{{ d }} ({{ counts.get(d,0) }}/{{ draft.capacity }})</option>{% endif %}{% endfor %}</select></label>
+<button class="button">Select duty date</button>
+</form>
+{% endif %}
+<div class="date-grid">{% for d in dates %}<div class="date-card"><strong>{{ d }}</strong><span>{{ counts.get(d,0) }}/{{ draft.capacity }} filled</span></div>{% endfor %}</div>
+</section>

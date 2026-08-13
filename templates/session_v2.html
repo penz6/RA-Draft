@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-head"><div><h1>{{ draft.name }}</h1><p>{{ draft.building_name }} · {{ draft.start_date }} – {{ draft.end_date }}</p></div><span class="pill">{{ draft.status }}</span></div>
+<div class="cols">
+{% include 'session_order_v2.html' %}
+{% include 'session_dates_v2.html' %}
+</div>
+{% include 'session_assignments_v2.html' %}
+{% endblock %}
