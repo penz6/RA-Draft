@@ -32,6 +32,5 @@ def view_session(session_id):
         dates=dates_for(row),
         next=next_picker(session_id),
         can_manage=can_manage(user, row),
-        calendar_google_link=url_for("calendar_google", assignment_id=mine["id"]) if mine else None,
         calendar_ics_link=url_for("calendar_ics", assignment_id=mine["id"]) if mine else None,
     )
