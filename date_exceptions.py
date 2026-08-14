@@ -62,12 +62,21 @@ def _initialize_table():
 _initialize_table()
 
 
+def _session_id(row):
+    try:
+        return row["id"]
+    except (IndexError, KeyError, TypeError):
+        return None
+
+
 def natural_date_kind(duty_date):
     parsed = date.fromisoformat(str(duty_date))
     return DATE_KIND_WEEKEND if parsed.weekday() >= 5 else DATE_KIND_WEEKDAY
 
 
 def date_kind_overrides(session_id):
+    if session_id is None:
+        return {}
     return {
         row["duty_date"]: row["date_kind"]
         for row in db().execute(
@@ -79,16 +88,19 @@ def date_kind_overrides(session_id):
 
 
 def effective_date_kind(row, duty_date):
+    session_id = _session_id(row)
+    if session_id is None:
+        return natural_date_kind(duty_date)
     override = db().execute(
         "SELECT date_kind FROM session_date_overrides "
         "WHERE session_id=? AND duty_date=?",
-        (row["id"], duty_date),
+        (session_id, duty_date),
     ).fetchone()
     return override["date_kind"] if override else natural_date_kind(duty_date)
 
 
 def date_kinds_for(row):
-    overrides = date_kind_overrides(row["id"])
+    overrides = date_kind_overrides(_session_id(row))
     return {
         duty_date: overrides.get(duty_date, natural_date_kind(duty_date))
         for duty_date in calendar_dates(row)
@@ -123,7 +135,8 @@ def dates_for(row):
 
 
 def capacities_for(row):
-    overrides = core.capacity_overrides(row["id"])
+    session_id = _session_id(row)
+    overrides = core.capacity_overrides(session_id) if session_id is not None else {}
     kinds = date_kinds_for(row)
     return {
         duty_date: (
@@ -138,10 +151,13 @@ def capacities_for(row):
 def effective_capacity(row, duty_date):
     if effective_date_kind(row, duty_date) == DATE_KIND_NO_DUTY:
         return 0
+    session_id = _session_id(row)
+    if session_id is None:
+        return row["capacity"]
     override = db().execute(
         "SELECT capacity FROM session_date_capacities "
         "WHERE session_id=? AND duty_date=?",
-        (row["id"], duty_date),
+        (session_id, duty_date),
     ).fetchone()
     return override["capacity"] if override else row["capacity"]
 
@@ -151,7 +167,10 @@ def total_slots(row):
 
 
 def session_complete(row):
-    counts = assignment_counts(row["id"])
+    session_id = _session_id(row)
+    if session_id is None:
+        return False
+    counts = assignment_counts(session_id)
     capacities = capacities_for(row)
     return all(
         counts.get(duty_date, 0) >= capacity
@@ -160,10 +179,13 @@ def session_complete(row):
 
 
 def selectable_dates(row, user_id):
-    counts = assignment_counts(row["id"])
+    session_id = _session_id(row)
+    if session_id is None:
+        return []
+    counts = assignment_counts(session_id)
     capacities = capacities_for(row)
     kinds = date_kinds_for(row)
-    assigned_dates = user_assignment_dates(row["id"], user_id)
+    assigned_dates = user_assignment_dates(session_id, user_id)
 
     globally_open = [
         duty_date
@@ -198,7 +220,10 @@ def selectable_dates(row, user_id):
 
 
 def selection_phase_label(row):
-    counts = assignment_counts(row["id"])
+    session_id = _session_id(row)
+    if session_id is None:
+        return ""
+    counts = assignment_counts(session_id)
     capacities = capacities_for(row)
     kinds = date_kinds_for(row)
     open_dates = [
