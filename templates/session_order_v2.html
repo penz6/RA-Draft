@@ -1,16 +1,35 @@
 <section class="card">
-<h2>Draft order</h2>
-<ol>
-{% for p in people %}
-<li><strong>{{ p.name }}</strong>{% if p.duty_date %} — {{ p.duty_date }}{% elif p.deferred %} — <span class="muted">deferred</span>{% endif %}
-{% if can_manage and not p.duty_date %}
-<form class="inline" method="post" action="{{ url_for('defer_turn',session_id=draft.id,user_id=p.id) }}">
-<input type="hidden" name="csrf" value="{{ csrf_token() }}">
-<button class="button small secondary" type="submit">{{ 'Restore turn' if p.deferred else 'Defer turn' }}</button>
-</form>
-{% endif %}
-</li>
-{% endfor %}
-</ol>
-{% if next %}<p><strong>Current picker:</strong> {{ next.name }}</p>{% else %}<p>No RA is currently waiting to pick.</p>{% endif %}
+  <div class="section-head"><div><h2>Draft order</h2><p>Deferred RAs remain in the session and can be restored later.</p></div></div>
+  <ol class="draft-list">
+    {% for p in people %}
+    <li class="draft-person{% if next and next.id == p.id %} is-current{% endif %}">
+      <span class="order-number">{{ loop.index }}</span>
+      <div class="draft-person-copy">
+        <strong>{{ p.name }}</strong>
+        {% if p.duty_date %}
+        <span class="status-text success">Assigned {{ p.duty_date|date_label }}</span>
+        {% elif p.deferred %}
+        <span class="status-text">Turn deferred</span>
+        {% elif next and next.id == p.id %}
+        <span class="status-text current">Picking now</span>
+        {% else %}
+        <span class="status-text">Waiting</span>
+        {% endif %}
+      </div>
+      {% if can_manage and not p.duty_date %}
+      <form method="post" action="{{ url_for('toggle_participant_pause', session_id=draft.id, user_id=p.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="button small secondary" type="submit">{{ 'Restore' if p.deferred else 'Defer' }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% if next %}
+  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }}</strong></div>
+  {% elif assigned_count == participant_count %}
+  <div class="notice success">Every participating RA has an assignment.</div>
+  {% else %}
+  <div class="notice">No RA is currently waiting to pick. Deferred RAs can be restored or manually assigned.</div>
+  {% endif %}
 </section>

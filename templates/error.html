@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}{{ status }} - {{ title }} | RA Duty Draft{% endblock %}
+{% block content %}
+<section class="error-card card">
+  <span class="error-code">{{ status }}</span>
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  <a class="button" href="{{ url_for('dashboard') if me else url_for('index') }}">Return to the portal</a>
+</section>
+{% endblock %}

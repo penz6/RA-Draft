@@ -8,6 +8,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET in .env}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      PROXY_HOPS: ${PROXY_HOPS:-1}
       DATABASE_PATH: /data/ra_draft.db
     volumes:
       - ra-draft-data:/data
@@ -18,29 +19,12 @@ services:
     security_opt:
       - no-new-privileges:true
     networks:
-      - private
-
-  cloudflared:
-    image: cloudflare/cloudflared:2026.7.2
-    restart: unless-stopped
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
-    depends_on:
-      - ra-draft
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - private
+      - pangolin
 
 volumes:
   ra-draft-data:
 
 networks:
-  private:
-    driver: bridge
+  pangolin:
+    external: true
+    name: ${PANGOLIN_NETWORK:-pangolin}
