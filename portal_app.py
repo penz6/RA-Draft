@@ -218,10 +218,10 @@ def dashboard():
             "JOIN buildings b ON b.id=s.building_id "
             "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC"
         ).fetchall()
-        ras = db().execute(
+        participants = db().execute(
             "SELECT u.*,b.name building_name FROM users u "
-            "JOIN buildings b ON b.id=u.building_id WHERE u.role='RA' "
-            "ORDER BY b.name,u.name"
+            "JOIN buildings b ON b.id=u.building_id "
+            "ORDER BY b.name,CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name"
         ).fetchall()
     else:
         sessions = (
@@ -234,20 +234,23 @@ def dashboard():
             if user["building_id"]
             else []
         )
-        ras = (
+        participants = (
             db().execute(
-                "SELECT * FROM users WHERE building_id=? AND role='RA' ORDER BY name",
+                "SELECT u.*,b.name building_name FROM users u "
+                "JOIN buildings b ON b.id=u.building_id WHERE u.building_id=? "
+                "ORDER BY CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name",
                 (user["building_id"],),
             ).fetchall()
             if user["role"] == "HRA" and user["building_id"]
             else []
         )
+
     buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
     return render_template(
         "dashboard_v2.html",
         sessions=sessions,
         buildings=buildings,
-        ras=ras,
+        participants=participants,
         auto_open_help=bool(session.pop("show_role_help", False)),
     )
 
