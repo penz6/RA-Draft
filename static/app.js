@@ -1,6 +1,12 @@
 (() => {
   "use strict";
 
+  let liveEditing = false;
+  let liveDragging = false;
+  const markLiveEditing = () => {
+    liveEditing = true;
+  };
+
   const helpDialog = document.querySelector("[data-role-help]");
   if (helpDialog) {
     const openHelp = () => {
@@ -55,6 +61,7 @@
       const index = visibleRows.indexOf(row);
       const target = visibleRows[index + direction];
       if (!target) return;
+      markLiveEditing();
       if (direction < 0) participantList.insertBefore(row, target);
       else participantList.insertBefore(target, row);
       updateOrders();
@@ -81,6 +88,8 @@
 
     rows.forEach((row) => {
       row.addEventListener("dragstart", (event) => {
+        markLiveEditing();
+        liveDragging = true;
         draggedRow = row;
         row.classList.add("is-dragging");
         event.dataTransfer.effectAllowed = "move";
@@ -89,6 +98,7 @@
       row.addEventListener("dragend", () => {
         row.classList.remove("is-dragging");
         draggedRow = null;
+        liveDragging = false;
         updateOrders();
       });
       row.addEventListener("dragover", (event) => {
@@ -100,16 +110,21 @@
       });
       row.querySelector("[data-move-up]")?.addEventListener("click", () => moveRow(row, -1));
       row.querySelector("[data-move-down]")?.addEventListener("click", () => moveRow(row, 1));
+      row.querySelector("[data-participant-check]")?.addEventListener("change", markLiveEditing);
     });
 
     if (buildingPicker) {
-      buildingPicker.addEventListener("change", () => syncBuilding(true));
+      buildingPicker.addEventListener("change", () => {
+        markLiveEditing();
+        syncBuilding(true);
+      });
       syncBuilding(true);
     } else {
       syncBuilding(false);
     }
 
     sessionForm.querySelector("[data-participant-select-all]")?.addEventListener("click", () => {
+      markLiveEditing();
       activeRows().forEach((row) => {
         const checkbox = row.querySelector("[data-participant-check]");
         if (checkbox) checkbox.checked = true;
@@ -118,6 +133,7 @@
     });
 
     sessionForm.querySelector("[data-participant-clear]")?.addEventListener("click", () => {
+      markLiveEditing();
       activeRows().forEach((row) => {
         const checkbox = row.querySelector("[data-participant-check]");
         if (checkbox) checkbox.checked = false;
@@ -212,6 +228,72 @@
       });
     });
     managerDialog?.querySelector("form")?.addEventListener("submit", stopManagerMode);
+  }
+
+  document.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("form") && target.getAttribute("type") !== "hidden") {
+      markLiveEditing();
+    }
+  });
+  document.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest("form") && target.getAttribute("type") !== "hidden") {
+      markLiveEditing();
+    }
+  });
+
+  const liveRegion = document.querySelector("[data-live-refresh]");
+  if (liveRegion) {
+    const liveUrl = liveRegion.dataset.liveStateUrl;
+    let liveVersion = liveRegion.dataset.liveVersion || "";
+    let pollInFlight = false;
+
+    const liveRefreshBlocked = () => Boolean(
+      document.hidden
+      || liveEditing
+      || liveDragging
+      || document.querySelector("dialog[open]")
+      || document.querySelector(".is-manager-selecting")
+    );
+
+    const pollLiveState = async () => {
+      if (!liveUrl || pollInFlight || document.hidden) return;
+      pollInFlight = true;
+      try {
+        const response = await window.fetch(liveUrl, {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        if (response.status === 401 || response.status === 403) {
+          window.location.reload();
+          return;
+        }
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!payload || typeof payload.version !== "string") return;
+        if (!liveVersion) {
+          liveVersion = payload.version;
+          return;
+        }
+        if (payload.version !== liveVersion && !liveRefreshBlocked()) {
+          window.location.reload();
+        }
+      } catch (_error) {
+        // Temporary network failures should not interrupt a pick in progress.
+      } finally {
+        pollInFlight = false;
+      }
+    };
+
+    window.setTimeout(pollLiveState, 350);
+    window.setInterval(pollLiveState, 2500);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) pollLiveState();
+    });
+    window.addEventListener("pageshow", pollLiveState);
   }
 
   document.querySelectorAll("[data-confirm]").forEach((button) => {
