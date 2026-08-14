@@ -49,12 +49,15 @@
                   <span class="calendar-assignees">
                     {% if no_duty %}
                     <span class="calendar-no-duty">No one needed</span>
-                    {% else %}
-                      {% for a in assigned %}
+                    {% elif assigned %}
+                      {% for a in assigned[:2] %}
                       <span class="calendar-assignee">{{ a.name }}</span>
-                      {% else %}
-                      <span class="calendar-empty">No one assigned</span>
                       {% endfor %}
+                      {% if assigned|length > 2 %}
+                      <span class="calendar-more">+{{ assigned|length - 2 }} more</span>
+                      {% endif %}
+                    {% else %}
+                    <span class="calendar-empty">No one assigned</span>
                     {% endif %}
                   </span>
                   <span class="calendar-capacity">
