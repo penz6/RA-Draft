@@ -36,6 +36,7 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
             conn = db()
             for table in (
                 "audit_log",
+                "session_date_overrides",
                 "session_date_capacities",
                 "session_deferrals",
                 "assignments",
@@ -371,8 +372,8 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(body.count("BEGIN:VEVENT"), 2)
-        self.assertIn("SUMMARY:Maple: Alex and Blair", body)
-        self.assertIn("SUMMARY:Maple: Alex", body)
+        self.assertIn("SUMMARY:Maple* Alex & Blair", body)
+        self.assertIn("SUMMARY:Maple* Alex", body)
         self.assertIn("DTSTART;VALUE=DATE:20260901", body)
         self.assertNotIn("Reference hours", body)
 
@@ -397,9 +398,14 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
         css = (root / "static" / "calendar.css").read_text(encoding="utf-8")
         javascript = (root / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("@media(max-width:650px)", css)
-        self.assertIn("grid-template-columns:1fr", css)
+        self.assertIn(
+            "grid-template-columns:repeat(7,minmax(72px,1fr))",
+            css,
+        )
+        self.assertIn("grid-template-columns:32px minmax(0,1fr)", css)
         self.assertIn("data-move-up", javascript)
         self.assertIn("data-move-down", javascript)
+        self.assertIn("pollLiveState", javascript)
 
     def test_legacy_assignment_constraint_migrates_without_losing_data(self):
         conn = configure_connection(sqlite3.connect(":memory:"))
