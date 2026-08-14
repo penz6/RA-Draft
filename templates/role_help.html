@@ -3,35 +3,42 @@
     <div class="help-dialog-head">
       <div>
         <span class="role-badge">{{ me.role }}</span>
-        <h2 id="role-help-title">How to use RA Duty Picking</h2>
+        <h2 id="role-help-title">How RA Duty Picking works</h2>
       </div>
       <button class="help-close" type="button" aria-label="Close instructions" data-help-close>&times;</button>
     </div>
 
     {% if me.role == 'RA' %}
-    <ol class="help-steps">
-      <li><strong>Choose your building.</strong> On your first sign-in, select the building you are assigned to. An admin can correct it later.</li>
-      <li><strong>Open the duty session.</strong> Your building's active sessions appear on the Sessions page.</li>
-      <li><strong>Wait for your turn.</strong> The draft order shows who is currently picking and who is waiting.</li>
-      <li><strong>Pick one date.</strong> When your turn opens, choose any date that still has space and confirm it.</li>
-      <li><strong>Save it to your calendar.</strong> Download the all-day iCalendar file from the assignments section.</li>
-    </ol>
+    <h3>RA permissions</h3>
+    <ul class="help-permissions">
+      <li>Choose a building once on first sign-in; an Admin can correct it later.</li>
+      <li>See duty sessions for that building.</li>
+      <li>See the participant order, assignments, and remaining capacity.</li>
+      <li>Pick one available date when you are the current participant.</li>
+      <li>Download your own all-day iCalendar event.</li>
+    </ul>
+    <p class="help-limit">RAs cannot create sessions, change the order, assign other people, or alter capacity.</p>
     {% elif me.role == 'HRA' %}
-    <ol class="help-steps">
-      <li><strong>Create and open a session.</strong> Set the date range, capacity, participants, and draft order for your assigned building.</li>
-      <li><strong>The first turn starts immediately.</strong> As soon as the session is created, the first selected RA can pick.</li>
-      <li><strong>Manage the order.</strong> Defer an RA, restore them later, or manually assign a date.</li>
-      <li><strong>Correct mistakes.</strong> Change or remove any participant's assignment while respecting date capacity.</li>
-      <li><strong>Close the session.</strong> Closing stops normal RA picks while preserving the assignments.</li>
-    </ol>
+    <h3>HRA permissions</h3>
+    <ul class="help-permissions">
+      <li>Everything an RA can do, including picking when included in a session.</li>
+      <li>Create and immediately open sessions for the assigned building.</li>
+      <li>Include RAs, HRAs, and building-assigned Admins as participants.</li>
+      <li>Set participant order and choose weekday-first, chronological, or weekend-first date ordering.</li>
+      <li>Set the default capacity and override capacity for individual dates.</li>
+      <li>Defer or restore turns, manually assign or correct dates, and close or reopen sessions.</li>
+    </ul>
+    <p class="help-limit">HRAs cannot manage another building or change user roles.</p>
     {% else %}
-    <ol class="help-steps">
-      <li><strong>Create buildings.</strong> Buildings must exist before RAs can select one or HRAs can create sessions.</li>
-      <li><strong>Assign roles.</strong> New users start as RAs unless their email is listed as a bootstrap admin.</li>
-      <li><strong>Correct buildings and roles.</strong> Admin changes override an RA's one-time building selection.</li>
-      <li><strong>Manage any session.</strong> Admins can create, defer, assign, correct, close, or reopen sessions across buildings.</li>
-      <li><strong>Review the audit log.</strong> Role, building, session, deferral, and assignment changes are recorded.</li>
-    </ol>
+    <h3>Admin permissions</h3>
+    <ul class="help-permissions">
+      <li>Everything an HRA can do, across every building.</li>
+      <li>Pick normally when included in a session.</li>
+      <li>Create buildings and assign user roles and buildings.</li>
+      <li>Create, manage, close, or reopen any session.</li>
+      <li>Correct all assignments, date ordering, and default or per-date capacities.</li>
+      <li>Review the audit log for administrative and scheduling changes.</li>
+    </ul>
     {% endif %}
 
     <div class="help-dialog-actions">
