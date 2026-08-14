@@ -144,6 +144,14 @@ CREATE TABLE IF NOT EXISTS session_deferrals (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(session_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS session_date_capacities (
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  duty_date TEXT NOT NULL,
+  capacity INTEGER NOT NULL CHECK(capacity BETWEEN 1 AND 50),
+  updated_by INTEGER NOT NULL REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(session_id, duty_date)
+);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor_user_id INTEGER REFERENCES users(id),
@@ -495,3 +503,31 @@ def dates_for(row):
         days.sort(key=lambda item: (item.weekday() < 5, item))
 
     return [item.isoformat() for item in days]
+
+
+def capacity_overrides(session_id):
+    return {
+        row["duty_date"]: row["capacity"]
+        for row in db().execute(
+            "SELECT duty_date,capacity FROM session_date_capacities "
+            "WHERE session_id=? ORDER BY duty_date",
+            (session_id,),
+        ).fetchall()
+    }
+
+
+def effective_capacity(row, duty_date):
+    override = db().execute(
+        "SELECT capacity FROM session_date_capacities "
+        "WHERE session_id=? AND duty_date=?",
+        (row["id"], duty_date),
+    ).fetchone()
+    return override["capacity"] if override else row["capacity"]
+
+
+def capacities_for(row):
+    overrides = capacity_overrides(row["id"])
+    return {
+        duty_date: overrides.get(duty_date, row["capacity"])
+        for duty_date in dates_for(row)
+    }
