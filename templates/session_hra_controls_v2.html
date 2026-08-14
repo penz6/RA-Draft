@@ -1,16 +1,32 @@
-<h3>HRA manual assignment</h3>
-<p class="muted">Assign or correct any participating RA. A manual assignment also clears a deferred turn.</p>
-{% for p in people %}
-<form class="inline edit-row" method="post" action="{{ url_for('manual_assign', session_id=draft.id) }}">
-<input type="hidden" name="csrf" value="{{ csrf_token() }}">
-<input type="hidden" name="user_id" value="{{ p.id }}">
-<strong>{{ p.name }}{% if p.deferred %} <span class="muted">(deferred)</span>{% endif %}</strong>
-<select name="duty_date"><option value="">Unassigned</option>{% for d in dates %}<option value="{{ d }}" {% if p.duty_date == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select>
-<button class="button small">Save</button>
-</form>
-{% endfor %}
-<form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
-<input type="hidden" name="csrf" value="{{ csrf_token() }}">
-<input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">
-<button class="button secondary">{{ 'Close' if draft.status == 'OPEN' else 'Reopen' }} session</button>
-</form>
+<div class="manager-content">
+  <div class="section-head compact">
+    <div><h3>Manual assignments</h3><p>Correct or assign any participant. A manual assignment also restores a deferred RA.</p></div>
+  </div>
+  <div class="manual-assignment-list">
+    {% for p in people %}
+    <form class="edit-row" method="post" action="{{ url_for('manual_assign', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="user_id" value="{{ p.id }}">
+      <div><strong>{{ p.name }}</strong><small>{{ 'Deferred' if p.deferred else ('Assigned' if p.duty_date else 'Unassigned') }}</small></div>
+      <label class="sr-only" for="assignment-{{ p.id }}">Duty date for {{ p.name }}</label>
+      <select id="assignment-{{ p.id }}" name="duty_date">
+        <option value="">Unassigned</option>
+        {% for d in dates %}
+        {% set full = counts.get(d, 0) >= draft.capacity and p.duty_date != d %}
+        <option value="{{ d }}" {% if p.duty_date == d %}selected{% endif %} {% if full %}disabled{% endif %}>{{ d|date_label }}{% if full %} - full{% endif %}</option>
+        {% endfor %}
+      </select>
+      <button class="button small" type="submit">Save</button>
+    </form>
+    {% endfor %}
+  </div>
+
+  <div class="danger-zone">
+    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Stops normal RA selections while preserving assignments.' if draft.status == 'OPEN' else 'Allows the next eligible RA to select again.' }}</p></div>
+    <form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">
+      <button class="button {{ 'danger' if draft.status == 'OPEN' else 'secondary' }}" type="submit" data-confirm="{{ 'Close this duty session?' if draft.status == 'OPEN' else 'Reopen this duty session?' }}">{{ 'Close session' if draft.status == 'OPEN' else 'Reopen session' }}</button>
+    </form>
+  </div>
+</div>

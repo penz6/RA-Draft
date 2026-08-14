@@ -1,16 +1,23 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from flask import Response, abort
-from core import app, current_user, db, login_required
+
+from core import PUBLIC_HOST, app, current_user, db, login_required
 
 
 def ics_escape(text):
-    return str(text).replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
+    normalized = str(text).replace("\r\n", "\n").replace("\r", "\n")
+    return (
+        normalized.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+    )
 
 
 def assignment_row(assignment_id):
     return db().execute(
-        "SELECT a.*,s.name session_name,b.name building_name "
+        "SELECT a.*,s.name session_name,s.shift_start,s.shift_end,b.name building_name "
         "FROM assignments a JOIN draft_sessions s ON s.id=a.session_id "
         "JOIN buildings b ON b.id=s.building_id WHERE a.id=?",
         (assignment_id,),
@@ -27,24 +34,37 @@ def calendar_ics(assignment_id):
 
     duty_date = date.fromisoformat(row["duty_date"])
     end_date = duty_date + timedelta(days=1)
-    body = "\r\n".join([
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "CALSCALE:GREGORIAN",
-        "PRODID:-//RA Draft//Duty Scheduler//EN",
-        "BEGIN:VEVENT",
-        f"UID:ra-draft-{assignment_id}@local",
-        f"DTSTART;VALUE=DATE:{duty_date.strftime('%Y%m%d')}",
-        f"DTEND;VALUE=DATE:{end_date.strftime('%Y%m%d')}",
-        f"SUMMARY:{ics_escape(row['session_name'])} Duty",
-        f"LOCATION:{ics_escape(row['building_name'])}",
-        "DESCRIPTION:RA duty shift",
-        "END:VEVENT",
-        "END:VCALENDAR",
-        "",
-    ])
+    generated_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    description = (
+        f"RA duty shift. Reference hours: {row['shift_start']} to {row['shift_end']}. "
+        "The calendar event is intentionally all day."
+    )
+    body = "\r\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            "PRODID:-//RA Draft//Duty Scheduler//EN",
+            "BEGIN:VEVENT",
+            f"UID:ra-draft-{assignment_id}@{PUBLIC_HOST}",
+            f"DTSTAMP:{generated_at}",
+            f"DTSTART;VALUE=DATE:{duty_date.strftime('%Y%m%d')}",
+            f"DTEND;VALUE=DATE:{end_date.strftime('%Y%m%d')}",
+            f"SUMMARY:{ics_escape(row['session_name'])} Duty",
+            f"LOCATION:{ics_escape(row['building_name'])}",
+            f"DESCRIPTION:{ics_escape(description)}",
+            "STATUS:CONFIRMED",
+            "TRANSP:TRANSPARENT",
+            "END:VEVENT",
+            "END:VCALENDAR",
+            "",
+        ]
+    )
     return Response(
         body,
-        mimetype="text/calendar",
-        headers={"Content-Disposition": f"attachment; filename=duty-{row['duty_date']}.ics"},
+        content_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=duty-{row['duty_date']}.ics"
+        },
     )

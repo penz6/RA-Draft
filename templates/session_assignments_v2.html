@@ -1,6 +1,36 @@
 <section class="card">
-<h2>Assignments</h2>
-<ul>{% for a in picks %}<li><strong>{{ a.name }}</strong> — {{ a.duty_date }}</li>{% else %}<li>No assignments yet.</li>{% endfor %}</ul>
-{% if calendar_ics_link %}<p><strong>Your assignment:</strong> <a href="{{ calendar_ics_link }}">Download all-day iCal (.ics)</a></p>{% endif %}
-{% if can_manage %}{% include 'session_hra_controls_v2.html' %}{% endif %}
+  <div class="section-head">
+    <div><h2>Assignments</h2><p>Calendar downloads are all-day iCalendar files.</p></div>
+    <span class="count-badge">{{ assigned_count }}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="assignment-table">
+      <thead><tr><th>RA</th><th>Duty date</th><th>Calendar</th></tr></thead>
+      <tbody>
+        {% for a in picks %}
+        <tr>
+          <td data-label="RA"><strong>{{ a.name }}</strong></td>
+          <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
+          <td data-label="Calendar">
+            {% if a.user_id == me.id or me.role == 'ADMIN' %}
+            <a class="text-link" href="{{ url_for('calendar_ics', assignment_id=a.id) }}">Download iCal</a>
+            {% else %}
+            <span class="muted">Available to assigned RA</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3">No assignments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if can_manage %}
+  <details class="manager-panel">
+    <summary>HRA and admin controls</summary>
+    {% include 'session_hra_controls_v2.html' %}
+  </details>
+  {% endif %}
 </section>

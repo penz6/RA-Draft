@@ -1,26 +1,47 @@
 import json
 import os
+import re
 import secrets
 import sqlite3
-from datetime import datetime, timedelta
+import unicodedata
+from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
 from authlib.integrations.flask_client import OAuth
-from flask import Flask, abort, g, redirect, request, session, url_for
+from flask import Flask, abort, g, redirect, render_template, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = os.environ.get("DATABASE_PATH", str(BASE_DIR / "ra_draft.db"))
 ALLOWED_EMAIL_DOMAINS = {"g.rwu.edu", "rwu.edu"}
 ALLOWED_HOSTED_DOMAINS = {"g.rwu.edu", "rwu.edu"}
+ADMIN_EMAILS = {
+    item.strip().lower()
+    for item in os.environ.get("ADMIN_EMAILS", "").split(",")
+    if item.strip()
+}
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "").strip().lower()
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+
 if len(SECRET_KEY) < 32:
     raise RuntimeError("SECRET_KEY must be set to at least 32 characters.")
-if not PUBLIC_HOST or "://" in PUBLIC_HOST or "/" in PUBLIC_HOST:
-    raise RuntimeError("PUBLIC_HOST must be set to the public hostname only, for example duty.example.edu.")
+if not re.fullmatch(r"(?=.{1,253}\Z)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?", PUBLIC_HOST):
+    raise RuntimeError(
+        "PUBLIC_HOST must be the public hostname only, for example duty.example.edu."
+    )
+if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+    raise RuntimeError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must both be set.")
+
+try:
+    PROXY_HOPS = int(os.environ.get("PROXY_HOPS", "1"))
+except ValueError as exc:
+    raise RuntimeError("PROXY_HOPS must be 0, 1, or 2.") from exc
+if PROXY_HOPS not in (0, 1, 2):
+    raise RuntimeError("PROXY_HOPS must be 0, 1, or 2.")
 
 app = Flask(__name__)
 app.config.update(
@@ -32,21 +53,29 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
     SESSION_REFRESH_EACH_REQUEST=False,
     TRUSTED_HOSTS=[PUBLIC_HOST],
+    PREFERRED_URL_SCHEME="https",
     MAX_CONTENT_LENGTH=1024 * 1024,
+    MAX_FORM_MEMORY_SIZE=256 * 1024,
+    MAX_FORM_PARTS=500,
 )
-# Production is designed for one trusted Cloudflare Tunnel/proxy hop.
-# Do not expose the Gunicorn port directly to the Internet.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Trust only the explicitly configured Pangolin/reverse-proxy hops. The app
+# port must not be exposed directly to the Internet when this is non-zero.
+if PROXY_HOPS:
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_proto=PROXY_HOPS,
+        x_host=PROXY_HOPS,
+    )
 
 oauth = OAuth(app)
-if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
-    oauth.register(
-        name="google",
-        client_id=os.environ["GOOGLE_CLIENT_ID"],
-        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
-        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-        client_kwargs={"scope": "openid email profile"},
-    )
+oauth.register(
+    name="google",
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS buildings (
@@ -110,12 +139,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
 """
 
 
+def configure_connection(conn):
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
+    conn.execute("PRAGMA trusted_schema = OFF")
+    return conn
+
+
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH, timeout=10)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-        g.db.execute("PRAGMA busy_timeout = 10000")
+        g.db = configure_connection(sqlite3.connect(DB_PATH, timeout=10))
     return g.db
 
 
@@ -128,10 +162,9 @@ def close_db(_exc):
 
 def init_db():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn = configure_connection(sqlite3.connect(DB_PATH, timeout=10))
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 10000")
+    conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(SCHEMA)
     conn.commit()
     conn.close()
@@ -163,8 +196,75 @@ def security_headers(response):
     if request.is_secure:
         response.headers["Strict-Transport-Security"] = "max-age=31536000"
     if not request.path.startswith("/static/") and request.path != "/healthz":
-        response.headers["Cache-Control"] = "no-store"
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
+
+
+@app.errorhandler(400)
+def bad_request(_error):
+    return render_template(
+        "error.html",
+        status=400,
+        title="Invalid request",
+        message="The request could not be processed. Return to the portal and try again.",
+    ), 400
+
+
+@app.errorhandler(403)
+def forbidden(_error):
+    return render_template(
+        "error.html",
+        status=403,
+        title="Access denied",
+        message="You do not have permission to perform this action.",
+    ), 403
+
+
+@app.errorhandler(404)
+def not_found(_error):
+    return render_template(
+        "error.html",
+        status=404,
+        title="Page not found",
+        message="The requested page or duty session does not exist.",
+    ), 404
+
+
+@app.errorhandler(413)
+def request_too_large(_error):
+    return render_template(
+        "error.html",
+        status=413,
+        title="Request too large",
+        message="The submitted form was larger than the application allows.",
+    ), 413
+
+
+def clean_single_line(value, *, min_length=1, max_length=120):
+    text = unicodedata.normalize("NFKC", str(value or "")).strip()
+    if not min_length <= len(text) <= max_length:
+        raise ValueError("Text length is outside the allowed range.")
+    if any(unicodedata.category(char).startswith("C") for char in text):
+        raise ValueError("Control characters are not allowed.")
+    return text
+
+
+def safe_display_name(value, fallback):
+    raw = unicodedata.normalize("NFKC", str(value or ""))
+    without_controls = "".join(
+        " " if unicodedata.category(char).startswith("C") else char for char in raw
+    )
+    cleaned = " ".join(without_controls.split())[:120]
+    return cleaned or fallback
+
+
+def normalize_time(value):
+    text = str(value or "")
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", text):
+        raise ValueError("Time must use 24-hour HH:MM format.")
+    return text
 
 
 def csrf_token():
@@ -173,6 +273,24 @@ def csrf_token():
 
 
 app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.template_filter("date_label")
+def date_label(value):
+    try:
+        parsed = date.fromisoformat(str(value))
+    except ValueError:
+        return value
+    return f"{parsed.strftime('%a, %b')} {parsed.day}, {parsed.year}"
+
+
+@app.template_filter("time_label")
+def time_label(value):
+    try:
+        parsed = datetime.strptime(str(value), "%H:%M")
+    except ValueError:
+        return value
+    return parsed.strftime("%I:%M %p").lstrip("0")
 
 
 def require_csrf():
@@ -184,13 +302,18 @@ def require_csrf():
 
 def current_user():
     uid = session.get("uid")
-    if not uid:
+    if not isinstance(uid, int):
+        if uid is not None:
+            session.clear()
         return None
-    return db().execute(
+    user = db().execute(
         "SELECT users.*, buildings.name AS building_name FROM users "
         "LEFT JOIN buildings ON buildings.id=users.building_id WHERE users.id=?",
         (uid,),
     ).fetchone()
+    if user is None:
+        session.clear()
+    return user
 
 
 @app.context_processor
@@ -204,6 +327,7 @@ def login_required(fn):
         if not current_user():
             return redirect(url_for("login"))
         return fn(*args, **kwargs)
+
     return wrapped
 
 
@@ -217,7 +341,9 @@ def roles(*allowed):
             if user["role"] not in allowed:
                 abort(403)
             return fn(*args, **kwargs)
+
         return wrapped
+
     return deco
 
 
@@ -229,9 +355,12 @@ def allowed_email(email):
 def google_identity_allowed(info):
     email = (info.get("email") or "").strip().lower()
     hosted_domain = (info.get("hd") or "").strip().lower()
+    subject = str(info.get("sub") or "").strip()
     return bool(
-        info.get("sub")
-        and info.get("email_verified")
+        subject
+        and len(subject) <= 255
+        and subject.isascii()
+        and info.get("email_verified") is True
         and allowed_email(email)
         and hosted_domain in ALLOWED_HOSTED_DOMAINS
     )
@@ -287,8 +416,8 @@ def next_picker(session_id):
 
 
 def dates_for(row):
-    start = datetime.fromisoformat(row["start_date"]).date()
-    end = datetime.fromisoformat(row["end_date"]).date()
+    start = date.fromisoformat(row["start_date"])
+    end = date.fromisoformat(row["end_date"])
     out = []
     day = start
     while day <= end:

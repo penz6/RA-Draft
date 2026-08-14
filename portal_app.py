@@ -1,8 +1,11 @@
-import os
+import secrets
 
+from authlib.integrations.base_client.errors import OAuthError
 from flask import flash, redirect, render_template, session, url_for
+from requests.exceptions import RequestException
 
 from core import (
+    ADMIN_EMAILS,
     app,
     audit,
     current_user,
@@ -11,6 +14,7 @@ from core import (
     login_required,
     oauth,
     require_csrf,
+    safe_display_name,
 )
 
 
@@ -29,29 +33,46 @@ def healthz():
 def login():
     if current_user():
         return redirect(url_for("dashboard"))
-    if not getattr(oauth, "google", None):
-        flash("Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.", "error")
-        return render_template("index.html")
     return oauth.google.authorize_redirect(
         url_for("auth_callback", _external=True),
         hd="*",
+        nonce=secrets.token_urlsafe(32),
     )
+
+
+def oauth_failure(message):
+    session.clear()
+    flash(message, "error")
+    return redirect(url_for("index"))
 
 
 @app.route("/auth/callback")
 def auth_callback():
-    token = oauth.google.authorize_access_token()
-    info = token.get("userinfo") or oauth.google.userinfo(token=token)
+    try:
+        token = oauth.google.authorize_access_token()
+        info = token.get("userinfo")
+        if not isinstance(info, dict):
+            raise ValueError("Google did not return a valid OpenID profile.")
+    except (OAuthError, RequestException, TypeError, ValueError, KeyError):
+        return oauth_failure(
+            "Google sign-in could not be completed. Return to the portal and try again."
+        )
+
     email = (info.get("email") or "").strip().lower()
-    google_sub = (info.get("sub") or "").strip()
+    google_sub = str(info.get("sub") or "").strip()
+    display_name = safe_display_name(info.get("name"), email)
 
     if not google_identity_allowed(info):
-        session.clear()
-        flash("Sign in with a verified RWU Google Workspace account.", "error")
-        return redirect(url_for("index"))
+        return oauth_failure(
+            "Sign in with a verified @g.rwu.edu or @rwu.edu Google Workspace account."
+        )
 
     conn = db()
-    user = conn.execute("SELECT * FROM users WHERE google_sub=?", (google_sub,)).fetchone()
+    conn.execute("BEGIN IMMEDIATE")
+    user = conn.execute(
+        "SELECT * FROM users WHERE google_sub=?",
+        (google_sub,),
+    ).fetchone()
     is_new = user is None
 
     if user:
@@ -60,30 +81,30 @@ def auth_callback():
             (email, user["id"]),
         ).fetchone()
         if email_owner:
-            session.clear()
-            flash("This RWU email is already linked to another account. Ask an admin to resolve it.", "error")
-            return redirect(url_for("index"))
+            conn.rollback()
+            return oauth_failure(
+                "This RWU email is already linked to another account. Ask an admin to resolve it."
+            )
         conn.execute(
             "UPDATE users SET email=?, name=? WHERE id=?",
-            (email, info.get("name") or email, user["id"]),
+            (email, display_name, user["id"]),
         )
         uid = user["id"]
     else:
-        email_owner = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+        email_owner = conn.execute(
+            "SELECT id FROM users WHERE email=?",
+            (email,),
+        ).fetchone()
         if email_owner:
-            session.clear()
-            flash("This RWU email is already linked to another account. Ask an admin to resolve it.", "error")
-            return redirect(url_for("index"))
+            conn.rollback()
+            return oauth_failure(
+                "This RWU email is already linked to another account. Ask an admin to resolve it."
+            )
 
-        admin_emails = {
-            item.strip().lower()
-            for item in os.environ.get("ADMIN_EMAILS", "").split(",")
-            if item.strip()
-        }
-        role = "ADMIN" if email in admin_emails else "RA"
+        role = "ADMIN" if email in ADMIN_EMAILS else "RA"
         cur = conn.execute(
             "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
-            (google_sub, email, info.get("name") or email, role),
+            (google_sub, email, display_name, role),
         )
         uid = cur.lastrowid
         audit(
@@ -97,7 +118,13 @@ def auth_callback():
     session.clear()
     session["uid"] = uid
     session.permanent = True
-    audit("auth.login", "user", uid, {"new_user": is_new}, actor_user_id=uid)
+    audit(
+        "auth.login",
+        "user",
+        uid,
+        {"new_user": is_new},
+        actor_user_id=uid,
+    )
     conn.commit()
     return redirect(url_for("dashboard"))
 
@@ -105,6 +132,10 @@ def auth_callback():
 @app.route("/logout", methods=["POST"])
 def logout():
     require_csrf()
+    uid = session.get("uid")
+    if isinstance(uid, int):
+        audit("auth.logout", "user", uid, actor_user_id=uid)
+        db().commit()
     session.clear()
     return redirect(url_for("index"))
 
@@ -116,7 +147,8 @@ def dashboard():
     if user["role"] == "ADMIN":
         sessions = db().execute(
             "SELECT s.*,b.name building_name FROM draft_sessions s "
-            "JOIN buildings b ON b.id=s.building_id ORDER BY s.created_at DESC"
+            "JOIN buildings b ON b.id=s.building_id "
+            "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC"
         ).fetchall()
         ras = db().execute(
             "SELECT u.*,b.name building_name FROM users u "
@@ -128,7 +160,7 @@ def dashboard():
             db().execute(
                 "SELECT s.*,b.name building_name FROM draft_sessions s "
                 "JOIN buildings b ON b.id=s.building_id WHERE s.building_id=? "
-                "ORDER BY s.created_at DESC",
+                "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC",
                 (user["building_id"],),
             ).fetchall()
             if user["building_id"]
@@ -143,14 +175,18 @@ def dashboard():
             else []
         )
     buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
-    return render_template("dashboard_v2.html", sessions=sessions, buildings=buildings, ras=ras)
+    return render_template(
+        "dashboard_v2.html",
+        sessions=sessions,
+        buildings=buildings,
+        ras=ras,
+    )
 
 
 import admin_routes  # noqa: E402,F401
 import calendar_routes  # noqa: E402,F401
 import hra_assign  # noqa: E402,F401
 import hra_pause  # noqa: E402,F401
-import route_alias  # noqa: E402,F401
 import session_choose  # noqa: E402,F401
 import session_create  # noqa: E402,F401
 import session_status  # noqa: E402,F401

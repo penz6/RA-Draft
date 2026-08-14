@@ -1,4 +1,4 @@
-name: Docker Build
+name: Docker Build and Security Tests
 
 on:
   pull_request:
@@ -15,21 +15,53 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Build image
         run: docker build --tag ra-draft:ci .
+
+      - name: Run security and UI tests
+        run: >-
+          docker run --rm
+          --env SECRET_KEY=test-secret-key-0123456789abcdef0123456789abcdef
+          --env PUBLIC_HOST=ci.local
+          --env GOOGLE_CLIENT_ID=ci-client.apps.googleusercontent.com
+          --env GOOGLE_CLIENT_SECRET=ci-client-secret
+          --env ADMIN_EMAILS=admin@rwu.edu
+          --env PROXY_HOPS=0
+          --env DATABASE_PATH=/tmp/ra-draft-tests.db
+          ra-draft:ci python -m unittest discover -s tests -v
+
       - name: Start container
-        run: docker run --detach --name ra-draft-ci --publish 8000:8000 --env SECRET_KEY=ci-only-secret-key-0123456789abcdef0123456789abcdef --env PUBLIC_HOST=127.0.0.1 ra-draft:ci
-      - name: Verify container health
+        run: >-
+          docker run --detach --name ra-draft-ci --publish 8000:8000
+          --env SECRET_KEY=ci-only-secret-key-0123456789abcdef0123456789abcdef
+          --env PUBLIC_HOST=127.0.0.1
+          --env GOOGLE_CLIENT_ID=ci-client.apps.googleusercontent.com
+          --env GOOGLE_CLIENT_SECRET=ci-client-secret
+          --env PROXY_HOPS=0
+          ra-draft:ci
+
+      - name: Verify container security and health
         shell: bash
         run: |
           for attempt in {1..20}; do
             if curl --fail --silent --show-error http://127.0.0.1:8000/healthz; then
-              exit 0
+              break
+            fi
+            if [ "$attempt" = 20 ]; then
+              docker logs ra-draft-ci
+              exit 1
             fi
             sleep 1
           done
-          docker logs ra-draft-ci
-          exit 1
+
+          curl --fail --silent --show-error http://127.0.0.1:8000/ -o /tmp/index.html
+          grep -q 'Continue with Google' /tmp/index.html
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Host: attacker.example' http://127.0.0.1:8000/healthz)" = "400"
+          curl --fail --silent --show-error -D /tmp/headers http://127.0.0.1:8000/healthz -o /dev/null
+          grep -qi '^X-Content-Type-Options: nosniff' /tmp/headers
+          grep -qi '^Content-Security-Policy:' /tmp/headers
+
       - name: Clean up container
         if: always()
         run: docker rm --force ra-draft-ci || true
