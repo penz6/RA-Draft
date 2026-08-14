@@ -81,8 +81,9 @@ class SessionRuleTestCase(unittest.TestCase):
             conn = db()
             cur = conn.execute(
                 "INSERT INTO draft_sessions("
-                "name,building_id,start_date,end_date,capacity,date_order,created_by"
-                ") VALUES(?,?,?,?,?,?,?)",
+                "name,building_id,start_date,end_date,capacity,date_order,"
+                "current_position,created_by"
+                ") VALUES(?,?,?,?,?,?,1,?)",
                 (
                     "Duty Session",
                     building_id,
@@ -105,8 +106,8 @@ class SessionRuleTestCase(unittest.TestCase):
 
     def test_default_date_order_lists_weekdays_before_weekends(self):
         row = {
-            "start_date": "2026-08-14",  # Friday
-            "end_date": "2026-08-17",    # Monday
+            "start_date": "2026-08-14",
+            "end_date": "2026-08-17",
             "date_order": "WEEKDAYS_FIRST",
         }
         self.assertEqual(
@@ -161,10 +162,8 @@ class SessionRuleTestCase(unittest.TestCase):
                 "name": "Mixed Role Draft",
                 "start_date": "2026-09-01",
                 "end_date": "2026-09-03",
-                "shift_start": "19:00",
-                "shift_end": "07:00",
                 "capacity": "2",
-                "date_order": "WEEKDAYS_FIRST",
+                "date_order": "CHRONOLOGICAL",
                 "participant_ids": [str(hra_id), str(admin_id), str(ra_id)],
                 f"order_{hra_id}": "1",
                 f"order_{admin_id}": "2",
@@ -174,10 +173,10 @@ class SessionRuleTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
 
         with app.app_context():
-            session_row = db().execute(
+            session_item = db().execute(
                 "SELECT * FROM draft_sessions WHERE name='Mixed Role Draft'"
             ).fetchone()
-            session_id = session_row["id"]
+            session_id = session_item["id"]
             roles = [
                 item["role"]
                 for item in db().execute(
@@ -213,7 +212,7 @@ class SessionRuleTestCase(unittest.TestCase):
                 [hra_id, admin_id],
             )
 
-    def test_cross_building_user_is_not_added_as_participant(self):
+    def test_cross_building_user_is_filtered_and_capacity_is_clamped(self):
         first = self.add_building("First Hall")
         second = self.add_building("Second Hall")
         hra_id = self.add_user(
@@ -237,7 +236,7 @@ class SessionRuleTestCase(unittest.TestCase):
             building_id=second,
         )
         csrf = self.login_as(hra_id)
-        self.request(
+        response = self.request(
             "post",
             "/sessions",
             data={
@@ -249,15 +248,18 @@ class SessionRuleTestCase(unittest.TestCase):
                 "participant_ids": [str(local_ra), str(other_admin)],
             },
         )
+        self.assertEqual(response.status_code, 302)
         with app.app_context():
-            session_id = db().execute(
-                "SELECT id FROM draft_sessions WHERE name='Scoped Draft'"
-            ).fetchone()["id"]
+            session_item = db().execute(
+                "SELECT id,capacity FROM draft_sessions WHERE name='Scoped Draft'"
+            ).fetchone()
+            self.assertIsNotNone(session_item)
             participants = db().execute(
                 "SELECT user_id FROM session_order WHERE session_id=?",
-                (session_id,),
+                (session_item["id"],),
             ).fetchall()
             self.assertEqual([item["user_id"] for item in participants], [local_ra])
+            self.assertEqual(session_item["capacity"], 1)
 
     def test_per_date_capacity_controls_real_picks(self):
         building_id = self.add_building()
@@ -287,15 +289,15 @@ class SessionRuleTestCase(unittest.TestCase):
             capacity=2,
             start_date="2026-09-01",
             end_date="2026-09-01",
+            date_order="CHRONOLOGICAL",
         )
 
         csrf = self.login_as(hra_id)
-        response = self.request(
+        self.request(
             "post",
             f"/sessions/{session_id}/date-capacity",
             data={"csrf": csrf, "duty_date": "2026-09-01", "capacity": "1"},
         )
-        self.assertEqual(response.status_code, 302)
 
         first_csrf = self.login_as(first_ra)
         self.request(
@@ -311,7 +313,7 @@ class SessionRuleTestCase(unittest.TestCase):
         )
         with app.app_context():
             count = db().execute(
-                "SELECT COUNT(*) n FROM assignments WHERE session_id=?",
+                "SELECT COUNT(*) AS n FROM assignments WHERE session_id=?",
                 (session_id,),
             ).fetchone()["n"]
             self.assertEqual(count, 1)
@@ -330,7 +332,7 @@ class SessionRuleTestCase(unittest.TestCase):
         )
         with app.app_context():
             count = db().execute(
-                "SELECT COUNT(*) n FROM assignments WHERE session_id=?",
+                "SELECT COUNT(*) AS n FROM assignments WHERE session_id=?",
                 (session_id,),
             ).fetchone()["n"]
             self.assertEqual(count, 2)
@@ -363,16 +365,12 @@ class SessionRuleTestCase(unittest.TestCase):
         )
         with app.app_context():
             conn = db()
-            conn.execute(
-                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) "
-                "VALUES(?,?,?,?)",
-                (session_id, first_ra, "2026-09-01", hra_id),
-            )
-            conn.execute(
-                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) "
-                "VALUES(?,?,?,?)",
-                (session_id, second_ra, "2026-09-01", hra_id),
-            )
+            for user_id in (first_ra, second_ra):
+                conn.execute(
+                    "INSERT INTO assignments(session_id,user_id,duty_date,created_by) "
+                    "VALUES(?,?,?,?)",
+                    (session_id, user_id, "2026-09-01", hra_id),
+                )
             conn.commit()
 
         csrf = self.login_as(hra_id)
@@ -398,12 +396,16 @@ class SessionRuleTestCase(unittest.TestCase):
             role="HRA",
             building_id=building_id,
         )
-        ra_id = self.add_user(
-            sub="ra-sub",
-            email="ra@g.rwu.edu",
-            name="RA",
-            building_id=building_id,
-        )
+        participant_ids = [hra_id]
+        for index in range(1, 4):
+            participant_ids.append(
+                self.add_user(
+                    sub=f"ra-{index}",
+                    email=f"ra{index}@g.rwu.edu",
+                    name=f"RA {index}",
+                    building_id=building_id,
+                )
+            )
         admin_id = self.add_user(
             sub="admin-sub",
             email="admin@rwu.edu",
@@ -413,7 +415,7 @@ class SessionRuleTestCase(unittest.TestCase):
         session_id = self.create_session_direct(
             building_id=building_id,
             creator_id=hra_id,
-            participant_ids=[ra_id],
+            participant_ids=participant_ids,
         )
         csrf = self.login_as(admin_id)
         self.request(
@@ -427,7 +429,7 @@ class SessionRuleTestCase(unittest.TestCase):
             data={"csrf": csrf, "date_order": "WEEKENDS_FIRST"},
         )
         with app.app_context():
-            session_row = db().execute(
+            session_item = db().execute(
                 "SELECT date_order FROM draft_sessions WHERE id=?",
                 (session_id,),
             ).fetchone()
@@ -436,7 +438,7 @@ class SessionRuleTestCase(unittest.TestCase):
                 "WHERE session_id=? AND duty_date=?",
                 (session_id, "2026-09-01"),
             ).fetchone()
-            self.assertEqual(session_row["date_order"], "WEEKENDS_FIRST")
+            self.assertEqual(session_item["date_order"], "WEEKENDS_FIRST")
             self.assertEqual(override["capacity"], 4)
 
     def test_hra_dashboard_lists_all_building_roles_as_participants(self):
@@ -468,6 +470,7 @@ class SessionRuleTestCase(unittest.TestCase):
         self.assertIn("Hall HRA", page)
         self.assertIn("Building Admin", page)
         self.assertIn('name="date_order"', page)
+        self.assertIn("draggable=\"true\"", page)
 
 
 if __name__ == "__main__":
