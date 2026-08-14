@@ -25,14 +25,20 @@ def ics_escape(text):
 
 
 def format_names(names):
-    cleaned = [str(name) for name in names if str(name).strip()]
+    cleaned = [str(name).strip() for name in names if str(name).strip()]
     if not cleaned:
         return "Unassigned"
     if len(cleaned) == 1:
         return cleaned[0]
     if len(cleaned) == 2:
-        return f"{cleaned[0]} and {cleaned[1]}"
-    return f"{', '.join(cleaned[:-1])}, and {cleaned[-1]}"
+        return f"{cleaned[0]} & {cleaned[1]}"
+    return f"{', '.join(cleaned[:-1])} & {cleaned[-1]}"
+
+
+def calendar_summary(building_name, names):
+    building = str(building_name).strip()
+    prefix = building if building.endswith("*") else f"{building}*"
+    return f"{prefix} {format_names(names)}"
 
 
 def assignment_row(assignment_id):
@@ -95,7 +101,7 @@ def calendar_ics(assignment_id):
     events = event_lines(
         uid=f"ra-draft-{assignment_id}@{PUBLIC_HOST}",
         duty_date=row["duty_date"],
-        summary=f"{row['building_name']}: {row['user_name']}",
+        summary=calendar_summary(row["building_name"], [row["user_name"]]),
         location=row["building_name"],
         generated_at=generated_at,
         description=row["session_name"],
@@ -129,7 +135,10 @@ def session_calendar_ics(session_id):
             event_lines(
                 uid=f"ra-draft-session-{session_id}-{duty_date}@{PUBLIC_HOST}",
                 duty_date=duty_date,
-                summary=f"{row['building_name']}: {format_names(names_by_date[duty_date])}",
+                summary=calendar_summary(
+                    row["building_name"],
+                    names_by_date[duty_date],
+                ),
                 location=row["building_name"],
                 generated_at=generated_at,
             )
