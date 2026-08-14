@@ -217,7 +217,7 @@ class LiveMobileFixTestCase(unittest.TestCase):
         self.assertIn(".drag-handle{display:none}", mobile)
         self.assertNotIn(".calendar-grid{display:grid;grid-template-columns:1fr", mobile)
         self.assertIn("window.setInterval(pollLiveState, 2500)", javascript)
-        self.assertIn("data-live-state-url", javascript)
+        self.assertIn("dataset.liveStateUrl", javascript)
 
 
 if __name__ == "__main__":
