@@ -51,10 +51,10 @@ def create_session():
         return redirect(url_for("dashboard"))
 
     try:
-        capacity = int(request.form.get("capacity", 2))
+        requested_capacity = int(request.form.get("capacity", 2))
     except (TypeError, ValueError):
-        capacity = 2
-    if capacity < 1 or capacity > 50:
+        requested_capacity = 2
+    if requested_capacity < 1 or requested_capacity > 50:
         flash("People per date must be between 1 and 50.", "error")
         return redirect(url_for("dashboard"))
 
@@ -95,14 +95,13 @@ def create_session():
     if not selected:
         flash("Select at least one participant for the duty session.", "error")
         return redirect(url_for("dashboard"))
-    if capacity > len(selected):
-        flash(
-            "People per date cannot exceed the number of selected participants.",
-            "error",
-        )
-        return redirect(url_for("dashboard"))
 
+    # A date cannot hold more distinct people than the session contains. This
+    # also keeps the default of two usable when invalid/cross-building IDs are
+    # filtered out of the submitted participant list.
+    capacity = min(requested_capacity, len(selected))
     selected.sort(key=lambda item: (item[0], item[1]))
+
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
     cur = conn.execute(
@@ -136,6 +135,7 @@ def create_session():
             "building_id": building_id,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
+            "requested_capacity": requested_capacity,
             "capacity": capacity,
             "date_order": date_order,
             "participant_ids": participant_ids,
