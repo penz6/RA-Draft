@@ -23,6 +23,20 @@ ADMIN_EMAILS = {
     if item.strip()
 }
 
+DATE_ORDER_WEEKDAYS_FIRST = "WEEKDAYS_FIRST"
+DATE_ORDER_CHRONOLOGICAL = "CHRONOLOGICAL"
+DATE_ORDER_WEEKENDS_FIRST = "WEEKENDS_FIRST"
+DATE_ORDER_CHOICES = {
+    DATE_ORDER_WEEKDAYS_FIRST,
+    DATE_ORDER_CHRONOLOGICAL,
+    DATE_ORDER_WEEKENDS_FIRST,
+}
+DATE_ORDER_LABELS = {
+    DATE_ORDER_WEEKDAYS_FIRST: "Weekdays first, then weekends",
+    DATE_ORDER_CHRONOLOGICAL: "Chronological",
+    DATE_ORDER_WEEKENDS_FIRST: "Weekends first, then weekdays",
+}
+
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "").strip().lower()
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
@@ -101,6 +115,8 @@ CREATE TABLE IF NOT EXISTS draft_sessions (
   shift_start TEXT NOT NULL DEFAULT '19:00',
   shift_end TEXT NOT NULL DEFAULT '07:00',
   capacity INTEGER NOT NULL DEFAULT 2,
+  date_order TEXT NOT NULL DEFAULT 'WEEKDAYS_FIRST'
+    CHECK(date_order IN ('WEEKDAYS_FIRST','CHRONOLOGICAL','WEEKENDS_FIRST')),
   created_by INTEGER NOT NULL REFERENCES users(id),
   status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -161,12 +177,25 @@ def close_db(_exc):
         conn.close()
 
 
+def migrate_schema(conn):
+    session_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(draft_sessions)")
+    }
+    if "date_order" not in session_columns:
+        conn.execute(
+            "ALTER TABLE draft_sessions ADD COLUMN date_order TEXT NOT NULL "
+            "DEFAULT 'WEEKDAYS_FIRST' "
+            "CHECK(date_order IN ('WEEKDAYS_FIRST','CHRONOLOGICAL','WEEKENDS_FIRST'))"
+        )
+
+
 def init_db():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = configure_connection(sqlite3.connect(DB_PATH, timeout=10))
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(SCHEMA)
+    migrate_schema(conn)
     conn.commit()
     conn.close()
 
@@ -277,6 +306,13 @@ def normalize_time(value):
     return text
 
 
+def normalize_date_order(value):
+    text = str(value or DATE_ORDER_WEEKDAYS_FIRST).strip().upper()
+    if text not in DATE_ORDER_CHOICES:
+        raise ValueError("Unsupported date order.")
+    return text
+
+
 def csrf_token():
     session.setdefault("csrf", secrets.token_hex(32))
     return session["csrf"]
@@ -301,6 +337,20 @@ def time_label(value):
     except ValueError:
         return value
     return parsed.strftime("%I:%M %p").lstrip("0")
+
+
+@app.template_filter("day_type")
+def day_type(value):
+    try:
+        parsed = date.fromisoformat(str(value))
+    except ValueError:
+        return "Date"
+    return "Weekend" if parsed.weekday() >= 5 else "Weekday"
+
+
+@app.template_filter("date_order_label")
+def date_order_label(value):
+    return DATE_ORDER_LABELS.get(str(value), DATE_ORDER_LABELS[DATE_ORDER_WEEKDAYS_FIRST])
 
 
 def require_csrf():
@@ -404,7 +454,7 @@ def can_manage(user, row):
 
 def ordered_people(session_id):
     return db().execute(
-        "SELECT u.id,u.name,u.email,o.position,a.duty_date,"
+        "SELECT u.id,u.name,u.email,u.role,o.position,a.duty_date,"
         "CASE WHEN d.user_id IS NULL THEN 0 ELSE 1 END AS deferred "
         "FROM session_order o JOIN users u ON u.id=o.user_id "
         "LEFT JOIN assignments a ON a.session_id=o.session_id AND a.user_id=u.id "
@@ -428,9 +478,20 @@ def next_picker(session_id):
 def dates_for(row):
     start = date.fromisoformat(row["start_date"])
     end = date.fromisoformat(row["end_date"])
-    out = []
+    days = []
     day = start
     while day <= end:
-        out.append(day.isoformat())
+        days.append(day)
         day += timedelta(days=1)
-    return out
+
+    try:
+        order = normalize_date_order(row["date_order"])
+    except (IndexError, KeyError, TypeError, ValueError):
+        order = DATE_ORDER_WEEKDAYS_FIRST
+
+    if order == DATE_ORDER_WEEKDAYS_FIRST:
+        days.sort(key=lambda item: (item.weekday() >= 5, item))
+    elif order == DATE_ORDER_WEEKENDS_FIRST:
+        days.sort(key=lambda item: (item.weekday() < 5, item))
+
+    return [item.isoformat() for item in days]
