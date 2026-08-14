@@ -2,7 +2,7 @@
 {% block title %}{{ draft.name }} | RA Duty Picking{% endblock %}
 {% block content %}
 <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to duty sessions</a>
-<div class="page-head session-heading">
+<div class="page-head session-heading" data-live-refresh data-live-state-url="{{ url_for('live_state', session_id=draft.id) }}" data-live-version="{{ live_version }}">
   <div>
     <div class="eyebrow">{{ draft.building_name }}</div>
     <h1>{{ draft.name }}</h1>
