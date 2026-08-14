@@ -13,7 +13,9 @@
 
 <section class="summary-grid" aria-label="Session summary">
   <div class="summary-item"><span>Date range</span><strong>{{ draft.start_date|date_label }} - {{ draft.end_date|date_label }}</strong></div>
+  <div class="summary-item"><span>Date order</span><strong>{{ draft.date_order|date_order_label }}</strong></div>
   <div class="summary-item"><span>Reference hours</span><strong>{{ draft.shift_start|time_label }} - {{ draft.shift_end|time_label }}</strong></div>
+  <div class="summary-item"><span>Default capacity</span><strong>{{ draft.capacity }} per date</strong></div>
   <div class="summary-item"><span>Assignments</span><strong>{{ assigned_count }} of {{ participant_count }}</strong></div>
   <div class="summary-item"><span>Open dates</span><strong>{{ available_date_count }}</strong></div>
 </section>
