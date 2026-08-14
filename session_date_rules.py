@@ -13,6 +13,13 @@ from core import (
     roles,
     session_row,
 )
+from date_exceptions import (
+    DATE_KIND_AUTO,
+    DATE_KIND_FORM_CHOICES,
+    DATE_KIND_LABELS,
+    DATE_KIND_NO_DUTY,
+    effective_date_kind,
+)
 
 
 @app.route("/sessions/<int:session_id>/date-order", methods=["POST"])
@@ -47,6 +54,100 @@ def update_date_order(session_id):
     return redirect(url_for("view_session", session_id=session_id))
 
 
+@app.route("/sessions/<int:session_id>/date-kind", methods=["POST"])
+@roles("HRA", "ADMIN")
+def update_date_kind(session_id):
+    require_csrf()
+    row = session_row(session_id)
+    user = current_user()
+    if not row or not can_manage(user, row):
+        abort(403)
+
+    duty_date = request.form.get("duty_date", "")
+    if duty_date not in calendar_dates(row):
+        abort(400)
+
+    date_kind = request.form.get("date_kind", "").strip().upper()
+    if date_kind not in DATE_KIND_FORM_CHOICES:
+        abort(400)
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    existing = conn.execute(
+        "SELECT date_kind FROM session_date_overrides "
+        "WHERE session_id=? AND duty_date=?",
+        (session_id, duty_date),
+    ).fetchone()
+    old_kind = existing["date_kind"] if existing else DATE_KIND_AUTO
+
+    if date_kind == old_kind:
+        conn.rollback()
+        return redirect(url_for("view_session", session_id=session_id))
+
+    assigned = conn.execute(
+        "SELECT COUNT(*) AS n FROM assignments WHERE session_id=? AND duty_date=?",
+        (session_id, duty_date),
+    ).fetchone()["n"]
+    if date_kind == DATE_KIND_NO_DUTY and assigned:
+        conn.rollback()
+        flash(
+            f"Remove the {assigned} existing assignment"
+            f"{'s' if assigned != 1 else ''} before marking this date as no one needed.",
+            "error",
+        )
+        return redirect(url_for("view_session", session_id=session_id))
+
+    removed_capacity = None
+    if date_kind == DATE_KIND_AUTO:
+        conn.execute(
+            "DELETE FROM session_date_overrides WHERE session_id=? AND duty_date=?",
+            (session_id, duty_date),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO session_date_overrides(session_id,duty_date,date_kind,updated_by) "
+            "VALUES(?,?,?,?) "
+            "ON CONFLICT(session_id,duty_date) DO UPDATE SET "
+            "date_kind=excluded.date_kind,updated_by=excluded.updated_by,"
+            "updated_at=CURRENT_TIMESTAMP",
+            (session_id, duty_date, date_kind, user["id"]),
+        )
+        if date_kind == DATE_KIND_NO_DUTY:
+            capacity_row = conn.execute(
+                "SELECT capacity FROM session_date_capacities "
+                "WHERE session_id=? AND duty_date=?",
+                (session_id, duty_date),
+            ).fetchone()
+            removed_capacity = capacity_row["capacity"] if capacity_row else None
+            conn.execute(
+                "DELETE FROM session_date_capacities "
+                "WHERE session_id=? AND duty_date=?",
+                (session_id, duty_date),
+            )
+
+    audit(
+        "draft.session.date_kind",
+        "session",
+        session_id,
+        {
+            "duty_date": duty_date,
+            "old_date_kind": old_kind,
+            "new_date_kind": date_kind,
+            "removed_capacity_override": removed_capacity,
+        },
+    )
+    conn.commit()
+
+    if date_kind == DATE_KIND_AUTO:
+        message = "That date now follows its normal calendar weekday/weekend type."
+    elif date_kind == DATE_KIND_NO_DUTY:
+        message = "That date is now marked as no one needed."
+    else:
+        message = f"That date is now treated as a {DATE_KIND_LABELS[date_kind].lower()}."
+    flash(message, "success")
+    return redirect(url_for("view_session", session_id=session_id))
+
+
 @app.route("/sessions/<int:session_id>/date-capacity", methods=["POST"])
 @roles("HRA", "ADMIN")
 def update_date_capacity(session_id):
@@ -59,6 +160,12 @@ def update_date_capacity(session_id):
     duty_date = request.form.get("duty_date", "")
     if duty_date not in calendar_dates(row):
         abort(400)
+    if effective_date_kind(row, duty_date) == DATE_KIND_NO_DUTY:
+        flash(
+            "Mark this date as a weekday, weekend, or calendar default before setting capacity.",
+            "error",
+        )
+        return redirect(url_for("view_session", session_id=session_id))
 
     raw_capacity = request.form.get("capacity", "").strip()
     conn = db()
