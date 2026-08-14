@@ -1,5 +1,6 @@
 from flask import abort, flash, redirect, render_template, request, url_for
 
+import date_exceptions  # noqa: F401
 from core import app, audit, clean_single_line, db, require_csrf, roles
 
 
