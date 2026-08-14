@@ -1,6 +1,36 @@
 (() => {
   "use strict";
 
+  const helpDialog = document.querySelector("[data-role-help]");
+  if (helpDialog) {
+    const openHelp = () => {
+      if (typeof helpDialog.showModal === "function") {
+        if (!helpDialog.open) helpDialog.showModal();
+      } else {
+        helpDialog.setAttribute("open", "");
+      }
+    };
+
+    const closeHelp = () => {
+      if (typeof helpDialog.close === "function") {
+        if (helpDialog.open) helpDialog.close();
+      } else {
+        helpDialog.removeAttribute("open");
+      }
+    };
+
+    document.querySelectorAll("[data-help-open]").forEach((button) => {
+      button.addEventListener("click", openHelp);
+    });
+    helpDialog.querySelectorAll("[data-help-close]").forEach((button) => {
+      button.addEventListener("click", closeHelp);
+    });
+    helpDialog.addEventListener("click", (event) => {
+      if (event.target === helpDialog) closeHelp();
+    });
+    if (helpDialog.dataset.autoOpen === "true") openHelp();
+  }
+
   const sessionForm = document.querySelector("[data-session-form]");
   if (sessionForm) {
     const buildingPicker = sessionForm.querySelector("[data-building-picker]");

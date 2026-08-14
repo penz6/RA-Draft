@@ -5,22 +5,14 @@
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty sessions</h1>
-    <p>View active drafts, follow the selection order, and manage assignments for your building.</p>
   </div>
   <span class="role-badge">{{ me.role }}</span>
 </div>
 
-{% if not me.building_id and me.role != 'ADMIN' %}
-<section class="empty-state card">
-  <h2>Your account needs a building</h2>
-  <p>An administrator must assign your account to a residence building before sessions appear here.</p>
-</section>
-{% endif %}
-
 {% if me.role in ['HRA', 'ADMIN'] %}
 <section class="card create-session-card">
   <div class="section-head">
-    <div><h2>Create a duty session</h2><p>Set the date range, per-date capacity, participants, and draft order.</p></div>
+    <div><h2>Create and open a duty session</h2><p>The first selected RA can pick as soon as the session is created.</p></div>
   </div>
   {% if me.role == 'HRA' and not me.building_id %}
   <div class="notice">An admin must assign your building before you can create a session.</div>
@@ -85,7 +77,7 @@
     </fieldset>
 
     <div class="form-actions full">
-      <button class="button" type="submit">Create duty session</button>
+      <button class="button" type="submit">Create and open session</button>
     </div>
   </form>
   {% endif %}
@@ -94,7 +86,7 @@
 
 <section class="card">
   <div class="section-head">
-    <div><h2>Sessions</h2><p>Open sessions appear first.</p></div>
+    <div><h2>Sessions</h2></div>
     <span class="count-badge">{{ sessions|length }}</span>
   </div>
   <div class="session-list">
