@@ -12,7 +12,7 @@
 {% if me.role in ['HRA', 'ADMIN'] %}
 <section class="card create-session-card">
   <div class="section-head">
-    <div><h2>Create and open a duty session</h2><p>The first selected participant can pick as soon as the session is created.</p></div>
+    <div><h2>Create and open a duty session</h2><p>The first turn starts immediately: the first selected participant can pick as soon as the session is created.</p></div>
   </div>
   {% if me.role == 'HRA' and not me.building_id %}
   <div class="notice">An admin must assign your building before you can create a session.</div>
