@@ -10,7 +10,6 @@
         helpDialog.setAttribute("open", "");
       }
     };
-
     const closeHelp = () => {
       if (typeof helpDialog.close === "function") {
         if (helpDialog.open) helpDialog.close();
@@ -18,7 +17,6 @@
         helpDialog.removeAttribute("open");
       }
     };
-
     document.querySelectorAll("[data-help-open]").forEach((button) => {
       button.addEventListener("click", openHelp);
     });
@@ -34,21 +32,33 @@
   const sessionForm = document.querySelector("[data-session-form]");
   if (sessionForm) {
     const buildingPicker = sessionForm.querySelector("[data-building-picker]");
+    const participantList = sessionForm.querySelector("[data-participant-list]");
     const rows = Array.from(sessionForm.querySelectorAll("[data-participant-row]"));
     const emptyMessage = sessionForm.querySelector("[data-no-participants]");
+    let draggedRow = null;
 
-    const activeRows = () => rows.filter((row) => !row.hidden);
+    const activeRows = () => Array.from(
+      participantList.querySelectorAll("[data-participant-row]")
+    ).filter((row) => !row.hidden);
 
     const updateOrders = () => {
-      let position = 1;
-      activeRows().forEach((row) => {
-        const checkbox = row.querySelector("[data-participant-check]");
+      activeRows().forEach((row, index) => {
         const order = row.querySelector("[data-order-input]");
-        if (checkbox && order && checkbox.checked) {
-          order.value = String(position);
-          position += 1;
-        }
+        const label = row.querySelector("[data-order-label]");
+        if (order) order.value = String(index + 1);
+        if (label) label.textContent = String(index + 1);
       });
+    };
+
+    const moveRow = (row, direction) => {
+      const visibleRows = activeRows();
+      const index = visibleRows.indexOf(row);
+      const target = visibleRows[index + direction];
+      if (!target) return;
+      if (direction < 0) participantList.insertBefore(row, target);
+      else participantList.insertBefore(target, row);
+      updateOrders();
+      row.scrollIntoView({ behavior: "smooth", block: "nearest" });
     };
 
     const syncBuilding = (selectVisible) => {
@@ -57,19 +67,40 @@
       rows.forEach((row) => {
         const matches = !selectedBuilding || row.dataset.buildingId === selectedBuilding;
         const checkbox = row.querySelector("[data-participant-check]");
-        const order = row.querySelector("[data-order-input]");
         row.hidden = !matches;
         if (checkbox) {
           checkbox.disabled = !matches;
           if (!matches) checkbox.checked = false;
           if (matches && selectVisible) checkbox.checked = true;
         }
-        if (order) order.disabled = !matches;
         if (matches) visibleCount += 1;
       });
       if (emptyMessage) emptyMessage.hidden = visibleCount !== 0;
       updateOrders();
     };
+
+    rows.forEach((row) => {
+      row.addEventListener("dragstart", (event) => {
+        draggedRow = row;
+        row.classList.add("is-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", "participant");
+      });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("is-dragging");
+        draggedRow = null;
+        updateOrders();
+      });
+      row.addEventListener("dragover", (event) => {
+        if (!draggedRow || row.hidden || row === draggedRow) return;
+        event.preventDefault();
+        const box = row.getBoundingClientRect();
+        const insertAfter = event.clientY > box.top + box.height / 2;
+        participantList.insertBefore(draggedRow, insertAfter ? row.nextSibling : row);
+      });
+      row.querySelector("[data-move-up]")?.addEventListener("click", () => moveRow(row, -1));
+      row.querySelector("[data-move-down]")?.addEventListener("click", () => moveRow(row, 1));
+    });
 
     if (buildingPicker) {
       buildingPicker.addEventListener("change", () => syncBuilding(true));
@@ -93,21 +124,94 @@
       });
       updateOrders();
     });
-
-    sessionForm.querySelectorAll("[data-participant-check]").forEach((checkbox) => {
-      checkbox.addEventListener("change", updateOrders);
-    });
   }
 
-  const dateFilter = document.querySelector("[data-date-filter]");
-  if (dateFilter) {
-    const cards = Array.from(document.querySelectorAll("[data-date-card]"));
-    dateFilter.addEventListener("input", () => {
-      const query = dateFilter.value.trim().toLowerCase();
-      cards.forEach((card) => {
-        card.hidden = Boolean(query) && !card.dataset.search.includes(query);
+  const calendar = document.querySelector("[data-duty-calendar]");
+  if (calendar) {
+    const selfUserId = calendar.dataset.selfUserId;
+    const currentUserId = calendar.dataset.currentUserId;
+    const canManage = calendar.dataset.canManage === "true";
+    const selfDialog = calendar.querySelector("[data-self-pick-dialog]");
+    const managerDialog = calendar.querySelector("[data-manager-pick-dialog]");
+    const managerBanner = calendar.querySelector("[data-manager-mode]");
+    let managerTarget = null;
+
+    const showDialog = (dialog) => {
+      if (!dialog) return;
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    };
+    const closeDialog = (dialog) => {
+      if (!dialog) return;
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    };
+    const stopManagerMode = () => {
+      managerTarget = null;
+      calendar.classList.remove("is-manager-selecting");
+      if (managerBanner) managerBanner.hidden = true;
+    };
+
+    document.querySelectorAll("[data-manager-pick]").forEach((button) => {
+      button.addEventListener("click", () => {
+        managerTarget = {
+          id: button.dataset.userId,
+          name: button.dataset.userName,
+        };
+        calendar.classList.add("is-manager-selecting");
+        if (managerBanner) {
+          managerBanner.hidden = false;
+          managerBanner.querySelector("[data-manager-name]").textContent = managerTarget.name;
+        }
+        calendar.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
+
+    calendar.querySelector("[data-manager-cancel]")?.addEventListener("click", stopManagerMode);
+
+    calendar.querySelectorAll("[data-calendar-day]").forEach((dayButton) => {
+      dayButton.addEventListener("click", () => {
+        if (dayButton.dataset.full === "true") return;
+        const assignedIds = dayButton.dataset.assignedUserIds
+          ? dayButton.dataset.assignedUserIds.split(",")
+          : [];
+
+        if (managerTarget && canManage) {
+          if (assignedIds.includes(managerTarget.id)) {
+            window.alert(`${managerTarget.name} is already assigned to this date.`);
+            return;
+          }
+          managerDialog.querySelector("[data-manager-pick-user]").value = managerTarget.id;
+          managerDialog.querySelector("[data-manager-pick-date]").value = dayButton.dataset.date;
+          managerDialog.querySelector("[data-manager-pick-name]").textContent = managerTarget.name;
+          managerDialog.querySelector("[data-manager-pick-label]").textContent = dayButton.dataset.dateLabel;
+          showDialog(managerDialog);
+          return;
+        }
+
+        if (selfUserId !== currentUserId) {
+          if (canManage) window.alert("Choose Pick for them in the turn order first.");
+          return;
+        }
+        if (dayButton.dataset.selfSelectable !== "true") {
+          window.alert("That date is not available in the current selection phase, or you are already assigned to it.");
+          return;
+        }
+        selfDialog.querySelector("[data-self-pick-date]").value = dayButton.dataset.date;
+        selfDialog.querySelector("[data-self-pick-label]").textContent = dayButton.dataset.dateLabel;
+        showDialog(selfDialog);
+      });
+    });
+
+    calendar.querySelectorAll("[data-dialog-close]").forEach((button) => {
+      button.addEventListener("click", () => closeDialog(button.closest("dialog")));
+    });
+    calendar.querySelectorAll("dialog").forEach((dialog) => {
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) closeDialog(dialog);
+      });
+    });
+    managerDialog?.querySelector("form")?.addEventListener("submit", stopManagerMode);
   }
 
   document.querySelectorAll("[data-confirm]").forEach((button) => {

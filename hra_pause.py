@@ -1,6 +1,17 @@
 from flask import abort, flash, redirect, url_for
 
-from core import app, audit, can_manage, current_user, db, require_csrf, roles, session_row
+from core import (
+    advance_turn,
+    app,
+    audit,
+    can_manage,
+    current_user,
+    db,
+    next_picker,
+    require_csrf,
+    roles,
+    session_row,
+)
 
 
 @app.route("/sessions/<int:session_id>/pause/<int:user_id>", methods=["POST"])
@@ -8,11 +19,11 @@ from core import app, audit, can_manage, current_user, db, require_csrf, roles, 
 def toggle_participant_pause(session_id, user_id):
     require_csrf()
     row = session_row(session_id)
-    user = current_user()
-    if not row or not can_manage(user, row):
+    manager = current_user()
+    if not row or not can_manage(manager, row):
         abort(403)
     if row["status"] != "OPEN":
-        flash("Reopen the session before changing the draft order.", "error")
+        flash("Reopen the session before changing participant availability.", "error")
         return redirect(url_for("view_session", session_id=session_id))
 
     conn = db()
@@ -34,25 +45,46 @@ def toggle_participant_pause(session_id, user_id):
             "DELETE FROM session_deferrals WHERE session_id=? AND user_id=?",
             (session_id, user_id),
         )
-        audit("draft.turn.restore", "user", user_id, {"session_id": session_id})
+        audit("draft.participant.restore", "user", user_id, {"session_id": session_id})
         conn.commit()
-        flash("RA restored to the draft order.", "success")
+        flash("Participant restored to future turns.", "success")
         return redirect(url_for("view_session", session_id=session_id))
 
-    assigned = conn.execute(
-        "SELECT 1 FROM assignments WHERE session_id=? AND user_id=?",
-        (session_id, user_id),
-    ).fetchone()
-    if assigned:
-        conn.rollback()
-        flash("Remove the RA's assignment before deferring their turn.", "error")
-        return redirect(url_for("view_session", session_id=session_id))
-
+    current = next_picker(session_id)
     conn.execute(
         "INSERT INTO session_deferrals(session_id,user_id,deferred_by) VALUES(?,?,?)",
-        (session_id, user_id, user["id"]),
+        (session_id, user_id, manager["id"]),
     )
-    audit("draft.turn.defer", "user", user_id, {"session_id": session_id})
+    if current and current["id"] == user_id:
+        advance_turn(session_id, user_id)
+    audit("draft.participant.pause", "user", user_id, {"session_id": session_id})
     conn.commit()
-    flash("RA deferred. You can restore or manually assign them later.", "success")
+    flash("Participant paused. They can be restored later.", "success")
+    return redirect(url_for("view_session", session_id=session_id))
+
+
+@app.route("/sessions/<int:session_id>/skip/<int:user_id>", methods=["POST"])
+@roles("HRA", "ADMIN")
+def skip_participant_turn(session_id, user_id):
+    require_csrf()
+    row = session_row(session_id)
+    manager = current_user()
+    if not row or not can_manage(manager, row):
+        abort(403)
+    if row["status"] != "OPEN":
+        flash("Reopen the session before skipping a turn.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    current = next_picker(session_id)
+    if not current or current["id"] != user_id:
+        conn.rollback()
+        flash("That participant is not the current picker.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
+
+    advance_turn(session_id, user_id)
+    audit("draft.turn.skip", "user", user_id, {"session_id": session_id})
+    conn.commit()
+    flash("Turn skipped once. The participant remains active for later rounds.", "success")
     return redirect(url_for("view_session", session_id=session_id))

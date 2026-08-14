@@ -9,7 +9,6 @@ from core import (
     current_user,
     db,
     normalize_date_order,
-    normalize_time,
     require_csrf,
     roles,
 )
@@ -52,19 +51,17 @@ def create_session():
         return redirect(url_for("dashboard"))
 
     try:
-        capacity = int(request.form.get("capacity", 2))
+        requested_capacity = int(request.form.get("capacity", 2))
     except (TypeError, ValueError):
-        capacity = 2
-    if capacity < 1 or capacity > 50:
-        flash("Participants per date must be between 1 and 50.", "error")
+        requested_capacity = 2
+    if requested_capacity < 1 or requested_capacity > 50:
+        flash("People per date must be between 1 and 50.", "error")
         return redirect(url_for("dashboard"))
 
     try:
-        shift_start = normalize_time(request.form.get("shift_start", "19:00"))
-        shift_end = normalize_time(request.form.get("shift_end", "07:00"))
         date_order = normalize_date_order(request.form.get("date_order"))
     except ValueError:
-        flash("Duty hours or date ordering were invalid.", "error")
+        flash("Choose a valid date selection rule.", "error")
         return redirect(url_for("dashboard"))
 
     raw_participants = request.form.getlist("participant_ids")
@@ -99,22 +96,26 @@ def create_session():
         flash("Select at least one participant for the duty session.", "error")
         return redirect(url_for("dashboard"))
 
+    # A date cannot hold more distinct people than the session contains. This
+    # also keeps the default of two usable when invalid/cross-building IDs are
+    # filtered out of the submitted participant list.
+    capacity = min(requested_capacity, len(selected))
     selected.sort(key=lambda item: (item[0], item[1]))
+
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
     cur = conn.execute(
         "INSERT INTO draft_sessions("
-        "name,building_id,start_date,end_date,shift_start,shift_end,capacity,date_order,created_by"
-        ") VALUES(?,?,?,?,?,?,?,?,?)",
+        "name,building_id,start_date,end_date,capacity,date_order,current_position,created_by"
+        ") VALUES(?,?,?,?,?,?,?,?)",
         (
             name,
             building_id,
             start_date.isoformat(),
             end_date.isoformat(),
-            shift_start,
-            shift_end,
             capacity,
             date_order,
+            1,
             user["id"],
         ),
     )
@@ -134,8 +135,7 @@ def create_session():
             "building_id": building_id,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
-            "shift_start": shift_start,
-            "shift_end": shift_end,
+            "requested_capacity": requested_capacity,
             "capacity": capacity,
             "date_order": date_order,
             "participant_ids": participant_ids,

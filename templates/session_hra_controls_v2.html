@@ -1,36 +1,86 @@
 <div class="manager-content">
   <section class="manager-section">
     <div class="section-head compact">
-      <div><h3>Date ordering</h3><p>Weekdays are shown before weekends by default. Change the order at any time.</p></div>
+      <div><h3>Date selection rule</h3><p>Control which type of required date must be filled first.</p></div>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_order', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <label class="field grow">Order shown to participants
+      <label class="field grow">Selection rule
         <select name="date_order" required>
-          <option value="WEEKDAYS_FIRST" {% if draft.date_order == 'WEEKDAYS_FIRST' %}selected{% endif %}>Weekdays first, then weekends</option>
-          <option value="CHRONOLOGICAL" {% if draft.date_order == 'CHRONOLOGICAL' %}selected{% endif %}>Chronological</option>
-          <option value="WEEKENDS_FIRST" {% if draft.date_order == 'WEEKENDS_FIRST' %}selected{% endif %}>Weekends first, then weekdays</option>
+          <option value="WEEKDAYS_FIRST" {% if draft.date_order == 'WEEKDAYS_FIRST' %}selected{% endif %}>Fill weekdays before weekends</option>
+          <option value="CHRONOLOGICAL" {% if draft.date_order == 'CHRONOLOGICAL' %}selected{% endif %}>Allow any open date</option>
+          <option value="WEEKENDS_FIRST" {% if draft.date_order == 'WEEKENDS_FIRST' %}selected{% endif %}>Fill weekends before weekdays</option>
         </select>
       </label>
-      <button class="button small" type="submit">Save order</button>
+      <button class="button small" type="submit">Save</button>
     </form>
   </section>
 
   <section class="manager-section">
     <div class="section-head compact">
-      <div><h3>Per-date capacity</h3><p>The session default is {{ draft.capacity }}. Set a different limit for a specific date, or leave capacity blank to reset it.</p></div>
+      <div>
+        <h3>Date treatment</h3>
+        <p>Override whether an edge-case date counts as a weekday or weekend, or mark it as requiring no staffing.</p>
+      </div>
+    </div>
+    <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_kind', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="field grow">Duty date
+        <select name="duty_date" required>
+          {% for d in dates %}
+          <option value="{{ d }}">{{ d|date_label }} · {{ date_kind_labels[date_kinds[d]] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field grow">Treat as
+        <select name="date_kind" required>
+          <option value="AUTO">Calendar default</option>
+          <option value="WEEKDAY">Weekday</option>
+          <option value="WEEKEND">Weekend</option>
+          <option value="NO_DUTY">No one needed</option>
+        </select>
+      </label>
+      <button class="button small" type="submit">Apply</button>
+    </form>
+    <p class="muted manager-note">A date with existing assignments cannot be marked “no one needed” until those assignments are removed.</p>
+
+    {% if date_kind_overrides %}
+    <div class="override-list" aria-label="Current date treatment overrides">
+      {% for d in dates %}
+        {% if d in date_kind_overrides %}
+        <div class="override-row">
+          <div>
+            <strong>{{ d|date_label }}</strong>
+            <small>{{ date_kind_labels[date_kind_overrides[d]] }}</small>
+          </div>
+          <form method="post" action="{{ url_for('update_date_kind', session_id=draft.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="duty_date" value="{{ d }}">
+            <input type="hidden" name="date_kind" value="AUTO">
+            <button class="button ghost small" type="submit">Use calendar default</button>
+          </form>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="manager-section">
+    <div class="section-head compact">
+      <div><h3>Per-date capacity</h3><p>The session default is {{ draft.capacity }}. Set a different limit for one staffed date, or leave it blank to reset.</p></div>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_capacity', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <label class="field grow">Duty date
         <select name="duty_date" required>
           {% for d in dates %}
-          <option value="{{ d }}">{{ d|date_label }} · {{ d|day_type }} · current capacity {{ capacities[d] }}</option>
+          <option value="{{ d }}" {% if date_kinds[d] == 'NO_DUTY' %}disabled{% endif %}>{{ d|date_label }} · {% if date_kinds[d] == 'NO_DUTY' %}no one needed{% else %}current capacity {{ capacities[d] }}{% endif %}</option>
           {% endfor %}
         </select>
       </label>
       <label class="field capacity-input">Capacity
-        <input type="number" name="capacity" min="1" max="50" inputmode="numeric" placeholder="Default {{ draft.capacity }}">
+        <input type="number" name="capacity" min="1" max="{{ participant_count }}" inputmode="numeric" placeholder="Default {{ draft.capacity }}">
       </label>
       <button class="button small" type="submit">Apply</button>
     </form>
@@ -54,32 +104,8 @@
     {% endif %}
   </section>
 
-  <section class="manager-section">
-    <div class="section-head compact">
-      <div><h3>Manual assignments</h3><p>Correct or assign any participant. A manual assignment also restores a deferred participant.</p></div>
-    </div>
-    <div class="manual-assignment-list">
-      {% for p in people %}
-      <form class="edit-row" method="post" action="{{ url_for('manual_assign', session_id=draft.id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="user_id" value="{{ p.id }}">
-        <div><strong>{{ p.name }} · {{ p.role }}</strong><small>{{ 'Deferred' if p.deferred else ('Assigned' if p.duty_date else 'Unassigned') }}</small></div>
-        <label class="sr-only" for="assignment-{{ p.id }}">Duty date for {{ p.name }}</label>
-        <select id="assignment-{{ p.id }}" name="duty_date">
-          <option value="">Unassigned</option>
-          {% for d in dates %}
-          {% set full = counts.get(d, 0) >= capacities[d] and p.duty_date != d %}
-          <option value="{{ d }}" {% if p.duty_date == d %}selected{% endif %} {% if full %}disabled{% endif %}>{{ d|date_label }} · {{ d|day_type }}{% if full %} - full{% endif %}</option>
-          {% endfor %}
-        </select>
-        <button class="button small" type="submit">Save</button>
-      </form>
-      {% endfor %}
-    </div>
-  </section>
-
   <div class="danger-zone">
-    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Stops normal participant selections while preserving assignments.' if draft.status == 'OPEN' else 'Allows the next eligible participant to select again.' }}</p></div>
+    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Stops picking while preserving the calendar.' if draft.status == 'OPEN' else 'Allows turns and manager assignments again.' }}</p></div>
     <form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">

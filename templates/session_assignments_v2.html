@@ -1,24 +1,33 @@
 <section class="card">
   <div class="section-head">
-    <div><h2>Assignments</h2><p>Calendar downloads are all-day iCalendar files.</p></div>
-    <span class="count-badge">{{ assigned_count }}</span>
+    <div><h2>Assignments</h2><p>Each row is one person on one duty date.</p></div>
+    <div class="button-group">
+      <span class="count-badge">{{ assigned_count }}</span>
+      <a class="button secondary small" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
+    </div>
   </div>
 
   <div class="table-wrap">
     <table class="assignment-table">
-      <thead><tr><th>Participant</th><th>Role</th><th>Duty date</th><th>Calendar</th></tr></thead>
+      <thead><tr><th>Participant</th><th>Role</th><th>Duty date</th><th>Actions</th></tr></thead>
       <tbody>
         {% for a in picks %}
         <tr>
           <td data-label="Participant"><strong>{{ a.name }}</strong></td>
           <td data-label="Role">{{ a.role }}</td>
           <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
-          <td data-label="Calendar">
-            {% if a.user_id == me.id or me.role == 'ADMIN' %}
-            <a class="text-link" href="{{ url_for('calendar_ics', assignment_id=a.id) }}">Download iCal</a>
-            {% else %}
-            <span class="muted">Available to assigned participant</span>
-            {% endif %}
+          <td data-label="Actions">
+            <div class="button-group">
+              {% if a.user_id == me.id or me.role == 'ADMIN' %}
+              <a class="text-link" href="{{ url_for('calendar_ics', assignment_id=a.id) }}">My iCal</a>
+              {% endif %}
+              {% if can_manage %}
+              <form method="post" action="{{ url_for('delete_assignment', session_id=draft.id, assignment_id=a.id) }}">
+                <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                <button class="button danger small" type="submit" data-confirm="Remove this assignment?">Remove</button>
+              </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% else %}
@@ -30,7 +39,7 @@
 
   {% if can_manage %}
   <details class="manager-panel">
-    <summary>HRA and Admin controls</summary>
+    <summary>Session controls</summary>
     {% include 'session_hra_controls_v2.html' %}
   </details>
   {% endif %}
