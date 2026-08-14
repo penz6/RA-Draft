@@ -5,22 +5,14 @@
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty sessions</h1>
-    <p>View active drafts, follow the selection order, and manage assignments for your building.</p>
   </div>
   <span class="role-badge">{{ me.role }}</span>
 </div>
 
-{% if not me.building_id and me.role != 'ADMIN' %}
-<section class="empty-state card">
-  <h2>Your account needs a building</h2>
-  <p>An administrator must assign your account to a residence building before sessions appear here.</p>
-</section>
-{% endif %}
-
 {% if me.role in ['HRA', 'ADMIN'] %}
 <section class="card create-session-card">
   <div class="section-head">
-    <div><h2>Create a duty session</h2><p>Set the date range, per-date capacity, participants, and draft order.</p></div>
+    <div><h2>Create and open a duty session</h2><p>The first turn starts immediately: the first selected participant can pick as soon as the session is created.</p></div>
   </div>
   {% if me.role == 'HRA' and not me.building_id %}
   <div class="notice">An admin must assign your building before you can create a session.</div>
@@ -53,39 +45,50 @@
       <input type="time" name="shift_end" value="07:00" required>
       <small>Calendar exports remain all-day events.</small>
     </label>
-    <label class="field">RAs per date
+    <label class="field">Default people per date
       <input type="number" min="1" max="50" name="capacity" value="2" required inputmode="numeric">
+    </label>
+    <label class="field">Date order
+      <select name="date_order" required>
+        <option value="WEEKDAYS_FIRST" selected>Weekdays first, then weekends</option>
+        <option value="CHRONOLOGICAL">Chronological</option>
+        <option value="WEEKENDS_FIRST">Weekends first, then weekdays</option>
+      </select>
+      <small>This controls the order shown while picking.</small>
     </label>
 
     <fieldset class="full participant-fieldset">
       <legend>Participants and draft order</legend>
       <div class="participant-toolbar">
-        <p>Everyone in the selected building starts checked. Remove anyone who is not participating and adjust order numbers as needed.</p>
+        <p>Everyone assigned to the selected building starts checked, including HRAs and Admins. Remove anyone who is not picking and adjust the order as needed.</p>
         <div class="button-group">
           <button class="button secondary small" type="button" data-participant-select-all>Select all</button>
           <button class="button ghost small" type="button" data-participant-clear>Clear</button>
         </div>
       </div>
       <div class="participant-list" data-participant-list>
-        {% for ra in ras %}
-        <div class="participant-row" data-participant-row data-building-id="{{ ra.building_id }}">
+        {% for participant in participants %}
+        <div class="participant-row" data-participant-row data-building-id="{{ participant.building_id }}">
           <label class="check participant-name">
-            <input type="checkbox" name="ra_ids" value="{{ ra.id }}" checked data-participant-check>
-            <span><strong>{{ ra.name }}</strong><small>{{ ra.email }}{% if me.role == 'ADMIN' and ra.building_name %} - {{ ra.building_name }}{% endif %}</small></span>
+            <input type="checkbox" name="participant_ids" value="{{ participant.id }}" checked data-participant-check>
+            <span>
+              <strong>{{ participant.name }} <span class="inline-role">{{ participant.role }}</span></strong>
+              <small>{{ participant.email }}{% if me.role == 'ADMIN' and participant.building_name %} - {{ participant.building_name }}{% endif %}</small>
+            </span>
           </label>
           <label class="order-field">Order
-            <input type="number" name="order_{{ ra.id }}" min="1" max="10000" value="{{ loop.index }}" data-order-input inputmode="numeric">
+            <input type="number" name="order_{{ participant.id }}" min="1" max="10000" value="{{ loop.index }}" data-order-input inputmode="numeric">
           </label>
         </div>
         {% else %}
-        <p class="empty-copy">No RAs are assigned to this building yet.</p>
+        <p class="empty-copy">No users are assigned to this building yet.</p>
         {% endfor %}
       </div>
-      <p class="empty-copy" data-no-participants hidden>No RAs are assigned to the selected building.</p>
+      <p class="empty-copy" data-no-participants hidden>No users are assigned to the selected building.</p>
     </fieldset>
 
     <div class="form-actions full">
-      <button class="button" type="submit">Create duty session</button>
+      <button class="button" type="submit">Create and open session</button>
     </div>
   </form>
   {% endif %}
@@ -94,7 +97,7 @@
 
 <section class="card">
   <div class="section-head">
-    <div><h2>Sessions</h2><p>Open sessions appear first.</p></div>
+    <div><h2>Sessions</h2></div>
     <span class="count-badge">{{ sessions|length }}</span>
   </div>
   <div class="session-list">
@@ -106,7 +109,8 @@
       </div>
       <dl class="session-meta">
         <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
-        <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
+        <div><dt>Default capacity</dt><dd>{{ s.capacity }} per date</dd></div>
+        <div><dt>Pick order</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
       </dl>
       <span class="session-arrow" aria-hidden="true">&rarr;</span>
     </a>

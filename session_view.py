@@ -3,6 +3,8 @@ from flask import abort, render_template
 from core import (
     app,
     can_manage,
+    capacities_for,
+    capacity_overrides,
     current_user,
     dates_for,
     db,
@@ -25,7 +27,7 @@ def view_session(session_id):
 
     people = ordered_people(session_id)
     picks = db().execute(
-        "SELECT a.*,u.name FROM assignments a JOIN users u ON u.id=a.user_id "
+        "SELECT a.*,u.name,u.role FROM assignments a JOIN users u ON u.id=a.user_id "
         "WHERE a.session_id=? ORDER BY a.duty_date,u.name",
         (session_id,),
     ).fetchall()
@@ -38,9 +40,13 @@ def view_session(session_id):
         ).fetchall()
     }
     dates = dates_for(row)
+    capacities = capacities_for(row)
+    overrides = capacity_overrides(session_id)
     current_picker = next_picker(session_id)
     mine = next((item for item in picks if item["user_id"] == user["id"]), None)
-    available_dates = sum(1 for item in dates if counts.get(item, 0) < row["capacity"])
+    available_dates = sum(
+        1 for item in dates if counts.get(item, 0) < capacities[item]
+    )
 
     return render_template(
         "session_v2.html",
@@ -49,6 +55,8 @@ def view_session(session_id):
         picks=picks,
         counts=counts,
         dates=dates,
+        capacities=capacities,
+        capacity_overrides=overrides,
         next=current_picker,
         can_manage=can_manage(user, row),
         mine=mine,

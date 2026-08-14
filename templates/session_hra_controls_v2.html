@@ -1,28 +1,85 @@
 <div class="manager-content">
-  <div class="section-head compact">
-    <div><h3>Manual assignments</h3><p>Correct or assign any participant. A manual assignment also restores a deferred RA.</p></div>
-  </div>
-  <div class="manual-assignment-list">
-    {% for p in people %}
-    <form class="edit-row" method="post" action="{{ url_for('manual_assign', session_id=draft.id) }}">
+  <section class="manager-section">
+    <div class="section-head compact">
+      <div><h3>Date ordering</h3><p>Weekdays are shown before weekends by default. Change the order at any time.</p></div>
+    </div>
+    <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_order', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="user_id" value="{{ p.id }}">
-      <div><strong>{{ p.name }}</strong><small>{{ 'Deferred' if p.deferred else ('Assigned' if p.duty_date else 'Unassigned') }}</small></div>
-      <label class="sr-only" for="assignment-{{ p.id }}">Duty date for {{ p.name }}</label>
-      <select id="assignment-{{ p.id }}" name="duty_date">
-        <option value="">Unassigned</option>
-        {% for d in dates %}
-        {% set full = counts.get(d, 0) >= draft.capacity and p.duty_date != d %}
-        <option value="{{ d }}" {% if p.duty_date == d %}selected{% endif %} {% if full %}disabled{% endif %}>{{ d|date_label }}{% if full %} - full{% endif %}</option>
-        {% endfor %}
-      </select>
-      <button class="button small" type="submit">Save</button>
+      <label class="field grow">Order shown to participants
+        <select name="date_order" required>
+          <option value="WEEKDAYS_FIRST" {% if draft.date_order == 'WEEKDAYS_FIRST' %}selected{% endif %}>Weekdays first, then weekends</option>
+          <option value="CHRONOLOGICAL" {% if draft.date_order == 'CHRONOLOGICAL' %}selected{% endif %}>Chronological</option>
+          <option value="WEEKENDS_FIRST" {% if draft.date_order == 'WEEKENDS_FIRST' %}selected{% endif %}>Weekends first, then weekdays</option>
+        </select>
+      </label>
+      <button class="button small" type="submit">Save order</button>
     </form>
-    {% endfor %}
-  </div>
+  </section>
+
+  <section class="manager-section">
+    <div class="section-head compact">
+      <div><h3>Per-date capacity</h3><p>The session default is {{ draft.capacity }}. Set a different limit for a specific date, or leave capacity blank to reset it.</p></div>
+    </div>
+    <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_capacity', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="field grow">Duty date
+        <select name="duty_date" required>
+          {% for d in dates %}
+          <option value="{{ d }}">{{ d|date_label }} · {{ d|day_type }} · current capacity {{ capacities[d] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field capacity-input">Capacity
+        <input type="number" name="capacity" min="1" max="50" inputmode="numeric" placeholder="Default {{ draft.capacity }}">
+      </label>
+      <button class="button small" type="submit">Apply</button>
+    </form>
+
+    {% if capacity_overrides %}
+    <div class="override-list" aria-label="Current date capacity overrides">
+      {% for d in dates %}
+        {% if d in capacity_overrides %}
+        <div class="override-row">
+          <div><strong>{{ d|date_label }}</strong><small>{{ capacity_overrides[d] }} people instead of {{ draft.capacity }}</small></div>
+          <form method="post" action="{{ url_for('update_date_capacity', session_id=draft.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="duty_date" value="{{ d }}">
+            <input type="hidden" name="capacity" value="">
+            <button class="button ghost small" type="submit">Use default</button>
+          </form>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="manager-section">
+    <div class="section-head compact">
+      <div><h3>Manual assignments</h3><p>Correct or assign any participant. A manual assignment also restores a deferred participant.</p></div>
+    </div>
+    <div class="manual-assignment-list">
+      {% for p in people %}
+      <form class="edit-row" method="post" action="{{ url_for('manual_assign', session_id=draft.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="user_id" value="{{ p.id }}">
+        <div><strong>{{ p.name }} · {{ p.role }}</strong><small>{{ 'Deferred' if p.deferred else ('Assigned' if p.duty_date else 'Unassigned') }}</small></div>
+        <label class="sr-only" for="assignment-{{ p.id }}">Duty date for {{ p.name }}</label>
+        <select id="assignment-{{ p.id }}" name="duty_date">
+          <option value="">Unassigned</option>
+          {% for d in dates %}
+          {% set full = counts.get(d, 0) >= capacities[d] and p.duty_date != d %}
+          <option value="{{ d }}" {% if p.duty_date == d %}selected{% endif %} {% if full %}disabled{% endif %}>{{ d|date_label }} · {{ d|day_type }}{% if full %} - full{% endif %}</option>
+          {% endfor %}
+        </select>
+        <button class="button small" type="submit">Save</button>
+      </form>
+      {% endfor %}
+    </div>
+  </section>
 
   <div class="danger-zone">
-    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Stops normal RA selections while preserving assignments.' if draft.status == 'OPEN' else 'Allows the next eligible RA to select again.' }}</p></div>
+    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Stops normal participant selections while preserving assignments.' if draft.status == 'OPEN' else 'Allows the next eligible participant to select again.' }}</p></div>
     <form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Choose your building | RA Duty Draft{% endblock %}
+{% block content %}
+<section class="onboarding-card card">
+  <h1>Choose your building</h1>
+  {% if buildings %}
+  <form method="post" action="{{ url_for('onboarding') }}" class="onboarding-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label class="field">Building
+      <select name="building_id" required autofocus>
+        <option value="" selected disabled>Select a building</option>
+        {% for building in buildings %}
+        <option value="{{ building.id }}">{{ building.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <p class="muted">Choose the building you are assigned to. An admin can correct it later.</p>
+    <button class="button" type="submit">Continue</button>
+  </form>
+  {% else %}
+  <div class="notice">No buildings are available yet. Ask an admin to create your building, then sign in again.</div>
+  {% endif %}
+</section>
+{% endblock %}

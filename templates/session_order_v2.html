@@ -1,11 +1,11 @@
 <section class="card">
-  <div class="section-head"><div><h2>Draft order</h2><p>Deferred RAs remain in the session and can be restored later.</p></div></div>
+  <div class="section-head"><div><h2>Participant order</h2><p>Deferred participants remain in the session and can be restored later.</p></div></div>
   <ol class="draft-list">
     {% for p in people %}
     <li class="draft-person{% if next and next.id == p.id %} is-current{% endif %}">
       <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
-        <strong>{{ p.name }}</strong>
+        <strong>{{ p.name }} <span class="inline-role">{{ p.role }}</span></strong>
         {% if p.duty_date %}
         <span class="status-text success">Assigned {{ p.duty_date|date_label }}</span>
         {% elif p.deferred %}
@@ -26,10 +26,10 @@
     {% endfor %}
   </ol>
   {% if next %}
-  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }}</strong></div>
+  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} · {{ next.role }}</strong></div>
   {% elif assigned_count == participant_count %}
-  <div class="notice success">Every participating RA has an assignment.</div>
+  <div class="notice success">Every participant has an assignment.</div>
   {% else %}
-  <div class="notice">No RA is currently waiting to pick. Deferred RAs can be restored or manually assigned.</div>
+  <div class="notice">No participant is currently waiting to pick. Deferred participants can be restored or manually assigned.</div>
   {% endif %}
 </section>

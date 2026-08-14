@@ -1,7 +1,7 @@
 import secrets
 
 from authlib.integrations.base_client.errors import OAuthError
-from flask import flash, redirect, render_template, session, url_for
+from flask import abort, flash, redirect, render_template, request, session, url_for
 from requests.exceptions import RequestException
 
 from core import (
@@ -117,6 +117,7 @@ def auth_callback():
 
     session.clear()
     session["uid"] = uid
+    session["show_role_help"] = True
     session.permanent = True
     audit(
         "auth.login",
@@ -140,20 +141,87 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/onboarding", methods=["GET", "POST"])
+@login_required
+def onboarding():
+    user = current_user()
+    if user["role"] != "RA" or user["building_id"] is not None:
+        return redirect(url_for("dashboard"))
+
+    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+
+    if request.method == "POST":
+        require_csrf()
+        try:
+            building_id = int(request.form.get("building_id", ""))
+        except (TypeError, ValueError):
+            abort(400)
+
+        conn = db()
+        conn.execute("BEGIN IMMEDIATE")
+        account = conn.execute(
+            "SELECT role,building_id FROM users WHERE id=?",
+            (user["id"],),
+        ).fetchone()
+        building = conn.execute(
+            "SELECT id,name FROM buildings WHERE id=?",
+            (building_id,),
+        ).fetchone()
+
+        if not account:
+            conn.rollback()
+            session.clear()
+            return redirect(url_for("login"))
+        if account["role"] != "RA" or account["building_id"] is not None:
+            conn.rollback()
+            return redirect(url_for("dashboard"))
+        if not building:
+            conn.rollback()
+            abort(400)
+
+        updated = conn.execute(
+            "UPDATE users SET building_id=? "
+            "WHERE id=? AND role='RA' AND building_id IS NULL",
+            (building_id, user["id"]),
+        )
+        if updated.rowcount != 1:
+            conn.rollback()
+            return redirect(url_for("dashboard"))
+
+        audit(
+            "profile.building.select",
+            "user",
+            user["id"],
+            {"building_id": building_id},
+        )
+        conn.commit()
+        flash(f"Building set to {building['name']}.", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template(
+        "onboarding.html",
+        buildings=buildings,
+        auto_open_help=bool(session.pop("show_role_help", False)),
+    )
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
     user = current_user()
+    if user["role"] == "RA" and user["building_id"] is None:
+        return redirect(url_for("onboarding"))
+
     if user["role"] == "ADMIN":
         sessions = db().execute(
             "SELECT s.*,b.name building_name FROM draft_sessions s "
             "JOIN buildings b ON b.id=s.building_id "
             "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC"
         ).fetchall()
-        ras = db().execute(
+        participants = db().execute(
             "SELECT u.*,b.name building_name FROM users u "
-            "JOIN buildings b ON b.id=u.building_id WHERE u.role='RA' "
-            "ORDER BY b.name,u.name"
+            "JOIN buildings b ON b.id=u.building_id "
+            "ORDER BY b.name,CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name"
         ).fetchall()
     else:
         sessions = (
@@ -166,20 +234,24 @@ def dashboard():
             if user["building_id"]
             else []
         )
-        ras = (
+        participants = (
             db().execute(
-                "SELECT * FROM users WHERE building_id=? AND role='RA' ORDER BY name",
+                "SELECT u.*,b.name building_name FROM users u "
+                "JOIN buildings b ON b.id=u.building_id WHERE u.building_id=? "
+                "ORDER BY CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name",
                 (user["building_id"],),
             ).fetchall()
             if user["role"] == "HRA" and user["building_id"]
             else []
         )
+
     buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
     return render_template(
         "dashboard_v2.html",
         sessions=sessions,
         buildings=buildings,
-        ras=ras,
+        participants=participants,
+        auto_open_help=bool(session.pop("show_role_help", False)),
     )
 
 

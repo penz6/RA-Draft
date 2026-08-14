@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="RWU residence-life duty shift scheduling portal">
+  <meta name="description" content="RWU residence-life duty scheduling portal">
   <title>{% block title %}RA Duty Draft{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='role_help.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body>
@@ -22,6 +23,7 @@
         {% if me.role == 'ADMIN' %}
         <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
         {% endif %}
+        <button class="nav-link nav-button" type="button" data-help-open>How it works</button>
         <span class="user-chip" title="{{ me.email }}">
           <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
           <span class="user-copy"><strong>{{ me.name }}</strong><small>{{ me.role }}{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
@@ -44,9 +46,6 @@
     {% block content %}{% endblock %}
   </main>
 
-  <footer class="site-footer">
-    <span>RWU Residence Life duty scheduling</span>
-    <span>Google identity is used only for your verified name and email.</span>
-  </footer>
+  {% if me %}{% include 'role_help.html' %}{% endif %}
 </body>
 </html>

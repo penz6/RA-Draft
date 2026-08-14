@@ -1,23 +1,13 @@
 {% extends 'base.html' %}
-{% block title %}Sign in | RA Duty Draft{% endblock %}
+{% block title %}RA Duty Picking{% endblock %}
 {% block content %}
-<section class="hero-card">
-  <div class="eyebrow">RWU Residence Life</div>
-  <h1>Duty scheduling without the spreadsheet scramble.</h1>
-  <p class="hero-copy">Choose your duty date when your turn opens, see availability in real time, and export the final assignment as an all-day calendar event.</p>
-  <div class="hero-actions">
-    {% if me %}
-    <a class="button large" href="{{ url_for('dashboard') }}">Open duty portal</a>
-    {% else %}
-    <a class="button large" href="{{ url_for('login') }}">Continue with Google</a>
-    {% endif %}
-  </div>
-  <p class="privacy-note">Only verified <strong>@g.rwu.edu</strong> and <strong>@rwu.edu</strong> Google Workspace accounts are accepted.</p>
-
-  <div class="feature-grid" aria-label="Portal features">
-    <article><span class="feature-number">1</span><h2>Sign in</h2><p>Google provides your verified RWU name and email.</p></article>
-    <article><span class="feature-number">2</span><h2>Pick in order</h2><p>The portal unlocks selection only when it is your turn.</p></article>
-    <article><span class="feature-number">3</span><h2>Add to calendar</h2><p>Download a portable all-day iCalendar event.</p></article>
-  </div>
+<section class="login-card card">
+  <h1>RA Duty Picking</h1>
+  {% if me %}
+  <a class="button large" href="{{ url_for('dashboard') }}">Open portal</a>
+  {% else %}
+  <a class="button large" href="{{ url_for('login') }}">Continue with Google</a>
+  {% endif %}
+  <p class="login-note">RWU Google accounts only.</p>
 </section>
 {% endblock %}
