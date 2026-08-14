@@ -120,6 +120,14 @@ class SecurityTestCase(unittest.TestCase):
         self.assertNotIn(payload, page)
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", page)
 
+    def test_untrusted_host_is_rejected_without_rendering_application_ui(self):
+        response = self.client.get(
+            "/healthz",
+            base_url="https://attacker.example",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_data(as_text=True), "Invalid request host.")
+
     def test_post_without_csrf_is_rejected(self):
         admin_id = self.add_user(
             sub="admin-sub",

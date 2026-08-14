@@ -10,6 +10,7 @@ from pathlib import Path
 
 from authlib.integrations.flask_client import OAuth
 from flask import Flask, abort, g, redirect, render_template, request, session, url_for
+from werkzeug.exceptions import SecurityError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -200,6 +201,15 @@ def security_headers(response):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
+
+
+@app.errorhandler(SecurityError)
+def invalid_host(_error):
+    return (
+        "Invalid request host.",
+        400,
+        {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"},
+    )
 
 
 @app.errorhandler(400)
