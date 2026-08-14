@@ -3,11 +3,12 @@ from flask import abort, flash, redirect, request, url_for
 from core import (
     app,
     audit,
+    calendar_dates,
     can_manage,
     current_user,
-    dates_for,
     db,
     normalize_date_order,
+    participant_count,
     require_csrf,
     roles,
     session_row,
@@ -42,7 +43,7 @@ def update_date_order(session_id):
             {"old_date_order": row["date_order"], "new_date_order": date_order},
         )
         conn.commit()
-        flash("Date ordering updated.", "success")
+        flash("Date selection rule updated.", "success")
     return redirect(url_for("view_session", session_id=session_id))
 
 
@@ -56,7 +57,7 @@ def update_date_capacity(session_id):
         abort(403)
 
     duty_date = request.form.get("duty_date", "")
-    if duty_date not in dates_for(row):
+    if duty_date not in calendar_dates(row):
         abort(400)
 
     raw_capacity = request.form.get("capacity", "").strip()
@@ -101,8 +102,17 @@ def update_date_capacity(session_id):
         flash("Date capacity must be between 1 and 50.", "error")
         return redirect(url_for("view_session", session_id=session_id))
 
+    participants = participant_count(session_id)
+    if capacity > participants:
+        conn.rollback()
+        flash(
+            "Date capacity cannot exceed the number of session participants.",
+            "error",
+        )
+        return redirect(url_for("view_session", session_id=session_id))
+
     assigned = conn.execute(
-        "SELECT COUNT(*) n FROM assignments WHERE session_id=? AND duty_date=?",
+        "SELECT COUNT(*) AS n FROM assignments WHERE session_id=? AND duty_date=?",
         (session_id, duty_date),
     ).fetchone()["n"]
     if capacity < assigned:

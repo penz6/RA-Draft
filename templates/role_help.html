@@ -12,21 +12,21 @@
     <h3>RA permissions</h3>
     <ul class="help-permissions">
       <li>Choose a building once on first sign-in; an Admin can correct it later.</li>
-      <li>See duty sessions for that building.</li>
-      <li><strong>Wait for your turn.</strong> See the participant order, assignments, and remaining capacity.</li>
-      <li>Pick one available date when you are the current participant.</li>
-      <li>Download your own all-day iCalendar event.</li>
+      <li>See sessions and the live assignment calendar for that building.</li>
+      <li><strong>Wait for your turn.</strong> The order repeats until all duty slots are filled.</li>
+      <li>When your turn opens, click an available calendar date and confirm it.</li>
+      <li>Download your own event or the full session iCalendar file.</li>
     </ul>
-    <p class="help-limit">RAs cannot create sessions, change the order, assign other people, or alter capacity.</p>
+    <p class="help-limit">RAs cannot change the order, assign other people, skip turns, or alter capacity.</p>
     {% elif me.role == 'HRA' %}
     <h3>HRA permissions</h3>
     <ul class="help-permissions">
       <li>Everything an RA can do, including picking when included in a session.</li>
-      <li>Create and immediately open sessions for the assigned building.</li>
-      <li>Include RAs, HRAs, and building-assigned Admins as participants.</li>
-      <li>Set participant order and choose weekday-first, chronological, or weekend-first date ordering.</li>
-      <li>Set the default capacity and override capacity for individual dates.</li>
-      <li>Defer or restore turns, manually assign or correct dates, and close or reopen sessions.</li>
+      <li>Create sessions for the assigned building and drag participants into turn order.</li>
+      <li>Pick a date for any participant directly from the turn list and calendar.</li>
+      <li>Skip one turn, pause or restore future turns, and remove incorrect assignments.</li>
+      <li>Choose weekday-first, any-date, or weekend-first selection and override individual date capacity.</li>
+      <li>Close or reopen sessions and download the full schedule.</li>
     </ul>
     <p class="help-limit">HRAs cannot manage another building or change user roles.</p>
     {% else %}
@@ -35,8 +35,7 @@
       <li>Everything an HRA can do, across every building.</li>
       <li>Pick normally when included in a session.</li>
       <li>Create buildings and assign user roles and buildings.</li>
-      <li>Create, manage, close, or reopen any session.</li>
-      <li>Correct all assignments, date ordering, and default or per-date capacities.</li>
+      <li>Manage every turn, assignment, capacity override, and session state.</li>
       <li>Review the audit log for administrative and scheduling changes.</li>
     </ul>
     {% endif %}

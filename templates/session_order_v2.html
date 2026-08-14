@@ -1,35 +1,44 @@
-<section class="card">
-  <div class="section-head"><div><h2>Participant order</h2><p>Deferred participants remain in the session and can be restored later.</p></div></div>
+<section class="card turn-order-card">
+  <div class="section-head">
+    <div><h2>Turn order</h2><p>The order repeats until the calendar is full.</p></div>
+  </div>
   <ol class="draft-list">
     {% for p in people %}
     <li class="draft-person{% if next and next.id == p.id %} is-current{% endif %}">
       <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
         <strong>{{ p.name }} <span class="inline-role">{{ p.role }}</span></strong>
-        {% if p.duty_date %}
-        <span class="status-text success">Assigned {{ p.duty_date|date_label }}</span>
-        {% elif p.deferred %}
-        <span class="status-text">Turn deferred</span>
+        {% if p.deferred %}
+        <span class="status-text">Paused for future turns · {{ p.assignment_count }} assigned</span>
         {% elif next and next.id == p.id %}
-        <span class="status-text current">Picking now</span>
+        <span class="status-text current">Picking now · {{ p.assignment_count }} assigned</span>
         {% else %}
-        <span class="status-text">Waiting</span>
+        <span class="status-text">{{ p.assignment_count }} assigned · waiting</span>
         {% endif %}
       </div>
-      {% if can_manage and not p.duty_date %}
-      <form method="post" action="{{ url_for('toggle_participant_pause', session_id=draft.id, user_id=p.id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <button class="button small secondary" type="submit">{{ 'Restore' if p.deferred else 'Defer' }}</button>
-      </form>
+      {% if can_manage and not schedule_complete %}
+      <div class="turn-actions">
+        <button class="button small" type="button" data-manager-pick data-user-id="{{ p.id }}" data-user-name="{{ p.name }}">Pick for them</button>
+        {% if next and next.id == p.id and not p.deferred %}
+        <form method="post" action="{{ url_for('skip_participant_turn', session_id=draft.id, user_id=p.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="button small secondary" type="submit">Skip once</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('toggle_participant_pause', session_id=draft.id, user_id=p.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="button small ghost" type="submit">{{ 'Restore' if p.deferred else 'Pause' }}</button>
+        </form>
+      </div>
       {% endif %}
     </li>
     {% endfor %}
   </ol>
   {% if next %}
   <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} · {{ next.role }}</strong></div>
-  {% elif assigned_count == participant_count %}
-  <div class="notice success">Every participant has an assignment.</div>
+  {% elif schedule_complete %}
+  <div class="notice success">The calendar is complete.</div>
   {% else %}
-  <div class="notice">No participant is currently waiting to pick. Deferred participants can be restored or manually assigned.</div>
+  <div class="notice">No participant can currently pick. Restore a paused participant or assign a date manually.</div>
   {% endif %}
 </section>

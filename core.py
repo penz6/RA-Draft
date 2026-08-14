@@ -1,3 +1,4 @@
+import calendar as calendar_module
 import json
 import os
 import re
@@ -32,9 +33,9 @@ DATE_ORDER_CHOICES = {
     DATE_ORDER_WEEKENDS_FIRST,
 }
 DATE_ORDER_LABELS = {
-    DATE_ORDER_WEEKDAYS_FIRST: "Weekdays first, then weekends",
-    DATE_ORDER_CHRONOLOGICAL: "Chronological",
-    DATE_ORDER_WEEKENDS_FIRST: "Weekends first, then weekdays",
+    DATE_ORDER_WEEKDAYS_FIRST: "Weekdays first",
+    DATE_ORDER_CHRONOLOGICAL: "Any open date",
+    DATE_ORDER_WEEKENDS_FIRST: "Weekends first",
 }
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
@@ -92,6 +93,18 @@ oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
+ASSIGNMENTS_TABLE_SQL = """
+CREATE TABLE assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  duty_date TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(session_id, user_id, duty_date)
+)
+"""
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS buildings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,6 +130,7 @@ CREATE TABLE IF NOT EXISTS draft_sessions (
   capacity INTEGER NOT NULL DEFAULT 2,
   date_order TEXT NOT NULL DEFAULT 'WEEKDAYS_FIRST'
     CHECK(date_order IN ('WEEKDAYS_FIRST','CHRONOLOGICAL','WEEKENDS_FIRST')),
+  current_position INTEGER NOT NULL DEFAULT 1,
   created_by INTEGER NOT NULL REFERENCES users(id),
   status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -135,7 +149,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   duty_date TEXT NOT NULL,
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(session_id, user_id)
+  UNIQUE(session_id, user_id, duty_date)
 );
 CREATE TABLE IF NOT EXISTS session_deferrals (
   session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
@@ -185,6 +199,81 @@ def close_db(_exc):
         conn.close()
 
 
+def _assignments_use_legacy_unique_constraint(conn):
+    for index_row in conn.execute("PRAGMA index_list(assignments)").fetchall():
+        if not index_row["unique"]:
+            continue
+        columns = [
+            item["name"]
+            for item in conn.execute(
+                "SELECT name FROM pragma_index_info(?)",
+                (index_row["name"],),
+            ).fetchall()
+        ]
+        if columns == ["session_id", "user_id"]:
+            return True
+    return False
+
+
+def _migrate_assignments_for_multiple_picks(conn):
+    if not _assignments_use_legacy_unique_constraint(conn):
+        return
+
+    conn.execute("ALTER TABLE assignments RENAME TO assignments_legacy")
+    conn.execute(ASSIGNMENTS_TABLE_SQL)
+    conn.execute(
+        "INSERT INTO assignments(id,session_id,user_id,duty_date,created_by,created_at) "
+        "SELECT id,session_id,user_id,duty_date,created_by,created_at "
+        "FROM assignments_legacy"
+    )
+    conn.execute("DROP TABLE assignments_legacy")
+
+
+def _initialize_existing_turn_positions(conn):
+    sessions = conn.execute("SELECT id FROM draft_sessions").fetchall()
+    for session_item in sessions:
+        session_id = session_item["id"]
+        maximum = conn.execute(
+            "SELECT MAX(position) AS position FROM session_order WHERE session_id=?",
+            (session_id,),
+        ).fetchone()["position"]
+        if not maximum:
+            continue
+        latest = conn.execute(
+            "SELECT o.position FROM assignments a "
+            "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
+            "WHERE a.session_id=? ORDER BY a.id DESC LIMIT 1",
+            (session_id,),
+        ).fetchone()
+        position = 1 if not latest else (latest["position"] % maximum) + 1
+        conn.execute(
+            "UPDATE draft_sessions SET current_position=? WHERE id=?",
+            (position, session_id),
+        )
+
+
+def _normalize_existing_capacities(conn):
+    sessions = conn.execute("SELECT id,capacity FROM draft_sessions").fetchall()
+    for session_item in sessions:
+        session_id = session_item["id"]
+        participants = conn.execute(
+            "SELECT COUNT(*) AS n FROM session_order WHERE session_id=?",
+            (session_id,),
+        ).fetchone()["n"]
+        if not participants:
+            continue
+        if session_item["capacity"] > participants:
+            conn.execute(
+                "UPDATE draft_sessions SET capacity=? WHERE id=?",
+                (participants, session_id),
+            )
+        conn.execute(
+            "UPDATE session_date_capacities SET capacity=? "
+            "WHERE session_id=? AND capacity>?",
+            (participants, session_id, participants),
+        )
+
+
 def migrate_schema(conn):
     session_columns = {
         row["name"] for row in conn.execute("PRAGMA table_info(draft_sessions)")
@@ -195,6 +284,16 @@ def migrate_schema(conn):
             "DEFAULT 'WEEKDAYS_FIRST' "
             "CHECK(date_order IN ('WEEKDAYS_FIRST','CHRONOLOGICAL','WEEKENDS_FIRST'))"
         )
+    added_turn_position = "current_position" not in session_columns
+    if added_turn_position:
+        conn.execute(
+            "ALTER TABLE draft_sessions ADD COLUMN current_position INTEGER NOT NULL DEFAULT 1"
+        )
+
+    _migrate_assignments_for_multiple_picks(conn)
+    _normalize_existing_capacities(conn)
+    if added_turn_position:
+        _initialize_existing_turn_positions(conn)
 
 
 def init_db():
@@ -317,7 +416,7 @@ def normalize_time(value):
 def normalize_date_order(value):
     text = str(value or DATE_ORDER_WEEKDAYS_FIRST).strip().upper()
     if text not in DATE_ORDER_CHOICES:
-        raise ValueError("Unsupported date order.")
+        raise ValueError("Unsupported date selection mode.")
     return text
 
 
@@ -440,7 +539,8 @@ def audit(action, target_type=None, target_id=None, details=None, actor_user_id=
     if details is not None:
         serialized = json.dumps(details, sort_keys=True, separators=(",", ":"))
     db().execute(
-        "INSERT INTO audit_log(actor_user_id,action,target_type,target_id,details) VALUES(?,?,?,?,?)",
+        "INSERT INTO audit_log(actor_user_id,action,target_type,target_id,details) "
+        "VALUES(?,?,?,?,?)",
         (actor, action, target_type, target_id, serialized),
     )
 
@@ -448,50 +548,69 @@ def audit(action, target_type=None, target_id=None, details=None, actor_user_id=
 def session_row(session_id):
     return db().execute(
         "SELECT s.*, b.name building_name, u.name creator_name FROM draft_sessions s "
-        "JOIN buildings b ON b.id=s.building_id JOIN users u ON u.id=s.created_by WHERE s.id=?",
+        "JOIN buildings b ON b.id=s.building_id "
+        "JOIN users u ON u.id=s.created_by WHERE s.id=?",
         (session_id,),
     ).fetchone()
 
 
+def can_view_session(user, row):
+    return bool(user and (user["role"] == "ADMIN" or user["building_id"] == row["building_id"]))
+
+
 def can_manage(user, row):
-    return user and (
-        user["role"] == "ADMIN"
-        or (user["role"] == "HRA" and user["building_id"] == row["building_id"])
+    return bool(
+        user
+        and (
+            user["role"] == "ADMIN"
+            or (user["role"] == "HRA" and user["building_id"] == row["building_id"])
+        )
     )
 
 
 def ordered_people(session_id):
     return db().execute(
-        "SELECT u.id,u.name,u.email,u.role,o.position,a.duty_date,"
-        "CASE WHEN d.user_id IS NULL THEN 0 ELSE 1 END AS deferred "
+        "SELECT u.id,u.name,u.email,u.role,o.position,"
+        "(SELECT COUNT(*) FROM assignments a "
+        " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) AS assignment_count,"
+        "CASE WHEN EXISTS(SELECT 1 FROM session_deferrals d "
+        " WHERE d.session_id=o.session_id AND d.user_id=o.user_id) THEN 1 ELSE 0 END "
+        "AS deferred "
         "FROM session_order o JOIN users u ON u.id=o.user_id "
-        "LEFT JOIN assignments a ON a.session_id=o.session_id AND a.user_id=u.id "
-        "LEFT JOIN session_deferrals d ON d.session_id=o.session_id AND d.user_id=u.id "
         "WHERE o.session_id=? ORDER BY o.position",
         (session_id,),
     ).fetchall()
 
 
-def next_picker(session_id):
+def participant_count(session_id):
     return db().execute(
-        "SELECT u.* FROM session_order o JOIN users u ON u.id=o.user_id "
-        "LEFT JOIN assignments a ON a.session_id=o.session_id AND a.user_id=o.user_id "
-        "LEFT JOIN session_deferrals d ON d.session_id=o.session_id AND d.user_id=o.user_id "
-        "WHERE o.session_id=? AND a.id IS NULL AND d.user_id IS NULL "
-        "ORDER BY o.position LIMIT 1",
+        "SELECT COUNT(*) AS n FROM session_order WHERE session_id=?",
         (session_id,),
-    ).fetchone()
+    ).fetchone()["n"]
+
+
+def is_participant(session_id, user_id):
+    return bool(
+        db().execute(
+            "SELECT 1 FROM session_order WHERE session_id=? AND user_id=?",
+            (session_id, user_id),
+        ).fetchone()
+    )
+
+
+def calendar_dates(row):
+    start = date.fromisoformat(row["start_date"])
+    end = date.fromisoformat(row["end_date"])
+    result = []
+    day = start
+    while day <= end:
+        result.append(day.isoformat())
+        day += timedelta(days=1)
+    return result
 
 
 def dates_for(row):
-    start = date.fromisoformat(row["start_date"])
-    end = date.fromisoformat(row["end_date"])
-    days = []
-    day = start
-    while day <= end:
-        days.append(day)
-        day += timedelta(days=1)
-
+    days = [date.fromisoformat(value) for value in calendar_dates(row)]
     try:
         order = normalize_date_order(row["date_order"])
     except (IndexError, KeyError, TypeError, ValueError):
@@ -501,8 +620,37 @@ def dates_for(row):
         days.sort(key=lambda item: (item.weekday() >= 5, item))
     elif order == DATE_ORDER_WEEKENDS_FIRST:
         days.sort(key=lambda item: (item.weekday() < 5, item))
-
     return [item.isoformat() for item in days]
+
+
+def calendar_months(row):
+    start = date.fromisoformat(row["start_date"])
+    end = date.fromisoformat(row["end_date"])
+    calendar = calendar_module.Calendar(firstweekday=0)
+    months = []
+    cursor = start.replace(day=1)
+    while cursor <= end:
+        weeks = []
+        for week in calendar.monthdatescalendar(cursor.year, cursor.month):
+            rendered_week = []
+            for day in week:
+                if day.month != cursor.month or day < start or day > end:
+                    rendered_week.append(None)
+                else:
+                    rendered_week.append(day.isoformat())
+            weeks.append(rendered_week)
+        months.append(
+            {
+                "label": f"{calendar_module.month_name[cursor.month]} {cursor.year}",
+                "weeks": weeks,
+            }
+        )
+        cursor = (
+            date(cursor.year + 1, 1, 1)
+            if cursor.month == 12
+            else date(cursor.year, cursor.month + 1, 1)
+        )
+    return months
 
 
 def capacity_overrides(session_id):
@@ -529,5 +677,149 @@ def capacities_for(row):
     overrides = capacity_overrides(row["id"])
     return {
         duty_date: overrides.get(duty_date, row["capacity"])
-        for duty_date in dates_for(row)
+        for duty_date in calendar_dates(row)
     }
+
+
+def assignment_counts(session_id):
+    return {
+        row["duty_date"]: row["n"]
+        for row in db().execute(
+            "SELECT duty_date,COUNT(*) AS n FROM assignments "
+            "WHERE session_id=? GROUP BY duty_date",
+            (session_id,),
+        ).fetchall()
+    }
+
+
+def total_slots(row):
+    return sum(capacities_for(row).values())
+
+
+def filled_slots(session_id):
+    return db().execute(
+        "SELECT COUNT(*) AS n FROM assignments WHERE session_id=?",
+        (session_id,),
+    ).fetchone()["n"]
+
+
+def session_complete(row):
+    counts = assignment_counts(row["id"])
+    capacities = capacities_for(row)
+    return all(counts.get(duty_date, 0) >= capacity for duty_date, capacity in capacities.items())
+
+
+def user_assignment_dates(session_id, user_id):
+    return {
+        row["duty_date"]
+        for row in db().execute(
+            "SELECT duty_date FROM assignments WHERE session_id=? AND user_id=?",
+            (session_id, user_id),
+        ).fetchall()
+    }
+
+
+def selectable_dates(row, user_id):
+    counts = assignment_counts(row["id"])
+    capacities = capacities_for(row)
+    already_assigned = user_assignment_dates(row["id"], user_id)
+    open_dates = [
+        duty_date
+        for duty_date in dates_for(row)
+        if counts.get(duty_date, 0) < capacities[duty_date]
+        and duty_date not in already_assigned
+    ]
+
+    order = normalize_date_order(row["date_order"])
+    if order == DATE_ORDER_WEEKDAYS_FIRST:
+        weekdays = [
+            duty_date
+            for duty_date in open_dates
+            if date.fromisoformat(duty_date).weekday() < 5
+        ]
+        return weekdays or open_dates
+    if order == DATE_ORDER_WEEKENDS_FIRST:
+        weekends = [
+            duty_date
+            for duty_date in open_dates
+            if date.fromisoformat(duty_date).weekday() >= 5
+        ]
+        return weekends or open_dates
+    return open_dates
+
+
+def selection_phase_label(row):
+    counts = assignment_counts(row["id"])
+    capacities = capacities_for(row)
+    open_dates = [
+        duty_date
+        for duty_date in calendar_dates(row)
+        if counts.get(duty_date, 0) < capacities[duty_date]
+    ]
+    order = normalize_date_order(row["date_order"])
+    if order == DATE_ORDER_WEEKDAYS_FIRST:
+        if any(date.fromisoformat(value).weekday() < 5 for value in open_dates):
+            return "Weekday dates are open; weekends unlock after weekday slots fill."
+        return "Weekend dates are now open."
+    if order == DATE_ORDER_WEEKENDS_FIRST:
+        if any(date.fromisoformat(value).weekday() >= 5 for value in open_dates):
+            return "Weekend dates are open; weekdays unlock after weekend slots fill."
+        return "Weekday dates are now open."
+    return "Any date with an open slot can be selected."
+
+
+def next_picker(session_id):
+    row = session_row(session_id)
+    if not row or session_complete(row):
+        return None
+
+    active = db().execute(
+        "SELECT u.*,o.position FROM session_order o "
+        "JOIN users u ON u.id=o.user_id "
+        "LEFT JOIN session_deferrals d "
+        "ON d.session_id=o.session_id AND d.user_id=o.user_id "
+        "WHERE o.session_id=? AND d.user_id IS NULL ORDER BY o.position",
+        (session_id,),
+    ).fetchall()
+    if not active:
+        return None
+
+    start_position = row["current_position"] or 1
+    rotated = [item for item in active if item["position"] >= start_position]
+    rotated.extend(item for item in active if item["position"] < start_position)
+    for participant in rotated:
+        if selectable_dates(row, participant["id"]):
+            return participant
+    return None
+
+
+def advance_turn(session_id, after_user_id):
+    current = db().execute(
+        "SELECT position FROM session_order WHERE session_id=? AND user_id=?",
+        (session_id, after_user_id),
+    ).fetchone()
+    if not current:
+        raise ValueError("User is not in the session order.")
+
+    active = db().execute(
+        "SELECT o.position FROM session_order o "
+        "LEFT JOIN session_deferrals d "
+        "ON d.session_id=o.session_id AND d.user_id=o.user_id "
+        "WHERE o.session_id=? AND d.user_id IS NULL ORDER BY o.position",
+        (session_id,),
+    ).fetchall()
+    if not active:
+        return
+
+    next_position = next(
+        (
+            item["position"]
+            for item in active
+            if item["position"] > current["position"]
+        ),
+        active[0]["position"],
+    )
+    db().execute(
+        "UPDATE draft_sessions SET current_position=? WHERE id=?",
+        (next_position, session_id),
+    )

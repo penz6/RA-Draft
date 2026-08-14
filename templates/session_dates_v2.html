@@ -1,56 +1,91 @@
-<section class="card">
+<section class="card duty-calendar-card" data-duty-calendar data-self-user-id="{{ me.id }}" data-current-user-id="{{ next.id if next else '' }}" data-can-manage="{{ 'true' if can_manage else 'false' }}">
   <div class="section-head">
     <div>
-      <h2>Duty dates</h2>
-      <p>{{ draft.date_order|date_order_label }}. The default capacity is {{ draft.capacity }}, with any date-specific overrides shown below.</p>
+      <h2>Assignment calendar</h2>
+      <p>Click an available date when it is your turn. Names already assigned appear on each date.</p>
     </div>
   </div>
 
   {% if draft.status == 'CLOSED' %}
   <div class="notice">This session is closed. An HRA or Admin can reopen it.</div>
   {% elif next and me.id == next.id %}
-    {% if available_date_count %}
-    <form class="pick-form" method="post" action="{{ url_for('choose_shift', session_id=draft.id) }}">
-      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <label class="field">Choose your duty date
-        <select name="duty_date" required>
-          {% for d in dates %}
-            {% set capacity = capacities[d] %}
-            {% if counts.get(d, 0) < capacity %}
-            <option value="{{ d }}">{{ d|date_label }} · {{ d|day_type }} ({{ counts.get(d, 0) }}/{{ capacity }} filled)</option>
-            {% endif %}
-          {% endfor %}
-        </select>
-      </label>
-      <button class="button" type="submit">Confirm duty date</button>
-    </form>
-    {% else %}
-    <div class="notice error">No duty dates have remaining capacity. Ask your HRA or Admin to adjust the session.</div>
-    {% endif %}
-  {% elif mine %}
-  <div class="notice success">Your duty date is {{ mine.duty_date|date_label }}.</div>
+  <div class="notice success">It is your turn. Select a highlighted date.</div>
   {% elif next %}
-  <div class="notice">Waiting for <strong>{{ next.name }}</strong> to select.</div>
-  {% else %}
-  <div class="notice">No participant is currently eligible to pick.</div>
+  <div class="notice">Waiting for <strong>{{ next.name }}</strong>.</div>
   {% endif %}
 
-  {% if dates|length > 14 %}
-  <label class="field date-search">Filter dates
-    <input type="search" placeholder="Search by date or weekday" autocomplete="off" data-date-filter>
-  </label>
+  {% if can_manage %}
+  <div class="manager-mode-banner" data-manager-mode hidden>
+    <span>Select a date for <strong data-manager-name></strong>.</span>
+    <button class="button ghost small" type="button" data-manager-cancel>Cancel</button>
+  </div>
   {% endif %}
 
-  <div class="date-grid" data-date-grid>
-    {% for d in dates %}
-    {% set filled = counts.get(d, 0) %}
-    {% set capacity = capacities[d] %}
-    <article class="date-card{% if filled >= capacity %} is-full{% endif %}" data-date-card data-search="{{ d }} {{ d|date_label|lower }} {{ d|day_type|lower }}">
-      <strong>{{ d|date_label }}</strong>
-      <span>{{ d|day_type }}{% if d in capacity_overrides %} · capacity override{% endif %}</span>
-      <span>{{ filled }}/{{ capacity }} assigned</span>
-      <span class="capacity-label">{{ 'Full' if filled >= capacity else ((capacity - filled)|string) ~ ' open' }}</span>
-    </article>
+  <div class="calendar-months">
+    {% for month in months %}
+    <section class="calendar-month">
+      <h3>{{ month.label }}</h3>
+      <div class="calendar-scroll">
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="calendar-grid" role="grid" aria-label="{{ month.label }} duty calendar">
+          {% for week in month.weeks %}
+            {% for d in week %}
+              {% if d %}
+                {% set assigned = assignments_by_date.get(d, []) %}
+                {% set filled = counts.get(d, 0) %}
+                {% set capacity = capacities[d] %}
+                {% set full = filled >= capacity %}
+                {% set self_allowed = d in selectable_dates %}
+                <button class="calendar-day{% if full %} is-full{% endif %}{% if self_allowed %} is-self-selectable{% endif %}" type="button" data-calendar-day data-date="{{ d }}" data-date-label="{{ d|date_label }}" data-full="{{ 'true' if full else 'false' }}" data-self-selectable="{{ 'true' if self_allowed else 'false' }}" data-assigned-user-ids="{{ assignment_user_ids.get(d, '') }}" {% if full or (not can_manage and not self_allowed) %}disabled{% endif %} aria-label="{{ d|date_label }}: {{ filled }} of {{ capacity }} assigned{% if assigned %}; {{ assigned|map(attribute='name')|join(', ') }}{% endif %}">
+                  <span class="calendar-day-head"><strong>{{ d[8:10]|int }}</strong><small>{{ d|day_type }}</small></span>
+                  <span class="calendar-assignees">
+                    {% for a in assigned %}
+                    <span class="calendar-assignee">{{ a.name }}</span>
+                    {% else %}
+                    <span class="calendar-empty">No one assigned</span>
+                    {% endfor %}
+                  </span>
+                  <span class="calendar-capacity">{{ filled }}/{{ capacity }}{% if d in capacity_overrides %} · override{% endif %}</span>
+                </button>
+              {% else %}
+                <div class="calendar-blank" aria-hidden="true"></div>
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </section>
     {% endfor %}
   </div>
+
+  <dialog class="calendar-dialog" data-self-pick-dialog>
+    <form method="post" action="{{ url_for('choose_shift', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="duty_date" data-self-pick-date>
+      <h3>Select this duty date?</h3>
+      <p data-self-pick-label></p>
+      <div class="dialog-actions">
+        <button class="button ghost" type="button" data-dialog-close>Cancel</button>
+        <button class="button" type="submit">Select date</button>
+      </div>
+    </form>
+  </dialog>
+
+  {% if can_manage %}
+  <dialog class="calendar-dialog" data-manager-pick-dialog>
+    <form method="post" action="{{ url_for('manual_assign', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="user_id" data-manager-pick-user>
+      <input type="hidden" name="duty_date" data-manager-pick-date>
+      <h3>Assign this date?</h3>
+      <p><strong data-manager-pick-name></strong> will be assigned to <span data-manager-pick-label></span>.</p>
+      <div class="dialog-actions">
+        <button class="button ghost" type="button" data-dialog-close>Cancel</button>
+        <button class="button" type="submit">Assign date</button>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
 </section>

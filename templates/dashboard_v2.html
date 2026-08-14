@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Duty sessions | RA Duty Draft{% endblock %}
+{% block title %}Duty sessions | RA Duty Picking{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
@@ -12,10 +12,13 @@
 {% if me.role in ['HRA', 'ADMIN'] %}
 <section class="card create-session-card">
   <div class="section-head">
-    <div><h2>Create and open a duty session</h2><p>The first turn starts immediately: the first selected participant can pick as soon as the session is created.</p></div>
+    <div>
+      <h2>Create and open a duty session</h2>
+      <p>The first turn starts immediately. Turns repeat until every date reaches capacity.</p>
+    </div>
   </div>
   {% if me.role == 'HRA' and not me.building_id %}
-  <div class="notice">An admin must assign your building before you can create a session.</div>
+  <div class="notice">An Admin must assign your building before you can create a session.</div>
   {% elif me.role == 'ADMIN' and not buildings %}
   <div class="notice">Create at least one building in Admin before creating a session.</div>
   {% else %}
@@ -23,7 +26,7 @@
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
 
     <label class="field">Session name
-      <input name="name" maxlength="120" required autocomplete="off" placeholder="Fall duty draft">
+      <input name="name" maxlength="120" required autocomplete="off" placeholder="Fall duty picking">
     </label>
     {% if me.role == 'ADMIN' %}
     <label class="field">Building
@@ -38,29 +41,21 @@
     <label class="field">Last duty date
       <input type="date" name="end_date" required>
     </label>
-    <label class="field">Reference start time
-      <input type="time" name="shift_start" value="19:00" required>
-    </label>
-    <label class="field">Reference end time
-      <input type="time" name="shift_end" value="07:00" required>
-      <small>Calendar exports remain all-day events.</small>
-    </label>
-    <label class="field">Default people per date
+    <label class="field">People per date
       <input type="number" min="1" max="50" name="capacity" value="2" required inputmode="numeric">
     </label>
-    <label class="field">Date order
+    <label class="field">Date selection rule
       <select name="date_order" required>
-        <option value="WEEKDAYS_FIRST" selected>Weekdays first, then weekends</option>
-        <option value="CHRONOLOGICAL">Chronological</option>
-        <option value="WEEKENDS_FIRST">Weekends first, then weekdays</option>
+        <option value="WEEKDAYS_FIRST" selected>Fill weekdays before weekends</option>
+        <option value="CHRONOLOGICAL">Allow any open date</option>
+        <option value="WEEKENDS_FIRST">Fill weekends before weekdays</option>
       </select>
-      <small>This controls the order shown while picking.</small>
     </label>
 
     <fieldset class="full participant-fieldset">
-      <legend>Participants and draft order</legend>
+      <legend>Participants and turn order</legend>
       <div class="participant-toolbar">
-        <p>Everyone assigned to the selected building starts checked, including HRAs and Admins. Remove anyone who is not picking and adjust the order as needed.</p>
+        <p>Everyone in the selected building starts checked. Drag rows into order, or use the arrow buttons on mobile and keyboard devices.</p>
         <div class="button-group">
           <button class="button secondary small" type="button" data-participant-select-all>Select all</button>
           <button class="button ghost small" type="button" data-participant-clear>Clear</button>
@@ -68,7 +63,9 @@
       </div>
       <div class="participant-list" data-participant-list>
         {% for participant in participants %}
-        <div class="participant-row" data-participant-row data-building-id="{{ participant.building_id }}">
+        <div class="participant-row draggable-participant" draggable="true" data-participant-row data-building-id="{{ participant.building_id }}">
+          <button class="drag-handle" type="button" aria-label="Drag {{ participant.name }} to change order" title="Drag to reorder">&#8942;&#8942;</button>
+          <span class="order-number compact" data-order-label>{{ loop.index }}</span>
           <label class="check participant-name">
             <input type="checkbox" name="participant_ids" value="{{ participant.id }}" checked data-participant-check>
             <span>
@@ -76,9 +73,11 @@
               <small>{{ participant.email }}{% if me.role == 'ADMIN' and participant.building_name %} - {{ participant.building_name }}{% endif %}</small>
             </span>
           </label>
-          <label class="order-field">Order
-            <input type="number" name="order_{{ participant.id }}" min="1" max="10000" value="{{ loop.index }}" data-order-input inputmode="numeric">
-          </label>
+          <div class="mobile-order-buttons" aria-label="Move {{ participant.name }}">
+            <button class="button ghost small" type="button" data-move-up aria-label="Move {{ participant.name }} up">&#8593;</button>
+            <button class="button ghost small" type="button" data-move-down aria-label="Move {{ participant.name }} down">&#8595;</button>
+          </div>
+          <input type="hidden" name="order_{{ participant.id }}" value="{{ loop.index }}" data-order-input>
         </div>
         {% else %}
         <p class="empty-copy">No users are assigned to this building yet.</p>
@@ -109,13 +108,13 @@
       </div>
       <dl class="session-meta">
         <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
-        <div><dt>Default capacity</dt><dd>{{ s.capacity }} per date</dd></div>
-        <div><dt>Pick order</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
+        <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
+        <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
       </dl>
       <span class="session-arrow" aria-hidden="true">&rarr;</span>
     </a>
     {% else %}
-    <div class="empty-state compact"><h3>No sessions yet</h3><p>New duty drafts will appear here.</p></div>
+    <div class="empty-state compact"><h3>No sessions yet</h3><p>New duty sessions will appear here.</p></div>
     {% endfor %}
   </div>
 </section>

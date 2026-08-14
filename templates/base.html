@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="RWU residence-life duty scheduling portal">
-  <title>{% block title %}RA Duty Draft{% endblock %}</title>
+  <title>{% block title %}RA Duty Picking{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='role_help.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='calendar.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body>
@@ -15,7 +16,7 @@
     <div class="topbar-inner">
       <a href="{{ url_for('dashboard') if me else url_for('index') }}" class="brand">
         <span class="brand-mark" aria-hidden="true">RA</span>
-        <span>Duty Draft</span>
+        <span>Duty Picking</span>
       </a>
       {% if me %}
       <nav class="primary-nav" aria-label="Primary navigation">

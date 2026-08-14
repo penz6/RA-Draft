@@ -1,15 +1,19 @@
+import sqlite3
+
 from flask import abort, flash, redirect, request, url_for
 
 from core import (
+    advance_turn,
     app,
     audit,
+    can_view_session,
     current_user,
-    dates_for,
     db,
-    effective_capacity,
     login_required,
     next_picker,
     require_csrf,
+    selectable_dates,
+    session_complete,
     session_row,
 )
 
@@ -18,49 +22,52 @@ from core import (
 @login_required
 def choose_shift(session_id):
     require_csrf()
-    row = session_row(session_id)
     user = current_user()
+    row = session_row(session_id)
     if not row or row["status"] != "OPEN":
         abort(400)
-    if user["role"] != "ADMIN" and user["building_id"] != row["building_id"]:
+    if not can_view_session(user, row):
         abort(403)
 
     duty_date = request.form.get("duty_date", "")
-    if duty_date not in dates_for(row):
-        abort(400)
-
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    row = session_row(session_id)
     current = next_picker(session_id)
     if not current or current["id"] != user["id"]:
         conn.rollback()
         abort(403)
-
-    count = conn.execute(
-        "SELECT COUNT(*) n FROM assignments WHERE session_id=? AND duty_date=?",
-        (session_id, duty_date),
-    ).fetchone()["n"]
-    capacity = effective_capacity(row, duty_date)
-    if count >= capacity:
+    if duty_date not in selectable_dates(row, user["id"]):
         conn.rollback()
-        flash("That duty date is full.", "error")
-    else:
+        flash("That date is not available for this turn.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
+
+    try:
         cur = conn.execute(
             "INSERT INTO assignments(session_id,user_id,duty_date,created_by) "
             "VALUES(?,?,?,?)",
             (session_id, user["id"], duty_date, user["id"]),
         )
-        audit(
-            "assignment.self_pick",
-            "assignment",
-            cur.lastrowid,
-            {
-                "session_id": session_id,
-                "user_id": user["id"],
-                "duty_date": duty_date,
-                "effective_capacity": capacity,
-            },
-        )
-        conn.commit()
-        flash("Duty shift selected.", "success")
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        flash("You are already assigned to that date.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
+
+    advance_turn(session_id, user["id"])
+    audit(
+        "assignment.self_pick",
+        "assignment",
+        cur.lastrowid,
+        {
+            "session_id": session_id,
+            "user_id": user["id"],
+            "duty_date": duty_date,
+        },
+    )
+    complete = session_complete(row)
+    conn.commit()
+    flash(
+        "Every duty slot is filled." if complete else "Duty date selected. The turn advanced.",
+        "success",
+    )
     return redirect(url_for("view_session", session_id=session_id))
