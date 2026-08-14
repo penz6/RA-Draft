@@ -8,6 +8,7 @@ from core import (
     clean_single_line,
     current_user,
     db,
+    normalize_date_order,
     normalize_time,
     require_csrf,
     roles,
@@ -55,19 +56,24 @@ def create_session():
     except (TypeError, ValueError):
         capacity = 2
     if capacity < 1 or capacity > 50:
-        flash("RAs per date must be between 1 and 50.", "error")
+        flash("Participants per date must be between 1 and 50.", "error")
         return redirect(url_for("dashboard"))
 
     try:
         shift_start = normalize_time(request.form.get("shift_start", "19:00"))
         shift_end = normalize_time(request.form.get("shift_end", "07:00"))
+        date_order = normalize_date_order(request.form.get("date_order"))
     except ValueError:
-        flash("Duty hours must use a valid 24-hour time.", "error")
+        flash("Duty hours or date ordering were invalid.", "error")
         return redirect(url_for("dashboard"))
+
+    raw_participants = request.form.getlist("participant_ids")
+    if not raw_participants:
+        raw_participants = request.form.getlist("ra_ids")
 
     selected = []
     seen = set()
-    for fallback_order, raw_uid in enumerate(request.form.getlist("ra_ids"), start=1):
+    for fallback_order, raw_uid in enumerate(raw_participants, start=1):
         try:
             uid = int(raw_uid)
         except (TypeError, ValueError):
@@ -76,7 +82,8 @@ def create_session():
             continue
         seen.add(uid)
         if not db().execute(
-            "SELECT 1 FROM users WHERE id=? AND building_id=? AND role='RA'",
+            "SELECT 1 FROM users WHERE id=? AND building_id=? "
+            "AND role IN ('RA','HRA','ADMIN')",
             (uid, building_id),
         ).fetchone():
             continue
@@ -89,7 +96,7 @@ def create_session():
         selected.append((order, fallback_order, uid))
 
     if not selected:
-        flash("Select at least one RA for the draft session.", "error")
+        flash("Select at least one participant for the duty session.", "error")
         return redirect(url_for("dashboard"))
 
     selected.sort(key=lambda item: (item[0], item[1]))
@@ -97,8 +104,8 @@ def create_session():
     conn.execute("BEGIN IMMEDIATE")
     cur = conn.execute(
         "INSERT INTO draft_sessions("
-        "name,building_id,start_date,end_date,shift_start,shift_end,capacity,created_by"
-        ") VALUES(?,?,?,?,?,?,?,?)",
+        "name,building_id,start_date,end_date,shift_start,shift_end,capacity,date_order,created_by"
+        ") VALUES(?,?,?,?,?,?,?,?,?)",
         (
             name,
             building_id,
@@ -107,6 +114,7 @@ def create_session():
             shift_start,
             shift_end,
             capacity,
+            date_order,
             user["id"],
         ),
     )
@@ -129,6 +137,7 @@ def create_session():
             "shift_start": shift_start,
             "shift_end": shift_end,
             "capacity": capacity,
+            "date_order": date_order,
             "participant_ids": participant_ids,
         },
     )
