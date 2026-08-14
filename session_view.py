@@ -3,6 +3,7 @@ from collections import defaultdict
 from flask import abort, render_template
 
 from core import (
+    DATE_KIND_LABELS,
     app,
     assignment_counts,
     calendar_dates,
@@ -12,6 +13,8 @@ from core import (
     capacities_for,
     capacity_overrides,
     current_user,
+    date_kind_overrides,
+    date_kinds_for,
     dates_for,
     filled_slots,
     login_required,
@@ -57,6 +60,8 @@ def view_session(session_id):
     ordered_dates = dates_for(row)
     capacities = capacities_for(row)
     overrides = capacity_overrides(session_id)
+    kinds = date_kinds_for(row)
+    kind_overrides = date_kind_overrides(session_id)
     current_picker = next_picker(session_id)
     self_selectable = (
         set(selectable_dates(row, user["id"]))
@@ -78,6 +83,9 @@ def view_session(session_id):
         months=calendar_months(row),
         capacities=capacities,
         capacity_overrides=overrides,
+        date_kinds=kinds,
+        date_kind_overrides=kind_overrides,
+        date_kind_labels=DATE_KIND_LABELS,
         assignments_by_date=dict(assignments_by_date),
         assignment_user_ids={
             duty_date: ",".join(user_ids)
@@ -91,7 +99,10 @@ def view_session(session_id):
         total_slot_count=slots,
         open_slot_count=max(slots - filled, 0),
         available_date_count=sum(
-            1 for duty_date in dates if counts.get(duty_date, 0) < capacities[duty_date]
+            1
+            for duty_date in dates
+            if capacities[duty_date] > 0
+            and counts.get(duty_date, 0) < capacities[duty_date]
         ),
         schedule_complete=complete,
         selection_phase=selection_phase_label(row),
