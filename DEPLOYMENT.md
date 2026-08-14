@@ -8,6 +8,16 @@ Browser -> Pangolin PIN/passcode gate -> RA Draft -> Google OpenID Connect
 
 Pangolin is the outer access gate. Its PIN/password mode does not identify an individual user, so RA Draft still signs each person in with Google and stores Google's stable `sub`, verified email, and display name. Application roles and building access remain enforced by RA Draft.
 
+## Container image
+
+Successful pushes to `main` publish the tested production image to:
+
+```text
+ghcr.io/penz6/ra-draft:latest
+```
+
+Each main build is also published with its immutable Git commit SHA as a tag. The Docker image contains an OCI source label linking it to this repository.
+
 ## Environment
 
 Create a local `.env` file and never commit it:
@@ -74,7 +84,8 @@ The compose file publishes no host port. Do not add a public `0.0.0.0:8000` bind
 Start the application with:
 
 ```bash
-docker compose -f docker-compose.pangolin.yml up -d --build
+docker compose -f docker-compose.pangolin.yml pull
+docker compose -f docker-compose.pangolin.yml up -d
 ```
 
 ## First sign-in
@@ -90,11 +101,12 @@ The first new user whose email appears in `ADMIN_EMAILS` becomes an admin. Every
 - Back up the `ra-draft-data` volume off the VPS.
 - SQLite uses WAL mode. Use SQLite's backup API or stop the app briefly before copying the database and WAL files.
 - Review the Admin audit table for role, building, session, deferral, and assignment changes.
-- Rebuild regularly so Dependabot security updates are incorporated.
+- Pull newly published images regularly so Dependabot security updates are incorporated.
 
 ## Update
 
 ```bash
 git pull
-docker compose -f docker-compose.pangolin.yml up -d --build
+docker compose -f docker-compose.pangolin.yml pull
+docker compose -f docker-compose.pangolin.yml up -d
 ```
