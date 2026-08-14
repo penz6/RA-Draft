@@ -1,7 +1,7 @@
 <div class="manager-content">
   <section class="manager-section">
     <div class="section-head compact">
-      <div><h3>Date selection rule</h3><p>Control which type of date must be filled first.</p></div>
+      <div><h3>Date selection rule</h3><p>Control which type of required date must be filled first.</p></div>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_order', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -18,14 +18,64 @@
 
   <section class="manager-section">
     <div class="section-head compact">
-      <div><h3>Per-date capacity</h3><p>The session default is {{ draft.capacity }}. Set a different limit for one date, or leave it blank to reset.</p></div>
+      <div>
+        <h3>Date treatment</h3>
+        <p>Override whether an edge-case date counts as a weekday or weekend, or mark it as requiring no staffing.</p>
+      </div>
+    </div>
+    <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_kind', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="field grow">Duty date
+        <select name="duty_date" required>
+          {% for d in dates %}
+          <option value="{{ d }}">{{ d|date_label }} · {{ date_kind_labels[date_kinds[d]] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field grow">Treat as
+        <select name="date_kind" required>
+          <option value="AUTO">Calendar default</option>
+          <option value="WEEKDAY">Weekday</option>
+          <option value="WEEKEND">Weekend</option>
+          <option value="NO_DUTY">No one needed</option>
+        </select>
+      </label>
+      <button class="button small" type="submit">Apply</button>
+    </form>
+    <p class="muted manager-note">A date with existing assignments cannot be marked “no one needed” until those assignments are removed.</p>
+
+    {% if date_kind_overrides %}
+    <div class="override-list" aria-label="Current date treatment overrides">
+      {% for d in dates %}
+        {% if d in date_kind_overrides %}
+        <div class="override-row">
+          <div>
+            <strong>{{ d|date_label }}</strong>
+            <small>{{ date_kind_labels[date_kind_overrides[d]] }}</small>
+          </div>
+          <form method="post" action="{{ url_for('update_date_kind', session_id=draft.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="duty_date" value="{{ d }}">
+            <input type="hidden" name="date_kind" value="AUTO">
+            <button class="button ghost small" type="submit">Use calendar default</button>
+          </form>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="manager-section">
+    <div class="section-head compact">
+      <div><h3>Per-date capacity</h3><p>The session default is {{ draft.capacity }}. Set a different limit for one staffed date, or leave it blank to reset.</p></div>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_capacity', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <label class="field grow">Duty date
         <select name="duty_date" required>
           {% for d in dates %}
-          <option value="{{ d }}">{{ d|date_label }} · current capacity {{ capacities[d] }}</option>
+          <option value="{{ d }}" {% if date_kinds[d] == 'NO_DUTY' %}disabled{% endif %}>{{ d|date_label }} · {% if date_kinds[d] == 'NO_DUTY' %}no one needed{% else %}current capacity {{ capacities[d] }}{% endif %}</option>
           {% endfor %}
         </select>
       </label>
