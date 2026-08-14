@@ -251,11 +251,13 @@ def dashboard():
         sessions=sessions,
         buildings=buildings,
         participants=participants,
+        live_version=dashboard_state_version(user),
         auto_open_help=bool(session.pop("show_role_help", False)),
     )
 
 
 import round_robin  # noqa: E402,F401
+from live_updates import dashboard_state_version  # noqa: E402
 import admin_routes  # noqa: E402,F401
 import calendar_routes  # noqa: E402,F401
 import hra_assign  # noqa: E402,F401
