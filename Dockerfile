@@ -1,5 +1,7 @@
 FROM python:3.14-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4
 
+LABEL org.opencontainers.image.source="https://github.com/penz6/RA-Draft"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATABASE_PATH=/data/ra_draft.db \
