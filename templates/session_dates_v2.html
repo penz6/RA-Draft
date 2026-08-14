@@ -1,10 +1,13 @@
 <section class="card">
   <div class="section-head">
-    <div><h2>Duty dates</h2><p>Each date can hold up to {{ draft.capacity }} RA{{ '' if draft.capacity == 1 else 's' }}.</p></div>
+    <div>
+      <h2>Duty dates</h2>
+      <p>{{ draft.date_order|date_order_label }}. The default capacity is {{ draft.capacity }}, with any date-specific overrides shown below.</p>
+    </div>
   </div>
 
   {% if draft.status == 'CLOSED' %}
-  <div class="notice">This session is closed. An HRA or admin can reopen it.</div>
+  <div class="notice">This session is closed. An HRA or Admin can reopen it.</div>
   {% elif next and me.id == next.id %}
     {% if available_date_count %}
     <form class="pick-form" method="post" action="{{ url_for('choose_shift', session_id=draft.id) }}">
@@ -12,8 +15,9 @@
       <label class="field">Choose your duty date
         <select name="duty_date" required>
           {% for d in dates %}
-            {% if counts.get(d, 0) < draft.capacity %}
-            <option value="{{ d }}">{{ d|date_label }} ({{ counts.get(d, 0) }}/{{ draft.capacity }} filled)</option>
+            {% set capacity = capacities[d] %}
+            {% if counts.get(d, 0) < capacity %}
+            <option value="{{ d }}">{{ d|date_label }} · {{ d|day_type }} ({{ counts.get(d, 0) }}/{{ capacity }} filled)</option>
             {% endif %}
           {% endfor %}
         </select>
@@ -21,7 +25,7 @@
       <button class="button" type="submit">Confirm duty date</button>
     </form>
     {% else %}
-    <div class="notice error">No duty dates have remaining capacity. Ask your HRA to adjust the session.</div>
+    <div class="notice error">No duty dates have remaining capacity. Ask your HRA or Admin to adjust the session.</div>
     {% endif %}
   {% elif mine %}
   <div class="notice success">Your duty date is {{ mine.duty_date|date_label }}.</div>
@@ -33,17 +37,19 @@
 
   {% if dates|length > 14 %}
   <label class="field date-search">Filter dates
-    <input type="search" placeholder="Search by date" autocomplete="off" data-date-filter>
+    <input type="search" placeholder="Search by date or weekday" autocomplete="off" data-date-filter>
   </label>
   {% endif %}
 
   <div class="date-grid" data-date-grid>
     {% for d in dates %}
     {% set filled = counts.get(d, 0) %}
-    <article class="date-card{% if filled >= draft.capacity %} is-full{% endif %}" data-date-card data-search="{{ d }} {{ d|date_label|lower }}">
+    {% set capacity = capacities[d] %}
+    <article class="date-card{% if filled >= capacity %} is-full{% endif %}" data-date-card data-search="{{ d }} {{ d|date_label|lower }} {{ d|day_type|lower }}">
       <strong>{{ d|date_label }}</strong>
-      <span>{{ filled }}/{{ draft.capacity }} assigned</span>
-      <span class="capacity-label">{{ 'Full' if filled >= draft.capacity else ((draft.capacity - filled)|string) ~ ' open' }}</span>
+      <span>{{ d|day_type }}{% if d in capacity_overrides %} · capacity override{% endif %}</span>
+      <span>{{ filled }}/{{ capacity }} assigned</span>
+      <span class="capacity-label">{{ 'Full' if filled >= capacity else ((capacity - filled)|string) ~ ' open' }}</span>
     </article>
     {% endfor %}
   </div>
