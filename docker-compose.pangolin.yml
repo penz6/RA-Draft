@@ -1,6 +1,6 @@
 services:
   ra-draft:
-    build: .
+    image: ghcr.io/penz6/ra-draft:latest
     restart: unless-stopped
     environment:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
