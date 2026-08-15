@@ -24,8 +24,13 @@ def ics_escape(text):
     )
 
 
+def first_name(value):
+    cleaned = " ".join(str(value or "").split())
+    return cleaned.split(" ", 1)[0] if cleaned else "Unassigned"
+
+
 def format_names(names):
-    cleaned = [str(name).strip() for name in names if str(name).strip()]
+    cleaned = [first_name(name) for name in names if str(name).strip()]
     if not cleaned:
         return "Unassigned"
     if len(cleaned) == 1:
