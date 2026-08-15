@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Duty sessions | RA Duty Picking{% endblock %}
 {% block content %}
-<div class="page-head" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-version="{{ live_version }}">
+<div class="page-head" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty sessions</h1>
