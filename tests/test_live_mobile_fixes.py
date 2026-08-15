@@ -132,6 +132,7 @@ class LiveMobileFixTestCase(unittest.TestCase):
         session_page = self.request("get", f"/sessions/{session_id}").get_data(as_text=True)
         self.assertIn("data-live-refresh", session_page)
         self.assertIn(f"/live-state?session_id={session_id}", session_page)
+        self.assertIn(f"/live-events?session_id={session_id}", session_page)
         before_turn = self.request(
             "get",
             f"/live-state?session_id={session_id}",
@@ -149,6 +150,46 @@ class LiveMobileFixTestCase(unittest.TestCase):
             f"/live-state?session_id={session_id}",
         ).get_json()["version"]
         self.assertNotEqual(before_turn, after_turn)
+
+    def test_live_event_stream_is_authenticated_and_sends_initial_state(self):
+        unauthenticated = self.request("get", "/live-events", buffered=False)
+        self.assertEqual(unauthenticated.status_code, 401)
+        unauthenticated.close()
+
+        building_id = self.add_building()
+        hra_id = self.add_user(
+            sub="hra-stream",
+            email="stream.hra@rwu.edu",
+            name="Stream HRA",
+            role="HRA",
+            building_id=building_id,
+        )
+        ra_id = self.add_user(
+            sub="ra-stream",
+            email="stream.ra@g.rwu.edu",
+            name="Stream RA",
+            building_id=building_id,
+        )
+        session_id = self.create_session(building_id, hra_id, [ra_id])
+        self.login_as(hra_id)
+
+        response = self.request(
+            "get",
+            f"/live-events?session_id={session_id}",
+            buffered=False,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/event-stream")
+        self.assertEqual(response.headers.get("X-Accel-Buffering"), "no")
+        self.assertEqual(response.headers.get("Content-Encoding"), "identity")
+
+        stream = iter(response.response)
+        retry_chunk = next(stream).decode("utf-8")
+        state_chunk = next(stream).decode("utf-8")
+        self.assertIn("retry: 1500", retry_chunk)
+        self.assertIn("event: state", state_chunk)
+        self.assertIn('"version":', state_chunk)
+        response.close()
 
     def test_calendar_summary_uses_first_names_building_star_and_ampersand(self):
         building_id = self.add_building("W")
@@ -202,7 +243,8 @@ class LiveMobileFixTestCase(unittest.TestCase):
     def test_mobile_css_keeps_calendar_grid_and_separates_order_controls(self):
         root = Path(__file__).resolve().parents[1]
         css = (root / "static" / "calendar.css").read_text(encoding="utf-8")
-        javascript = (root / "static" / "app.js").read_text(encoding="utf-8")
+        polling_javascript = (root / "static" / "app.js").read_text(encoding="utf-8")
+        event_javascript = (root / "static" / "live_events.js").read_text(encoding="utf-8")
         mobile = css.split("@media(max-width:650px){", 1)[1].split(
             "@media(max-width:420px){",
             1,
@@ -218,8 +260,11 @@ class LiveMobileFixTestCase(unittest.TestCase):
         )
         self.assertIn(".drag-handle{display:none}", mobile)
         self.assertNotIn(".calendar-grid{display:grid;grid-template-columns:1fr", mobile)
-        self.assertIn("window.setInterval(pollLiveState, 2500)", javascript)
-        self.assertIn("dataset.liveStateUrl", javascript)
+        self.assertIn("window.setInterval(pollLiveState, 2500)", polling_javascript)
+        self.assertIn("dataset.liveStateUrl", polling_javascript)
+        self.assertIn("new window.EventSource(eventsUrl)", event_javascript)
+        self.assertIn("dataset.liveEventsUrl", event_javascript)
+        self.assertIn("source.addEventListener(\"update\"", event_javascript)
 
 
 if __name__ == "__main__":
