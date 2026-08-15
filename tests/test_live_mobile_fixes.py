@@ -150,7 +150,7 @@ class LiveMobileFixTestCase(unittest.TestCase):
         ).get_json()["version"]
         self.assertNotEqual(before_turn, after_turn)
 
-    def test_calendar_summary_uses_building_star_and_ampersand(self):
+    def test_calendar_summary_uses_first_names_building_star_and_ampersand(self):
         building_id = self.add_building("W")
         hra_id = self.add_user(
             sub="hra",
@@ -162,13 +162,13 @@ class LiveMobileFixTestCase(unittest.TestCase):
         harry_id = self.add_user(
             sub="harry",
             email="harry@g.rwu.edu",
-            name="Harry",
+            name="Harry Potter",
             building_id=building_id,
         )
         penn_id = self.add_user(
             sub="penn",
             email="penn@g.rwu.edu",
-            name="Penn",
+            name="Penn Smith",
             building_id=building_id,
         )
         session_id = self.create_session(
@@ -196,6 +196,8 @@ class LiveMobileFixTestCase(unittest.TestCase):
             f"/calendar/session/{session_id}.ics",
         ).get_data(as_text=True)
         self.assertIn("SUMMARY:W* Harry & Penn", body)
+        self.assertNotIn("Potter", body)
+        self.assertNotIn("Smith", body)
 
     def test_mobile_css_keeps_calendar_grid_and_separates_order_controls(self):
         root = Path(__file__).resolve().parents[1]
