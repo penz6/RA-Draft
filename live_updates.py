@@ -1,13 +1,9 @@
-"""Live update endpoints for dashboards and duty sessions.
-
-The JSON endpoint remains as a compatibility fallback. The primary endpoint is
-an authenticated Server-Sent Events stream. It watches SQLite's data version
-and pushes a new scoped state version whenever relevant data changes.
-"""
+"""Server-pushed updates for dashboards and active duty sessions."""
 
 import hashlib
 import json
-import time
+import queue
+import threading
 
 from flask import Response, abort, request, stream_with_context
 
@@ -19,9 +15,57 @@ from core import (
     session_row,
 )
 
-SSE_CHECK_INTERVAL_SECONDS = 0.75
 SSE_HEARTBEAT_SECONDS = 15
-SSE_MAX_CONNECTION_SECONDS = 300
+
+
+class LiveEventBroker:
+    """Fan out coalesced change signals to connected SSE clients.
+
+    The production image intentionally runs one threaded Gunicorn worker so
+    every request and event stream shares this in-process broker. Scaling to
+    multiple app replicas would require a shared pub/sub service such as Redis.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._subscribers = set()
+
+    def subscribe(self):
+        subscriber = queue.Queue(maxsize=1)
+        with self._lock:
+            self._subscribers.add(subscriber)
+        return subscriber
+
+    def unsubscribe(self, subscriber):
+        with self._lock:
+            self._subscribers.discard(subscriber)
+
+    def publish(self):
+        with self._lock:
+            subscribers = tuple(self._subscribers)
+        for subscriber in subscribers:
+            try:
+                subscriber.put_nowait(True)
+            except queue.Full:
+                # One queued signal is sufficient because each client
+                # recomputes its complete authorized state before refreshing.
+                pass
+
+
+live_event_broker = LiveEventBroker()
+
+
+@app.after_request
+def publish_successful_changes(response):
+    """Wake connected clients after successful state-changing requests."""
+
+    changed = request.method in {"POST", "PUT", "PATCH", "DELETE"}
+    # OAuth account creation/linking changes the available participant list but
+    # arrives through a GET callback.
+    changed = changed or request.endpoint == "auth_callback"
+    if changed and response.status_code < 400:
+        live_event_broker.publish()
+    return response
 
 
 def _digest(payload):
@@ -155,7 +199,8 @@ def _authorized_version(session_id):
 
 
 def _stream_version(session_id):
-    """Return a version for an existing stream, or None if access disappeared."""
+    """Return a current version, or None when access has disappeared."""
+
     user = current_user()
     if not user:
         return None
@@ -168,10 +213,10 @@ def _stream_version(session_id):
     return session_state_version(row)
 
 
-def _event(event_name, payload, event_id=None):
+def _event(event_name, payload, *, retry=None):
     lines = []
-    if event_id:
-        lines.append(f"id: {event_id}")
+    if retry is not None:
+        lines.append(f"retry: {retry}")
     lines.append(f"event: {event_name}")
     serialized = json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
     lines.extend(f"data: {line}" for line in serialized.splitlines() or [""])
@@ -180,49 +225,47 @@ def _event(event_name, payload, event_id=None):
 
 @app.route("/live-state")
 def live_state():
+    """Return a version snapshot for diagnostics and fallback clients."""
+
     session_id = _parse_session_id()
     return {"version": _authorized_version(session_id)}
 
 
 @app.route("/live-events")
 def live_events():
+    """Push authorized state changes to the browser with Server-Sent Events."""
+
     session_id = _parse_session_id()
     initial_version = _authorized_version(session_id)
+    subscriber = live_event_broker.subscribe()
 
     @stream_with_context
     def generate():
-        last_version = initial_version
-        last_database_version = db().execute("PRAGMA data_version").fetchone()[0]
-        started_at = time.monotonic()
-        last_heartbeat = started_at
-
-        yield "retry: 1500\n\n"
-        yield _event("state", {"version": last_version}, last_version)
-
-        while time.monotonic() - started_at < SSE_MAX_CONNECTION_SECONDS:
-            time.sleep(SSE_CHECK_INTERVAL_SECONDS)
-            now = time.monotonic()
-            database_version = db().execute("PRAGMA data_version").fetchone()[0]
-
-            if database_version != last_database_version:
-                last_database_version = database_version
-                version = _stream_version(session_id)
-                if version is None:
-                    yield _event("reload", {"reason": "access-changed"})
-                    return
-                if version != last_version:
-                    last_version = version
-                    yield _event("update", {"version": version}, version)
-                    last_heartbeat = now
+        version = initial_version
+        try:
+            # This first event catches changes made after the page rendered but
+            # before EventSource finished connecting.
+            yield _event("state", {"version": version}, retry=1500)
+            while True:
+                try:
+                    subscriber.get(timeout=SSE_HEARTBEAT_SECONDS)
+                except queue.Empty:
+                    # Keep Pangolin/Traefik and mobile networks from treating
+                    # an otherwise idle stream as abandoned.
+                    yield ": keep-alive\n\n"
                     continue
 
-            if now - last_heartbeat >= SSE_HEARTBEAT_SECONDS:
-                yield ": keep-alive\n\n"
-                last_heartbeat = now
-
-        # EventSource reconnects automatically. Reconnecting periodically also
-        # revalidates the user's session and authorization.
-        yield _event("reconnect", {"version": last_version}, last_version)
+                refreshed_version = _stream_version(session_id)
+                if refreshed_version is None:
+                    yield _event("reload", {"reason": "access-changed"})
+                    return
+                if refreshed_version != version:
+                    version = refreshed_version
+                    yield _event("update", {"version": version})
+        except GeneratorExit:
+            return
+        finally:
+            live_event_broker.unsubscribe(subscriber)
 
     return Response(
         generate(),
