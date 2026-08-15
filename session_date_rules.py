@@ -22,35 +22,46 @@ from date_exceptions import (
 )
 
 
+def _locked_manager_session(conn, session_id):
+    user = current_user()
+    row = session_row(session_id)
+    if not row:
+        conn.rollback()
+        abort(404)
+    if not can_manage(user, row):
+        conn.rollback()
+        abort(403)
+    return user, row
+
+
 @app.route("/sessions/<int:session_id>/date-order", methods=["POST"])
 @roles("HRA", "ADMIN")
 def update_date_order(session_id):
     require_csrf()
-    row = session_row(session_id)
-    user = current_user()
-    if not row or not can_manage(user, row):
-        abort(403)
-
     try:
         date_order = normalize_date_order(request.form.get("date_order"))
     except ValueError:
         abort(400)
 
-    if date_order != row["date_order"]:
-        conn = db()
-        conn.execute("BEGIN IMMEDIATE")
-        conn.execute(
-            "UPDATE draft_sessions SET date_order=? WHERE id=?",
-            (date_order, session_id),
-        )
-        audit(
-            "draft.session.date_order",
-            "session",
-            session_id,
-            {"old_date_order": row["date_order"], "new_date_order": date_order},
-        )
-        conn.commit()
-        flash("Date selection rule updated.", "success")
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    _user, row = _locked_manager_session(conn, session_id)
+    if date_order == row["date_order"]:
+        conn.rollback()
+        return redirect(url_for("view_session", session_id=session_id))
+
+    conn.execute(
+        "UPDATE draft_sessions SET date_order=? WHERE id=?",
+        (date_order, session_id),
+    )
+    audit(
+        "draft.session.date_order",
+        "session",
+        session_id,
+        {"old_date_order": row["date_order"], "new_date_order": date_order},
+    )
+    conn.commit()
+    flash("Date selection rule updated.", "success")
     return redirect(url_for("view_session", session_id=session_id))
 
 
@@ -58,21 +69,18 @@ def update_date_order(session_id):
 @roles("HRA", "ADMIN")
 def update_date_kind(session_id):
     require_csrf()
-    row = session_row(session_id)
-    user = current_user()
-    if not row or not can_manage(user, row):
-        abort(403)
-
     duty_date = request.form.get("duty_date", "")
-    if duty_date not in calendar_dates(row):
-        abort(400)
-
     date_kind = request.form.get("date_kind", "").strip().upper()
     if date_kind not in DATE_KIND_FORM_CHOICES:
         abort(400)
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    user, row = _locked_manager_session(conn, session_id)
+    if duty_date not in calendar_dates(row):
+        conn.rollback()
+        abort(400)
+
     existing = conn.execute(
         "SELECT date_kind FROM session_date_overrides "
         "WHERE session_id=? AND duty_date=?",
@@ -152,24 +160,23 @@ def update_date_kind(session_id):
 @roles("HRA", "ADMIN")
 def update_date_capacity(session_id):
     require_csrf()
-    row = session_row(session_id)
-    user = current_user()
-    if not row or not can_manage(user, row):
-        abort(403)
-
     duty_date = request.form.get("duty_date", "")
+    raw_capacity = request.form.get("capacity", "").strip()
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    user, row = _locked_manager_session(conn, session_id)
     if duty_date not in calendar_dates(row):
+        conn.rollback()
         abort(400)
     if effective_date_kind(row, duty_date) == DATE_KIND_NO_DUTY:
+        conn.rollback()
         flash(
             "Mark this date as a weekday, weekend, or calendar default before setting capacity.",
             "error",
         )
         return redirect(url_for("view_session", session_id=session_id))
 
-    raw_capacity = request.form.get("capacity", "").strip()
-    conn = db()
-    conn.execute("BEGIN IMMEDIATE")
     existing = conn.execute(
         "SELECT capacity FROM session_date_capacities "
         "WHERE session_id=? AND duty_date=?",
@@ -230,6 +237,30 @@ def update_date_capacity(session_id):
         )
         return redirect(url_for("view_session", session_id=session_id))
 
+    # Storing an override equal to the session default is misleading and can
+    # make the UI label a normal date as overridden. Normalize it to no row.
+    if capacity == row["capacity"]:
+        if existing:
+            conn.execute(
+                "DELETE FROM session_date_capacities WHERE session_id=? AND duty_date=?",
+                (session_id, duty_date),
+            )
+            audit(
+                "draft.session.date_capacity_reset",
+                "session",
+                session_id,
+                {
+                    "duty_date": duty_date,
+                    "old_capacity": existing["capacity"],
+                    "default_capacity": row["capacity"],
+                },
+            )
+            conn.commit()
+        else:
+            conn.rollback()
+        flash("That date now uses the session default capacity.", "success")
+        return redirect(url_for("view_session", session_id=session_id))
+
     conn.execute(
         "INSERT INTO session_date_capacities(session_id,duty_date,capacity,updated_by) "
         "VALUES(?,?,?,?) "
@@ -246,7 +277,7 @@ def update_date_capacity(session_id):
             "duty_date": duty_date,
             "old_capacity": existing["capacity"] if existing else row["capacity"],
             "new_capacity": capacity,
-            "is_override": capacity != row["capacity"],
+            "is_override": True,
         },
     )
     conn.commit()

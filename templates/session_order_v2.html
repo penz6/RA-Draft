@@ -4,19 +4,21 @@
   </div>
   <ol class="draft-list">
     {% for p in people %}
-    <li class="draft-person{% if next and next.id == p.id %} is-current{% endif %}">
+    <li class="draft-person{% if draft.status == 'OPEN' and next and next.id == p.id %} is-current{% endif %}">
       <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
         <strong>{{ p.name }} <span class="inline-role">{{ p.role }}</span></strong>
         {% if p.deferred %}
         <span class="status-text">Paused for future turns · {{ p.assignment_count }} assigned</span>
+        {% elif draft.status == 'CLOSED' and next and next.id == p.id %}
+        <span class="status-text">Next when reopened · {{ p.assignment_count }} assigned</span>
         {% elif next and next.id == p.id %}
         <span class="status-text current">Picking now · {{ p.assignment_count }} assigned</span>
         {% else %}
         <span class="status-text">{{ p.assignment_count }} assigned · waiting</span>
         {% endif %}
       </div>
-      {% if can_manage and not schedule_complete %}
+      {% if can_manage and draft.status == 'OPEN' and not schedule_complete %}
       <div class="turn-actions">
         <button class="button small" type="button" data-manager-pick data-user-id="{{ p.id }}" data-user-name="{{ p.name }}">Pick for them</button>
         {% if next and next.id == p.id and not p.deferred %}
@@ -34,7 +36,9 @@
     </li>
     {% endfor %}
   </ol>
-  {% if next %}
+  {% if draft.status == 'CLOSED' and next %}
+  <div class="current-picker"><span>Next picker when reopened</span><strong>{{ next.name }} · {{ next.role }}</strong></div>
+  {% elif next %}
   <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} · {{ next.role }}</strong></div>
   {% elif schedule_complete %}
   <div class="notice success">The calendar is complete.</div>

@@ -34,14 +34,28 @@ def manual_assign(session_id):
     except (KeyError, TypeError, ValueError):
         abort(400)
     duty_date = request.form.get("duty_date", "")
-    if not is_participant(session_id, user_id):
-        abort(400)
-    if duty_date not in calendar_dates(row):
-        abort(400)
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    manager = current_user()
     row = session_row(session_id)
+    if not row:
+        conn.rollback()
+        abort(404)
+    if not can_manage(manager, row):
+        conn.rollback()
+        abort(403)
+    if row["status"] != "OPEN":
+        conn.rollback()
+        flash("Reopen the session before assigning duty dates.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
+    if not is_participant(session_id, user_id):
+        conn.rollback()
+        abort(400)
+    if duty_date not in calendar_dates(row):
+        conn.rollback()
+        abort(400)
+
     current = next_picker(session_id)
     duplicate = conn.execute(
         "SELECT 1 FROM assignments WHERE session_id=? AND user_id=? AND duty_date=?",
@@ -124,6 +138,15 @@ def delete_assignment(session_id, assignment_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    manager = current_user()
+    row = session_row(session_id)
+    if not row:
+        conn.rollback()
+        abort(404)
+    if not can_manage(manager, row):
+        conn.rollback()
+        abort(403)
+
     assignment = conn.execute(
         "SELECT * FROM assignments WHERE id=? AND session_id=?",
         (assignment_id, session_id),

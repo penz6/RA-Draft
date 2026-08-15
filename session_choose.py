@@ -32,7 +32,23 @@ def choose_shift(session_id):
     duty_date = request.form.get("duty_date", "")
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+
+    # Re-check all authorization and session state after taking the write lock.
+    # This closes the race where the session could be closed or the user's
+    # building/role could change between the initial page submission and write.
+    user = current_user()
     row = session_row(session_id)
+    if not row:
+        conn.rollback()
+        abort(404)
+    if row["status"] != "OPEN":
+        conn.rollback()
+        flash("This duty session is closed.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
+    if not can_view_session(user, row):
+        conn.rollback()
+        abort(403)
+
     current = next_picker(session_id)
     if not current or current["id"] != user["id"]:
         conn.rollback()

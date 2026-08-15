@@ -128,7 +128,10 @@
   });
   document.addEventListener("change", (event) => {
     const form = event.target instanceof HTMLElement ? event.target.closest("form") : null;
-    if (form) syncFormDirty(form);
+    // app.js may make additional checkbox/order changes in response to the same
+    // change event (for example when switching buildings). Wait one task so the
+    // dirty fingerprint reflects the final form state rather than an interim one.
+    if (form) window.setTimeout(() => syncFormDirty(form), 0);
   });
   document.addEventListener("reset", (event) => {
     const form = event.target;
@@ -215,8 +218,6 @@
     }
   };
 
-  // Compatibility name retained for existing deployments/tests. Modern
-  // browsers use EventSource and do not run this interval during healthy SSE.
   const pollLiveState = checkLiveState;
 
   const startFallbackPolling = () => {
@@ -283,8 +284,6 @@
     stopFallbackPolling();
   });
 
-  // Manager mode can end through code in app.js, so periodically apply only an
-  // already-pending refresh. This is not network polling.
   window.setInterval(() => {
     if (pendingVersion) applyPendingRefresh();
   }, 500);

@@ -47,6 +47,20 @@ def form_building_id(raw_value):
     return building_id
 
 
+def _require_locked_admin(conn):
+    actor = current_user()
+    if not actor or actor["role"] != "ADMIN":
+        conn.rollback()
+        abort(403)
+    return actor
+
+
+def _building_still_exists(conn, building_id):
+    return building_id is None or bool(
+        conn.execute("SELECT 1 FROM buildings WHERE id=?", (building_id,)).fetchone()
+    )
+
+
 @app.route("/admin")
 @roles("ADMIN")
 def admin():
@@ -86,6 +100,7 @@ def add_building():
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    _require_locked_admin(conn)
     existing = conn.execute(
         "SELECT id FROM buildings WHERE name=? COLLATE NOCASE",
         (name,),
@@ -114,6 +129,7 @@ def rename_building(building_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    _require_locked_admin(conn)
     existing = conn.execute(
         "SELECT * FROM buildings WHERE id=?",
         (building_id,),
@@ -154,6 +170,7 @@ def delete_building(building_id):
     require_csrf()
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    _require_locked_admin(conn)
     existing = conn.execute(
         "SELECT * FROM buildings WHERE id=?",
         (building_id,),
@@ -215,6 +232,11 @@ def add_user():
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    _require_locked_admin(conn)
+    if not _building_still_exists(conn, building_id):
+        conn.rollback()
+        flash("That building no longer exists. Refresh and try again.", "error")
+        return redirect(url_for("admin"))
     existing = conn.execute(
         "SELECT id FROM users WHERE email=? COLLATE NOCASE",
         (email,),
@@ -256,10 +278,6 @@ def edit_user(user_id):
     if role not in ("RA", "HRA", "ADMIN"):
         abort(400)
 
-    existing = db().execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
-    if not existing:
-        abort(404)
-
     try:
         building_id = form_building_id(request.form.get("building_id"))
     except ValueError:
@@ -267,6 +285,16 @@ def edit_user(user_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    _require_locked_admin(conn)
+    existing = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not existing:
+        conn.rollback()
+        abort(404)
+    if not _building_still_exists(conn, building_id):
+        conn.rollback()
+        flash("That building no longer exists. Refresh and try again.", "error")
+        return redirect(url_for("admin"))
+
     if existing["role"] == "ADMIN" and role != "ADMIN":
         admin_count = conn.execute(
             "SELECT COUNT(*) n FROM users WHERE role='ADMIN'"
@@ -275,6 +303,11 @@ def edit_user(user_id):
             conn.rollback()
             flash("You cannot demote the last admin.", "error")
             return redirect(url_for("admin"))
+
+    if role == existing["role"] and building_id == existing["building_id"]:
+        conn.rollback()
+        flash("No access changes were needed.", "success")
+        return redirect(url_for("admin"))
 
     conn.execute(
         "UPDATE users SET role=?,building_id=? WHERE id=?",
@@ -300,22 +333,25 @@ def edit_user(user_id):
 @roles("ADMIN")
 def delete_user(user_id):
     require_csrf()
-    actor = current_user()
-    existing = db().execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    actor = _require_locked_admin(conn)
+    existing = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     if not existing:
+        conn.rollback()
         abort(404)
     if actor["id"] == user_id:
+        conn.rollback()
         flash("You cannot delete your own signed-in account.", "error")
         return redirect(url_for("admin"))
-    if existing["email"] in ADMIN_EMAILS:
+    if existing["email"].lower() in ADMIN_EMAILS:
+        conn.rollback()
         flash(
             "Remove this email from ADMIN_EMAILS before deleting the bootstrap account.",
             "error",
         )
         return redirect(url_for("admin"))
 
-    conn = db()
-    conn.execute("BEGIN IMMEDIATE")
     if existing["role"] == "ADMIN":
         admin_count = conn.execute(
             "SELECT COUNT(*) n FROM users WHERE role='ADMIN'"

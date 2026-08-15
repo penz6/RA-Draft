@@ -7,21 +7,32 @@ from core import app, audit, can_manage, current_user, db, require_csrf, roles, 
 @roles("HRA", "ADMIN")
 def session_status(session_id):
     require_csrf()
-    row = session_row(session_id)
-    if not row or not can_manage(current_user(), row):
-        abort(403)
     status = request.form.get("status")
     if status not in ("OPEN", "CLOSED"):
         abort(400)
-    if status != row["status"]:
-        db().execute("UPDATE draft_sessions SET status=? WHERE id=?", (status, session_id))
-        audit(
-            "draft.session.status",
-            "session",
-            session_id,
-            {"old_status": row["status"], "new_status": status},
-        )
-        db().commit()
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    user = current_user()
+    row = session_row(session_id)
+    if not row:
+        conn.rollback()
+        abort(404)
+    if not can_manage(user, row):
+        conn.rollback()
+        abort(403)
+    if status == row["status"]:
+        conn.rollback()
+        return redirect(url_for("view_session", session_id=session_id))
+
+    conn.execute("UPDATE draft_sessions SET status=? WHERE id=?", (status, session_id))
+    audit(
+        "draft.session.status",
+        "session",
+        session_id,
+        {"old_status": row["status"], "new_status": status},
+    )
+    conn.commit()
     return redirect(url_for("view_session", session_id=session_id))
 
 

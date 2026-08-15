@@ -18,22 +18,17 @@ from core import (
 @roles("HRA", "ADMIN")
 def create_session():
     require_csrf()
-    user = current_user()
+    initial_user = current_user()
+    if not initial_user:
+        return redirect(url_for("login"))
 
     try:
-        building_id = int(request.form.get("building_id") or user["building_id"] or 0)
+        building_id = int(request.form.get("building_id") or initial_user["building_id"] or 0)
     except (TypeError, ValueError):
         building_id = 0
     if not building_id:
         flash("A building must be assigned or selected before creating a session.", "error")
         return redirect(url_for("dashboard"))
-    if user["role"] == "HRA" and building_id != user["building_id"]:
-        abort(403)
-    if not db().execute(
-        "SELECT 1 FROM buildings WHERE id=?",
-        (building_id,),
-    ).fetchone():
-        abort(400)
 
     try:
         name = clean_single_line(request.form.get("name"), max_length=120)
@@ -68,6 +63,23 @@ def create_session():
     if not raw_participants:
         raw_participants = request.form.getlist("ra_ids")
 
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+
+    user = current_user()
+    if not user or user["role"] not in ("HRA", "ADMIN"):
+        conn.rollback()
+        abort(403)
+    if user["role"] == "HRA" and building_id != user["building_id"]:
+        conn.rollback()
+        abort(403)
+    if not conn.execute(
+        "SELECT 1 FROM buildings WHERE id=?",
+        (building_id,),
+    ).fetchone():
+        conn.rollback()
+        abort(400)
+
     selected = []
     seen = set()
     for fallback_order, raw_uid in enumerate(raw_participants, start=1):
@@ -78,7 +90,7 @@ def create_session():
         if uid in seen:
             continue
         seen.add(uid)
-        if not db().execute(
+        if not conn.execute(
             "SELECT 1 FROM users WHERE id=? AND building_id=? "
             "AND role IN ('RA','HRA','ADMIN')",
             (uid, building_id),
@@ -93,17 +105,13 @@ def create_session():
         selected.append((order, fallback_order, uid))
 
     if not selected:
+        conn.rollback()
         flash("Select at least one participant for the duty session.", "error")
         return redirect(url_for("dashboard"))
 
-    # A date cannot hold more distinct people than the session contains. This
-    # also keeps the default of two usable when invalid/cross-building IDs are
-    # filtered out of the submitted participant list.
     capacity = min(requested_capacity, len(selected))
     selected.sort(key=lambda item: (item[0], item[1]))
 
-    conn = db()
-    conn.execute("BEGIN IMMEDIATE")
     cur = conn.execute(
         "INSERT INTO draft_sessions("
         "name,building_id,start_date,end_date,capacity,date_order,current_position,created_by"
