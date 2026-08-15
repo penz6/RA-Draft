@@ -5,7 +5,8 @@ LABEL org.opencontainers.image.source="https://github.com/penz6/RA-Draft"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATABASE_PATH=/data/ra_draft.db \
-    PORT=8000
+    PORT=8000 \
+    WEB_THREADS=64
 
 WORKDIR /app
 
@@ -25,4 +26,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':os.environ['PUBLIC_HOST']}); urllib.request.urlopen(r,timeout=3)" || exit 1
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 30 --access-logfile - --error-logfile - main:app"]
+# One process is intentional: the lightweight SSE broker is in memory. The
+# thread count leaves room for normal requests while clients keep event streams
+# open. Use a shared pub/sub service before scaling to multiple app replicas.
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 1 --threads ${WEB_THREADS:-64} --timeout 0 --access-logfile - --error-logfile - main:app"]
