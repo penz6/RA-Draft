@@ -74,10 +74,11 @@ def auth_callback():
         (google_sub,),
     ).fetchone()
     is_new = user is None
+    claimed_precreated_user = False
 
     if user:
         email_owner = conn.execute(
-            "SELECT id FROM users WHERE email=? AND id<>?",
+            "SELECT id FROM users WHERE email=? COLLATE NOCASE AND id<>?",
             (email, user["id"]),
         ).fetchone()
         if email_owner:
@@ -92,28 +93,49 @@ def auth_callback():
         uid = user["id"]
     else:
         email_owner = conn.execute(
-            "SELECT id FROM users WHERE email=?",
+            "SELECT * FROM users WHERE email=? COLLATE NOCASE",
             (email,),
         ).fetchone()
         if email_owner:
-            conn.rollback()
-            return oauth_failure(
-                "This RWU email is already linked to another account. Ask an admin to resolve it."
+            if not str(email_owner["google_sub"]).startswith("manual:"):
+                conn.rollback()
+                return oauth_failure(
+                    "This RWU email is already linked to another account. Ask an admin to resolve it."
+                )
+            linked = conn.execute(
+                "UPDATE users SET google_sub=?,email=?,name=? "
+                "WHERE id=? AND google_sub LIKE 'manual:%'",
+                (google_sub, email, display_name, email_owner["id"]),
             )
-
-        role = "ADMIN" if email in ADMIN_EMAILS else "RA"
-        cur = conn.execute(
-            "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
-            (google_sub, email, display_name, role),
-        )
-        uid = cur.lastrowid
-        audit(
-            "auth.user_created",
-            "user",
-            uid,
-            {"role": role},
-            actor_user_id=uid,
-        )
+            if linked.rowcount != 1:
+                conn.rollback()
+                return oauth_failure(
+                    "This pre-created account could not be linked. Ask an admin to resolve it."
+                )
+            uid = email_owner["id"]
+            is_new = False
+            claimed_precreated_user = True
+            audit(
+                "auth.user_claimed",
+                "user",
+                uid,
+                {"email": email},
+                actor_user_id=uid,
+            )
+        else:
+            role = "ADMIN" if email in ADMIN_EMAILS else "RA"
+            cur = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
+                (google_sub, email, display_name, role),
+            )
+            uid = cur.lastrowid
+            audit(
+                "auth.user_created",
+                "user",
+                uid,
+                {"role": role},
+                actor_user_id=uid,
+            )
 
     session.clear()
     session["uid"] = uid
@@ -123,7 +145,10 @@ def auth_callback():
         "auth.login",
         "user",
         uid,
-        {"new_user": is_new},
+        {
+            "new_user": is_new,
+            "claimed_precreated_user": claimed_precreated_user,
+        },
         actor_user_id=uid,
     )
     conn.commit()
