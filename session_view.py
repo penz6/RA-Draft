@@ -28,6 +28,7 @@ from core import (
     total_slots,
     db,
 )
+from live_updates import session_state_version
 
 
 @app.route("/sessions/<int:session_id>")
@@ -106,4 +107,5 @@ def view_session(session_id):
         ),
         schedule_complete=complete,
         selection_phase=selection_phase_label(row),
+        live_version=session_state_version(row),
     )

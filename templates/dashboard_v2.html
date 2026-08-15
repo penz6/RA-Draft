@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Duty sessions | RA Duty Picking{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty sessions</h1>
@@ -64,7 +64,7 @@
       <div class="participant-list" data-participant-list>
         {% for participant in participants %}
         <div class="participant-row draggable-participant" draggable="true" data-participant-row data-building-id="{{ participant.building_id }}">
-          <button class="drag-handle" type="button" aria-label="Drag {{ participant.name }} to change order" title="Drag to reorder">&#8942;&#8942;</button>
+          <button class="drag-handle" type="button" aria-label="Drag {{ participant.name }} to change order" title="Drag to reorder">&#8597;</button>
           <span class="order-number compact" data-order-label>{{ loop.index }}</span>
           <label class="check participant-name">
             <input type="checkbox" name="participant_ids" value="{{ participant.id }}" checked data-participant-check>
