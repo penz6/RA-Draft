@@ -134,6 +134,20 @@
     const form = event.target;
     window.setTimeout(() => syncFormDirty(form), 0);
   });
+  document.addEventListener("click", (event) => {
+    const control = event.target instanceof HTMLElement
+      ? event.target.closest(
+        "[data-move-up],[data-move-down],[data-participant-select-all],[data-participant-clear]"
+      )
+      : null;
+    const form = control?.closest("form");
+    if (form) window.setTimeout(() => syncFormDirty(form), 0);
+    if (event.target instanceof HTMLElement && event.target.closest(
+      "[data-manager-cancel],[data-dialog-close],[data-help-close]"
+    )) {
+      window.setTimeout(applyPendingRefresh, 0);
+    }
+  });
   document.addEventListener("submit", () => {
     liveSubmitting = true;
     disconnectStream();
