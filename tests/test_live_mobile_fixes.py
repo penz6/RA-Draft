@@ -16,6 +16,7 @@ os.environ.setdefault(
 
 import portal_app  # noqa: E402,F401
 from core import app, db  # noqa: E402
+from live_updates import live_event_broker  # noqa: E402
 
 
 class LiveMobileFixTestCase(unittest.TestCase):
@@ -183,13 +184,31 @@ class LiveMobileFixTestCase(unittest.TestCase):
         self.assertEqual(response.headers.get("X-Accel-Buffering"), "no")
         self.assertEqual(response.headers.get("Content-Encoding"), "identity")
 
-        stream = iter(response.response)
-        retry_chunk = next(stream).decode("utf-8")
-        state_chunk = next(stream).decode("utf-8")
-        self.assertIn("retry: 1500", retry_chunk)
-        self.assertIn("event: state", state_chunk)
-        self.assertIn('"version":', state_chunk)
+        first_chunk = next(iter(response.response)).decode("utf-8")
+        self.assertIn("retry: 1500", first_chunk)
+        self.assertIn("event: state", first_chunk)
+        self.assertIn('"version":', first_chunk)
         response.close()
+
+    def test_successful_post_wakes_connected_event_clients(self):
+        admin_id = self.add_user(
+            sub="admin-stream",
+            email="admin@rwu.edu",
+            name="Admin",
+            role="ADMIN",
+        )
+        csrf = self.login_as(admin_id)
+        subscriber = live_event_broker.subscribe()
+        try:
+            response = self.request(
+                "post",
+                "/admin/buildings",
+                data={"csrf": csrf, "name": "Maple"},
+            )
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(subscriber.get(timeout=0.5))
+        finally:
+            live_event_broker.unsubscribe(subscriber)
 
     def test_calendar_summary_uses_first_names_building_star_and_ampersand(self):
         building_id = self.add_building("W")
@@ -240,11 +259,12 @@ class LiveMobileFixTestCase(unittest.TestCase):
         self.assertNotIn("Potter", body)
         self.assertNotIn("Smith", body)
 
-    def test_mobile_css_keeps_calendar_grid_and_separates_order_controls(self):
+    def test_mobile_css_and_client_use_push_updates(self):
         root = Path(__file__).resolve().parents[1]
         css = (root / "static" / "calendar.css").read_text(encoding="utf-8")
-        polling_javascript = (root / "static" / "app.js").read_text(encoding="utf-8")
-        event_javascript = (root / "static" / "live_events.js").read_text(encoding="utf-8")
+        javascript = (root / "static" / "app.js").read_text(encoding="utf-8")
+        dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+        base_template = (root / "templates" / "base.html").read_text(encoding="utf-8")
         mobile = css.split("@media(max-width:650px){", 1)[1].split(
             "@media(max-width:420px){",
             1,
@@ -260,11 +280,13 @@ class LiveMobileFixTestCase(unittest.TestCase):
         )
         self.assertIn(".drag-handle{display:none}", mobile)
         self.assertNotIn(".calendar-grid{display:grid;grid-template-columns:1fr", mobile)
-        self.assertIn("window.setInterval(pollLiveState, 2500)", polling_javascript)
-        self.assertIn("dataset.liveStateUrl", polling_javascript)
-        self.assertIn("new window.EventSource(eventsUrl)", event_javascript)
-        self.assertIn("dataset.liveEventsUrl", event_javascript)
-        self.assertIn("source.addEventListener(\"update\"", event_javascript)
+        self.assertIn("new window.EventSource(liveEventsUrl", javascript)
+        self.assertIn("dataset.liveEventsUrl", javascript)
+        self.assertIn('addEventListener("update"', javascript)
+        self.assertNotIn("setInterval(pollLiveState, 2500)", javascript)
+        self.assertNotIn("live_events.js", base_template)
+        self.assertIn("--workers 1", dockerfile)
+        self.assertIn("--threads ${WEB_THREADS:-64}", dockerfile)
 
 
 if __name__ == "__main__":
