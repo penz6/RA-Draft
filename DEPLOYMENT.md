@@ -30,9 +30,13 @@ GOOGLE_CLIENT_SECRET=<Google OAuth client secret>
 ADMIN_EMAILS=you@rwu.edu
 PROXY_HOPS=1
 PANGOLIN_NETWORK=pangolin
+WEB_WORKERS=1
+WEB_THREADS=64
 ```
 
 `PUBLIC_HOST` is the hostname only, without a scheme or path. `PROXY_HOPS` must match the number of trusted forwarded-host/proto values between Pangolin and Flask. Keep it at `1` unless the deployment has been intentionally tested with another value.
+
+`WEB_THREADS` controls how many concurrent normal requests and live browser streams Gunicorn can serve. The image defaults to 64 threads and one worker. A visible dashboard or session page uses one Server-Sent Events connection; hidden tabs close their stream. Increase `WEB_THREADS` when expecting more than roughly 50 simultaneously visible clients. SQLite-backed live state is safe with additional workers, but a single worker is the simplest default for this deployment size.
 
 Generate a secret with, for example:
 
@@ -56,7 +60,7 @@ RA Draft requests only `openid email profile`. It requires:
 - an email ending in `@g.rwu.edu` or `@rwu.edu`
 - a matching Google Workspace `hd` claim
 
-The app never uses email as the primary identity key and does not store Google access or refresh tokens.
+The app never uses email as the primary identity key and does not store Google access or refresh tokens. Admins may pre-create an account by verified RWU email; the record is linked to the matching Google identity on that person's first sign-in.
 
 ## Pangolin resource
 
@@ -88,19 +92,27 @@ docker compose -f docker-compose.pangolin.yml pull
 docker compose -f docker-compose.pangolin.yml up -d
 ```
 
+## Live updates
+
+Dashboards and active sessions use a same-origin Server-Sent Events connection at `/live-events`. This is ordinary streaming HTTPS, so no WebSocket upgrade or separate port is required.
+
+The server sends a heartbeat every 15 seconds and clients reconnect automatically. Pangolin/Traefik must pass streaming responses without buffering them for completion. The application sends `X-Accel-Buffering: no`, uses an identity content encoding, and keeps JSON polling enabled as a fallback if the stream is interrupted or unsupported.
+
+A quick authenticated browser check is to open Developer Tools, select **Network**, and confirm that `live-events` remains pending with content type `text/event-stream`. When another participant picks, the server emits an `update` event and the page refreshes immediately unless the current user is editing a form or confirming a selection.
+
 ## First sign-in
 
-The first new user whose email appears in `ADMIN_EMAILS` becomes an admin. Everyone else starts as an RA. Sign in with the admin account, create buildings, then assign roles and buildings to users after their first Google login.
+The first new user whose email appears in `ADMIN_EMAILS` becomes an admin. Everyone else starts as an RA unless an Admin pre-created their account with another role. Sign in with the admin account, create buildings, then assign or pre-create users and their building access.
 
 ## Security and operations
 
 - Rotate the Pangolin passcode if it is shared beyond the intended group.
 - Keep the application port private; only Pangolin should reach it.
 - Keep HTTPS enabled for the public hostname.
-- Do not cache authenticated HTML or `.ics` responses at the proxy.
+- Do not cache authenticated HTML, `.ics`, or `text/event-stream` responses at the proxy.
 - Back up the `ra-draft-data` volume off the VPS.
 - SQLite uses WAL mode. Use SQLite's backup API or stop the app briefly before copying the database and WAL files.
-- Review the Admin audit table for role, building, session, deferral, and assignment changes.
+- Review the Admin audit table for role, building, session, deferral, assignment, and deletion changes.
 - Pull newly published images regularly so Dependabot security updates are incorporated.
 
 ## Update
