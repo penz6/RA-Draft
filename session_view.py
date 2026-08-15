@@ -107,5 +107,5 @@ def view_session(session_id):
         ),
         schedule_complete=complete,
         selection_phase=selection_phase_label(row),
-        live_version=session_state_version(row),
+        live_version=session_state_version(row, user),
     )
