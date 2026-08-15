@@ -1,5 +1,6 @@
 import os
 import queue
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -238,6 +239,37 @@ class LiveUpdateHardeningTestCase(unittest.TestCase):
         self.assertIn("retry: 1500", first_chunk)
         self.assertIn("event: state", first_chunk)
         response.close()
+
+    def test_rendered_session_version_matches_authorized_live_state(self):
+        building_id = self.add_building()
+        hra_id = self.add_user(
+            sub="version-hra",
+            email="version.hra@rwu.edu",
+            name="Version HRA",
+            role="HRA",
+            building_id=building_id,
+        )
+        ra_id = self.add_user(
+            sub="version-ra",
+            email="version.ra@g.rwu.edu",
+            name="Version RA",
+            building_id=building_id,
+        )
+        session_id = self.create_session(building_id, hra_id, [hra_id, ra_id])
+        self.login_as(hra_id)
+
+        page = self.request("get", f"/sessions/{session_id}")
+        self.assertEqual(page.status_code, 200)
+        match = re.search(
+            r'data-live-version="([0-9a-f]{64})"',
+            page.get_data(as_text=True),
+        )
+        self.assertIsNotNone(match)
+
+        live_state = self.request(
+            "get", f"/live-state?session_id={session_id}"
+        ).get_json()["version"]
+        self.assertEqual(match.group(1), live_state)
 
     def test_source_guards_lifecycles_and_finite_worker_timeout(self):
         root = Path(__file__).resolve().parents[1]
