@@ -3,6 +3,9 @@
 
   let liveEditing = false;
   let liveDragging = false;
+  let pendingLiveRefresh = "";
+  let applyPendingLiveRefresh = () => {};
+
   const markLiveEditing = () => {
     liveEditing = true;
   };
@@ -22,6 +25,7 @@
       } else {
         helpDialog.removeAttribute("open");
       }
+      applyPendingLiveRefresh();
     };
     document.querySelectorAll("[data-help-open]").forEach((button) => {
       button.addEventListener("click", openHelp);
@@ -32,6 +36,7 @@
     helpDialog.addEventListener("click", (event) => {
       if (event.target === helpDialog) closeHelp();
     });
+    helpDialog.addEventListener("close", applyPendingLiveRefresh);
     if (helpDialog.dataset.autoOpen === "true") openHelp();
   }
 
@@ -100,6 +105,7 @@
         draggedRow = null;
         liveDragging = false;
         updateOrders();
+        applyPendingLiveRefresh();
       });
       row.addEventListener("dragover", (event) => {
         if (!draggedRow || row.hidden || row === draggedRow) return;
@@ -161,11 +167,13 @@
       if (!dialog) return;
       if (typeof dialog.close === "function") dialog.close();
       else dialog.removeAttribute("open");
+      applyPendingLiveRefresh();
     };
     const stopManagerMode = () => {
       managerTarget = null;
       calendar.classList.remove("is-manager-selecting");
       if (managerBanner) managerBanner.hidden = true;
+      applyPendingLiveRefresh();
     };
 
     document.querySelectorAll("[data-manager-pick]").forEach((button) => {
@@ -226,6 +234,7 @@
       dialog.addEventListener("click", (event) => {
         if (event.target === dialog) closeDialog(dialog);
       });
+      dialog.addEventListener("close", applyPendingLiveRefresh);
     });
     managerDialog?.querySelector("form")?.addEventListener("submit", stopManagerMode);
   }
@@ -245,9 +254,13 @@
 
   const liveRegion = document.querySelector("[data-live-refresh]");
   if (liveRegion) {
-    const liveUrl = liveRegion.dataset.liveStateUrl;
+    const liveStateUrl = liveRegion.dataset.liveStateUrl;
+    const liveEventsUrl = liveRegion.dataset.liveEventsUrl;
     let liveVersion = liveRegion.dataset.liveVersion || "";
-    let pollInFlight = false;
+    let fallbackTimer = null;
+    let fallbackInFlight = false;
+    let eventSource = null;
+    let errorCheckTimer = null;
 
     const liveRefreshBlocked = () => Boolean(
       document.hidden
@@ -257,43 +270,103 @@
       || document.querySelector(".is-manager-selecting")
     );
 
-    const pollLiveState = async () => {
-      if (!liveUrl || pollInFlight || document.hidden) return;
-      pollInFlight = true;
+    const requestLiveRefresh = (version, force = false) => {
+      if (!force && (!version || version === liveVersion)) return;
+      const target = force ? "__reload__" : version;
+      if (liveRefreshBlocked()) {
+        pendingLiveRefresh = target;
+        return;
+      }
+      window.location.reload();
+    };
+
+    applyPendingLiveRefresh = () => {
+      if (pendingLiveRefresh && !liveRefreshBlocked()) {
+        window.location.reload();
+      }
+    };
+
+    const readVersionEvent = (event) => {
       try {
-        const response = await window.fetch(liveUrl, {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-        if (response.status === 401 || response.status === 403) {
-          window.location.reload();
-          return;
-        }
-        if (!response.ok) return;
-        const payload = await response.json();
+        const payload = JSON.parse(event.data);
         if (!payload || typeof payload.version !== "string") return;
         if (!liveVersion) {
           liveVersion = payload.version;
           return;
         }
-        if (payload.version !== liveVersion && !liveRefreshBlocked()) {
-          window.location.reload();
-        }
+        requestLiveRefresh(payload.version);
       } catch (_error) {
-        // Temporary network failures should not interrupt a pick in progress.
-      } finally {
-        pollInFlight = false;
+        // Ignore malformed or incomplete event payloads and wait for reconnect.
       }
     };
 
-    window.setTimeout(pollLiveState, 350);
-    window.setInterval(pollLiveState, 2500);
+    const checkLiveState = async () => {
+      if (!liveStateUrl || fallbackInFlight || document.hidden) return;
+      fallbackInFlight = true;
+      try {
+        const response = await window.fetch(liveStateUrl, {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        if (response.status === 401 || response.status === 403 || response.redirected) {
+          requestLiveRefresh("", true);
+          return;
+        }
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!payload || typeof payload.version !== "string") return;
+        if (!liveVersion) liveVersion = payload.version;
+        else requestLiveRefresh(payload.version);
+      } catch (_error) {
+        // Network loss should not interrupt a pick or form in progress.
+      } finally {
+        fallbackInFlight = false;
+      }
+    };
+
+    const startFallbackPolling = () => {
+      if (fallbackTimer || !liveStateUrl) return;
+      checkLiveState();
+      fallbackTimer = window.setInterval(checkLiveState, 10000);
+    };
+
+    if (liveEventsUrl && "EventSource" in window) {
+      eventSource = new window.EventSource(liveEventsUrl, { withCredentials: true });
+      eventSource.addEventListener("state", readVersionEvent);
+      eventSource.addEventListener("update", readVersionEvent);
+      eventSource.addEventListener("reload", () => requestLiveRefresh("", true));
+      eventSource.addEventListener("error", () => {
+        // EventSource reconnects automatically. A delayed one-shot state check
+        // detects an expired login or access change without returning to polling.
+        if (!errorCheckTimer) {
+          errorCheckTimer = window.setTimeout(() => {
+            errorCheckTimer = null;
+            checkLiveState();
+          }, 5000);
+        }
+      });
+    } else {
+      // Older browsers without EventSource retain a slow compatibility poll.
+      startFallbackPolling();
+    }
+
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) pollLiveState();
+      if (!document.hidden) {
+        applyPendingLiveRefresh();
+        if (!eventSource) checkLiveState();
+      }
     });
-    window.addEventListener("pageshow", pollLiveState);
+    window.addEventListener("pageshow", () => {
+      applyPendingLiveRefresh();
+      if (!eventSource) checkLiveState();
+    });
+    window.addEventListener("beforeunload", () => {
+      eventSource?.close();
+      if (fallbackTimer) window.clearInterval(fallbackTimer);
+      if (errorCheckTimer) window.clearTimeout(errorCheckTimer);
+    });
   }
 
   document.querySelectorAll("[data-confirm]").forEach((button) => {
