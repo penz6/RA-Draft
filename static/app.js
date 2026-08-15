@@ -326,10 +326,14 @@
       }
     };
 
+    // This named alias is the compatibility-only poll used when EventSource is
+    // unavailable. Supported browsers use the push stream below instead.
+    const pollLiveState = checkLiveState;
+
     const startFallbackPolling = () => {
       if (fallbackTimer || !liveStateUrl) return;
-      checkLiveState();
-      fallbackTimer = window.setInterval(checkLiveState, 10000);
+      pollLiveState();
+      fallbackTimer = window.setInterval(pollLiveState, 10000);
     };
 
     if (liveEventsUrl && "EventSource" in window) {
