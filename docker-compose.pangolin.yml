@@ -10,6 +10,7 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       PROXY_HOPS: ${PROXY_HOPS:-1}
       DATABASE_PATH: /data/ra_draft.db
+      WEB_THREADS: ${WEB_THREADS:-64}
     volumes:
       - ra-draft-data:/data
     expose:
