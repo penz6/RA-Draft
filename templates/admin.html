@@ -1,52 +1,144 @@
 {% extends 'base.html' %}
-{% block title %}Administration | RA Duty Draft{% endblock %}
+{% block title %}Administration | RA Duty Picking{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><div class="eyebrow">System administration</div><h1>Access and buildings</h1><p>Manage roles, building assignments, and review recent privileged activity.</p></div>
+  <div>
+    <div class="eyebrow">System administration</div>
+    <h1>Access and buildings</h1>
+    <p>Create users, assign access, and manage building records.</p>
+  </div>
   <span class="role-badge">ADMIN</span>
 </div>
 
 <div class="admin-grid">
   <section class="card">
-    <div class="section-head"><div><h2>Buildings</h2><p>Buildings determine which sessions and RAs an HRA can manage.</p></div><span class="count-badge">{{ buildings|length }}</span></div>
+    <div class="section-head">
+      <div>
+        <h2>Buildings</h2>
+        <p>Rename unused or active buildings. Buildings with session history are retained for schedule integrity.</p>
+      </div>
+      <span class="count-badge">{{ buildings|length }}</span>
+    </div>
+
     <form method="post" action="{{ url_for('add_building') }}" class="inline-form">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <label class="field grow">Building name
+      <label class="field grow">New building name
         <input name="name" maxlength="80" required autocomplete="off" placeholder="Maple Hall">
       </label>
       <button class="button" type="submit">Add building</button>
     </form>
-    <div class="tag-list">
-      {% for b in buildings %}<span class="tag">{{ b.name }}</span>{% else %}<span class="muted">No buildings yet.</span>{% endfor %}
+
+    <div class="building-admin-list">
+      {% for b in buildings %}
+      <div class="building-admin-row">
+        <form class="building-rename-form" method="post" action="{{ url_for('rename_building', building_id=b.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <label class="field building-name-field">
+            <span class="sr-only">Rename {{ b.name }}</span>
+            <input name="name" value="{{ b.name }}" maxlength="80" required autocomplete="off">
+            <span class="admin-row-meta">
+              {{ b.user_count }} user{{ '' if b.user_count == 1 else 's' }} ·
+              {{ b.session_count }} session{{ '' if b.session_count == 1 else 's' }}
+            </span>
+          </label>
+          <button class="button secondary small" type="submit">Rename</button>
+        </form>
+        <form class="admin-delete-form" method="post" action="{{ url_for('delete_building', building_id=b.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button
+            class="button danger small"
+            type="submit"
+            data-confirm="Delete {{ b.name }}? Users assigned to it will become unassigned."
+            {% if b.session_count %}disabled aria-disabled="true" title="Buildings with session history cannot be deleted"{% endif %}
+          >Delete</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="empty-state compact"><p>No buildings yet.</p></div>
+      {% endfor %}
     </div>
   </section>
 
   <section class="card">
-    <div class="section-head"><div><h2>Users</h2><p>Users appear after their first successful Google sign-in.</p></div><span class="count-badge">{{ users|length }}</span></div>
+    <div class="section-head">
+      <div>
+        <h2>Users</h2>
+        <p>Pre-create an RWU user, then assign their role and building before they sign in.</p>
+      </div>
+      <span class="count-badge">{{ users|length }}</span>
+    </div>
+
+    <form class="admin-create-user grid-form" method="post" action="{{ url_for('add_user') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="field">Name
+        <input name="name" maxlength="120" required autocomplete="off" placeholder="Taylor Smith">
+      </label>
+      <label class="field">RWU Google email
+        <input type="email" name="email" maxlength="254" required autocomplete="off" placeholder="taylor@g.rwu.edu">
+      </label>
+      <label class="field">Role
+        <select name="role" required>
+          <option value="RA" selected>RA</option>
+          <option value="HRA">HRA</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+      </label>
+      <label class="field">Building
+        <select name="building_id">
+          <option value="">No building</option>
+          {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="form-actions full">
+        <button class="button" type="submit">Create user</button>
+      </div>
+    </form>
+
     <div class="user-admin-list">
       {% for u in users %}
-      <form class="user-admin-row" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <div class="user-admin-identity"><strong>{{ u.name }}</strong><span>{{ u.email }}</span><small>Joined {{ u.created_at }}</small></div>
-        <label class="field compact">Role
-          <select name="role">
-            <option {% if u.role == 'RA' %}selected{% endif %}>RA</option>
-            <option {% if u.role == 'HRA' %}selected{% endif %}>HRA</option>
-            <option {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
-          </select>
-        </label>
-        <label class="field compact">Building
-          <select name="building_id">
-            <option value="">No building</option>
-            {% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
-          </select>
-        </label>
-        <button class="button small" type="submit">Save access</button>
-      </form>
+      <div class="user-admin-entry">
+        <form class="user-access-form" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <div class="user-admin-identity">
+            <strong>{{ u.name }}</strong>
+            <span>{{ u.email }}</span>
+            <small>Joined {{ u.created_at }}</small>
+            {% if u.pending_google %}
+            <span class="account-state pending">Waiting for first Google sign-in</span>
+            {% else %}
+            <span class="account-state">Google linked</span>
+            {% endif %}
+          </div>
+          <label class="field compact">Role
+            <select name="role">
+              <option value="RA" {% if u.role == 'RA' %}selected{% endif %}>RA</option>
+              <option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option>
+              <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
+            </select>
+          </label>
+          <label class="field compact">Building
+            <select name="building_id">
+              <option value="">No building</option>
+              {% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+            </select>
+          </label>
+          <button class="button small" type="submit">Save access</button>
+        </form>
+        <form class="admin-delete-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button
+            class="button danger small"
+            type="submit"
+            data-confirm="Delete {{ u.name }}? This cannot be undone."
+            {% if u.id == me.id %}disabled aria-disabled="true" title="You cannot delete your own signed-in account"{% endif %}
+          >Delete</button>
+        </form>
+      </div>
       {% else %}
-      <div class="empty-state compact"><p>No users have signed in yet.</p></div>
+      <div class="empty-state compact"><p>No users exist yet.</p></div>
       {% endfor %}
     </div>
+    <p class="admin-policy-note">Users already referenced by a duty session or assignment cannot be deleted because doing so would damage schedule history.</p>
   </section>
 </div>
 
