@@ -1,0 +1,5 @@
+.live-update-notice{position:fixed;right:1rem;bottom:1rem;z-index:120;display:flex;width:min(520px,calc(100% - 2rem));align-items:center;justify-content:space-between;gap:1rem;padding:1rem;border:1px solid #c7d7ec;border-radius:12px;color:var(--ink);background:var(--surface);box-shadow:0 18px 48px rgba(23,32,51,.22)}
+.live-update-notice>div:first-child{display:flex;min-width:0;flex-direction:column;gap:.18rem}
+.live-update-notice span{color:var(--muted);font-size:.84rem}
+.live-update-actions{display:flex;flex:0 0 auto;gap:.45rem}
+@media(max-width:620px){.live-update-notice{right:.6rem;bottom:.6rem;left:.6rem;width:auto;align-items:stretch;flex-direction:column}.live-update-actions{width:100%}.live-update-actions .button{flex:1}}

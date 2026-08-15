@@ -30,4 +30,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # A single process is required by the in-memory event broker; the thread pool
 # leaves capacity for streams and ordinary application requests. Introduce a
 # shared broker such as Redis before scaling to multiple app processes.
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 1 --threads ${WEB_THREADS:-64} --timeout 0 --access-logfile - --error-logfile - main:app"]
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 1 --threads ${WEB_THREADS:-64} --timeout 60 --graceful-timeout 30 --access-logfile - --error-logfile - main:app"]
