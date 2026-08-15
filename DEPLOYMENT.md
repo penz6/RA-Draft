@@ -30,13 +30,14 @@ GOOGLE_CLIENT_SECRET=<Google OAuth client secret>
 ADMIN_EMAILS=you@rwu.edu
 PROXY_HOPS=1
 PANGOLIN_NETWORK=pangolin
-WEB_WORKERS=1
 WEB_THREADS=64
 ```
 
 `PUBLIC_HOST` is the hostname only, without a scheme or path. `PROXY_HOPS` must match the number of trusted forwarded-host/proto values between Pangolin and Flask. Keep it at `1` unless the deployment has been intentionally tested with another value.
 
-`WEB_THREADS` controls how many concurrent normal requests and live browser streams Gunicorn can serve. The image defaults to 64 threads and one worker. A visible dashboard or session page uses one Server-Sent Events connection; hidden tabs close their stream. Increase `WEB_THREADS` when expecting more than roughly 50 simultaneously visible clients. SQLite-backed live state is safe with additional workers, but a single worker is the simplest default for this deployment size.
+`WEB_THREADS` controls how many concurrent normal requests and live browser streams Gunicorn can serve. The image defaults to 64 threads. A visible dashboard or session page uses one Server-Sent Events connection, which is closed when the page unloads. Increase `WEB_THREADS` when expecting more than roughly 50 simultaneously open dashboard/session pages.
+
+The current event broker is held in the application process, so the production container intentionally runs exactly one Gunicorn worker. Do not add more workers or run multiple app replicas unless the broker is first replaced with shared pub/sub such as Redis.
 
 Generate a secret with, for example:
 
@@ -96,9 +97,11 @@ docker compose -f docker-compose.pangolin.yml up -d
 
 Dashboards and active sessions use a same-origin Server-Sent Events connection at `/live-events`. This is ordinary streaming HTTPS, so no WebSocket upgrade or separate port is required.
 
-The server sends a heartbeat every 15 seconds and clients reconnect automatically. Pangolin/Traefik must pass streaming responses without buffering them for completion. The application sends `X-Accel-Buffering: no`, uses an identity content encoding, and keeps JSON polling enabled as a fallback if the stream is interrupted or unsupported.
+After a successful state-changing request, the application wakes every connected client. Each client recalculates only the state it is authorized to view; when that version changed, the server emits an `update` event and the browser refreshes the page. The stream sends a heartbeat every 15 seconds, and EventSource reconnects automatically after a network interruption.
 
-A quick authenticated browser check is to open Developer Tools, select **Network**, and confirm that `live-events` remains pending with content type `text/event-stream`. When another participant picks, the server emits an `update` event and the page refreshes immediately unless the current user is editing a form or confirming a selection.
+Pangolin/Traefik must pass streaming responses without buffering them for completion. The application sends `X-Accel-Buffering: no` and uses an identity content encoding. Browsers without EventSource use the scoped JSON state endpoint as a slower compatibility fallback; a stream error also triggers a delayed state check while EventSource reconnects.
+
+A quick authenticated browser check is to open Developer Tools, select **Network**, and confirm that `live-events` remains pending with content type `text/event-stream`. When another participant picks, the server emits an `update` event and the page refreshes immediately unless the current user is editing a form, dragging an order, or confirming a selection.
 
 ## First sign-in
 
