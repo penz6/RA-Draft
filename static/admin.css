@@ -1,0 +1,138 @@
+.admin-create-user {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.admin-create-user .form-actions {
+  align-items: end;
+}
+
+.building-admin-list,
+.user-admin-list {
+  display: grid;
+  gap: .65rem;
+  margin-top: 1rem;
+}
+
+.building-admin-row,
+.user-admin-entry {
+  padding: .75rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fbfcfe;
+}
+
+.building-admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .6rem;
+  align-items: end;
+}
+
+.building-rename-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .6rem;
+  align-items: end;
+}
+
+.building-name-field {
+  min-width: 0;
+}
+
+.admin-row-meta {
+  display: block;
+  margin-top: .3rem;
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 550;
+}
+
+.user-admin-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .6rem;
+  align-items: end;
+}
+
+.user-access-form {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.35fr) 110px 160px auto;
+  gap: .65rem;
+  align-items: end;
+}
+
+.user-admin-identity {
+  align-self: center;
+}
+
+.account-state {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: .25rem;
+  padding: .18rem .42rem;
+  border-radius: 999px;
+  color: var(--blue);
+  background: var(--blue-soft);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.account-state.pending {
+  color: #795200;
+  background: var(--gold-soft);
+}
+
+.admin-delete-form {
+  margin: 0;
+}
+
+.admin-delete-form .button {
+  width: 100%;
+}
+
+.button:disabled,
+.button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: .5;
+  transform: none;
+}
+
+.admin-policy-note {
+  margin: .8rem 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+@media (max-width: 980px) {
+  .user-access-form {
+    grid-template-columns: minmax(180px, 1fr) 100px 150px;
+  }
+
+  .user-access-form .button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 720px) {
+  .building-admin-row,
+  .user-admin-entry,
+  .building-rename-form,
+  .user-access-form {
+    grid-template-columns: 1fr;
+  }
+
+  .user-access-form .button {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+
+  .admin-delete-form .button,
+  .building-rename-form .button {
+    width: 100%;
+  }
+}
