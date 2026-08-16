@@ -11,6 +11,8 @@
 
   const liveStateUrl = liveRegion.dataset.liveStateUrl;
   const liveEventsUrl = liveRegion.dataset.liveEventsUrl;
+  const turnOrder = document.querySelector("[data-turn-order]");
+  const viewStateKey = `ra-draft-live-view:${window.location.pathname}${window.location.search}`;
   let liveVersion = liveRegion.dataset.liveVersion || "";
   let pendingVersion = "";
   let noticeSnoozed = false;
@@ -20,9 +22,140 @@
   let stateCheckInFlight = false;
   let liveSubmitting = false;
   let liveDragging = false;
+  let turnAudioContext = null;
+  let pendingTurnDing = false;
 
   const formSnapshots = new WeakMap();
   const dirtyForms = new Set();
+
+  const safeSessionGet = (key) => {
+    try {
+      return window.sessionStorage.getItem(key);
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const safeSessionSet = (key, value) => {
+    try {
+      window.sessionStorage.setItem(key, value);
+    } catch (_error) {
+      // Scroll preservation is a convenience; storage failures must not block picks.
+    }
+  };
+
+  const safeSessionRemove = (key) => {
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch (_error) {
+      // Ignore unavailable session storage.
+    }
+  };
+
+  const saveViewState = () => {
+    if (!turnOrder) return;
+    const calendarScrolls = Array.from(document.querySelectorAll(".calendar-scroll"))
+      .map((element) => element.scrollLeft);
+    safeSessionSet(viewStateKey, JSON.stringify({
+      savedAt: Date.now(),
+      scrollY: window.scrollY,
+      calendarScrolls,
+      hadTurnAlert: Boolean(document.querySelector("[data-your-turn-alert]")),
+    }));
+  };
+
+  const getTurnAudioContext = () => {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!turnAudioContext) turnAudioContext = new AudioContextClass();
+    return turnAudioContext;
+  };
+
+  const playTurnDing = async () => {
+    const context = getTurnAudioContext();
+    if (!context) return;
+    try {
+      if (context.state === "suspended") await context.resume();
+      if (context.state !== "running") {
+        pendingTurnDing = true;
+        return;
+      }
+
+      const start = context.currentTime;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.34);
+      gain.connect(context.destination);
+
+      const first = context.createOscillator();
+      first.type = "sine";
+      first.frequency.setValueAtTime(880, start);
+      first.connect(gain);
+      first.start(start);
+      first.stop(start + 0.14);
+
+      const second = context.createOscillator();
+      second.type = "sine";
+      second.frequency.setValueAtTime(1174.66, start + 0.13);
+      second.connect(gain);
+      second.start(start + 0.13);
+      second.stop(start + 0.34);
+
+      if (typeof window.navigator.vibrate === "function") {
+        window.navigator.vibrate(120);
+      }
+      pendingTurnDing = false;
+    } catch (_error) {
+      // Browsers may require a user gesture before sound. Keep the visual alert
+      // and play the pending ding on the next tap/key press when possible.
+      pendingTurnDing = true;
+    }
+  };
+
+  const unlockTurnSound = () => {
+    const context = getTurnAudioContext();
+    if (context?.state === "suspended") context.resume().catch(() => {});
+    if (pendingTurnDing) playTurnDing();
+  };
+
+  document.addEventListener("pointerdown", unlockTurnSound, true);
+  document.addEventListener("keydown", unlockTurnSound, true);
+
+  const restoreViewState = () => {
+    const rawState = safeSessionGet(viewStateKey);
+    if (!rawState) return;
+    safeSessionRemove(viewStateKey);
+
+    let state;
+    try {
+      state = JSON.parse(rawState);
+    } catch (_error) {
+      return;
+    }
+    if (!state || Date.now() - Number(state.savedAt || 0) > 30000) return;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (Number.isFinite(state.scrollY)) window.scrollTo(0, state.scrollY);
+        const calendarScrolls = Array.isArray(state.calendarScrolls)
+          ? state.calendarScrolls
+          : [];
+        document.querySelectorAll(".calendar-scroll").forEach((element, index) => {
+          const left = Number(calendarScrolls[index]);
+          if (Number.isFinite(left)) element.scrollLeft = left;
+        });
+
+        const hasTurnAlert = Boolean(document.querySelector("[data-your-turn-alert]"));
+        if (hasTurnAlert && !state.hadTurnAlert) playTurnDing();
+      });
+    });
+  };
+
+  const reloadPreservingView = (delay = 0) => {
+    saveViewState();
+    window.setTimeout(() => window.location.reload(), delay);
+  };
 
   const formFingerprint = (form) => {
     const values = [];
@@ -74,7 +207,7 @@
   reloadButton.type = "button";
   reloadButton.className = "button small";
   reloadButton.textContent = "Reload updates";
-  reloadButton.addEventListener("click", () => window.location.reload());
+  reloadButton.addEventListener("click", () => reloadPreservingView());
   const keepEditingButton = document.createElement("button");
   keepEditingButton.type = "button";
   keepEditingButton.className = "button ghost small";
@@ -97,7 +230,7 @@
       showPendingNotice();
       return;
     }
-    window.location.reload();
+    reloadPreservingView();
   };
 
   const requestRefresh = (version, force = false) => {
@@ -152,6 +285,9 @@
     }
   });
   document.addEventListener("submit", () => {
+    // Session actions also use a normal POST/redirect. Preserve the same view for
+    // the person making the pick, not only for observers receiving an SSE update.
+    saveViewState();
     liveSubmitting = true;
     disconnectStream();
   }, true);
@@ -288,6 +424,7 @@
     if (pendingVersion) applyPendingRefresh();
   }, 500);
 
+  restoreViewState();
   window.setTimeout(() => {
     initializeFormSnapshots();
     resumeLiveUpdates();
