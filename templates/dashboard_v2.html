@@ -6,7 +6,7 @@
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty sessions</h1>
   </div>
-  <span class="role-badge">{{ me.role }}</span>
+  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
 </div>
 
 {% if me.role in ['HRA', 'ADMIN'] %}
@@ -69,7 +69,7 @@
           <label class="check participant-name">
             <input type="checkbox" name="participant_ids" value="{{ participant.id }}" checked data-participant-check>
             <span>
-              <strong>{{ participant.name }} <span class="inline-role">{{ participant.role }}</span></strong>
+              <strong>{{ participant.name }} <span class="inline-role{% if participant.role == 'ADMIN' %} admin-role{% endif %}">{{ participant.role }}</span></strong>
               <small>{{ participant.email }}{% if me.role == 'ADMIN' and participant.building_name %} - {{ participant.building_name }}{% endif %}</small>
             </span>
           </label>
