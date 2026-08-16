@@ -5,7 +5,7 @@
   <div>
     <div class="eyebrow">System administration</div>
     <h1>Access and buildings</h1>
-    <p>Create users, assign access, and manage building records.</p>
+    <p>Create users, assign access, disable accounts, and manage building records.</p>
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
@@ -63,7 +63,7 @@
     <div class="section-head">
       <div>
         <h2>Users</h2>
-        <p>Pre-create an RWU user, then assign their role and building before they sign in.</p>
+        <p>Pre-create an RWU user, assign their role/building, or disable access without deleting schedule history.</p>
       </div>
       <span class="count-badge">{{ users|length }}</span>
     </div>
@@ -96,14 +96,16 @@
 
     <div class="user-admin-list">
       {% for u in users %}
-      <div class="user-admin-entry">
+      <div class="user-admin-entry{% if u.disabled %} is-disabled{% endif %}">
         <form class="user-access-form" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <div class="user-admin-identity">
             <strong>{{ u.name }}{% if u.role == 'ADMIN' %} <span class="inline-role admin-role">ADMIN</span>{% endif %}</strong>
             <span>{{ u.email }}</span>
             <small>Joined {{ u.created_at }}</small>
-            {% if u.pending_google %}
+            {% if u.disabled %}
+            <span class="account-state disabled">Disabled · sign-in blocked</span>
+            {% elif u.pending_google %}
             <span class="account-state pending">Waiting for first Google sign-in</span>
             {% else %}
             <span class="account-state">Google linked</span>
@@ -124,21 +126,33 @@
           </label>
           <button class="button small" type="submit">Save access</button>
         </form>
-        <form class="admin-delete-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <button
-            class="button danger small"
-            type="submit"
-            data-confirm="Delete {{ u.name }}? This cannot be undone."
-            {% if u.id == me.id %}disabled aria-disabled="true" title="You cannot delete your own signed-in account"{% endif %}
-          >Delete</button>
-        </form>
+        <div class="admin-user-actions">
+          <form method="post" action="{{ url_for('admin_user_status', user_id=u.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="disabled" value="{{ 0 if u.disabled else 1 }}">
+            <button
+              class="button {{ 'secondary' if u.disabled else 'danger' }} small"
+              type="submit"
+              {% if not u.disabled %}data-confirm="Disable {{ u.name }}? They will be signed out and unable to use Duty Picking until re-enabled."{% endif %}
+              {% if u.id == me.id and not u.disabled %}disabled aria-disabled="true" title="You cannot disable your own signed-in account"{% endif %}
+            >{{ 'Enable' if u.disabled else 'Disable' }}</button>
+          </form>
+          <form class="admin-delete-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <button
+              class="button danger small"
+              type="submit"
+              data-confirm="Delete {{ u.name }}? This cannot be undone."
+              {% if u.id == me.id %}disabled aria-disabled="true" title="You cannot delete your own signed-in account"{% endif %}
+            >Delete</button>
+          </form>
+        </div>
       </div>
       {% else %}
       <div class="empty-state compact"><p>No users exist yet.</p></div>
       {% endfor %}
     </div>
-    <p class="admin-policy-note">Users already referenced by a duty session or assignment cannot be deleted because doing so would damage schedule history.</p>
+    <p class="admin-policy-note">Disabling an account preserves its schedule history but blocks sign-in and future self-service. Users already referenced by a duty session or assignment still cannot be deleted.</p>
   </section>
 </div>
 
