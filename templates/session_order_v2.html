@@ -1,4 +1,4 @@
-<section class="card turn-order-card">
+<section class="card turn-order-card" data-turn-order data-self-user-id="{{ me.id }}" data-current-picker-id="{{ next.id if next else '' }}" data-picking-paused="{{ 'true' if draft.picking_paused else 'false' }}">
   <div class="section-head">
     <div><h2>Turn order</h2><p>The order repeats until the calendar is full.</p></div>
   </div>
@@ -42,5 +42,12 @@
   <div class="notice success">The calendar is complete.</div>
   {% else %}
   <div class="notice">No participant can currently pick. A manager can assign an open date or skip the current turn.</div>
+  {% endif %}
+
+  {% if draft.status == 'OPEN' and not draft.picking_paused and next and next.id == me.id %}
+  <div class="your-turn-alert" data-your-turn-alert role="alert" aria-live="assertive">
+    <span class="your-turn-icon" aria-hidden="true">!</span>
+    <span class="your-turn-copy"><strong>Your turn</strong><small>Choose a highlighted date in the assignment calendar.</small></span>
+  </div>
   {% endif %}
 </section>
