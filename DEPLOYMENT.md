@@ -115,7 +115,7 @@ Content-Encoding: identity
 
 Browsers without EventSource use the scoped JSON state endpoint as a slower compatibility fallback. If a stream repeatedly errors, the browser also performs fallback checks while EventSource reconnects.
 
-A quick authenticated browser check is to open Developer Tools, select **Network**, and confirm that `live-events` remains pending with content type `text/event-stream`. When another participant picks, the server emits an `update` event and the page refreshes immediately. If the user has unsaved form changes or an open confirmation dialog, the app displays an update notice and preserves the edits until the user reloads or returns the form to its original state.
+A quick authenticated browser check is to open Developer Tools, select **Network**, and confirm that `live-events` remains pending with content type `text/event-stream`. When another participant picks, the server emits an `update` event and the session page fetches a fresh authorized fragment snapshot. Turn order, calendar assignments, counts, status, and manager controls are replaced in place without a full page reload, while the current vertical position and mobile calendar horizontal position are preserved. If the user has unsaved form changes, an open dialog, or manager-selection mode active, the update waits and applies automatically once that interaction is finished. A full page reload is retained only as an authorization/error fallback.
 
 ## First sign-in
 
