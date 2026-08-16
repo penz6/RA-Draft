@@ -31,7 +31,7 @@
         <button class="nav-link nav-button" type="button" data-help-open>How it works</button>
         <span class="user-chip" title="{{ me.email }}">
           <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
-          <span class="user-copy"><strong>{{ me.name }}</strong><small>{{ me.role }}{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
+          <span class="user-copy"><strong>{{ me.name }}</strong><small><span class="inline-role{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
         </span>
         <form class="nav-form" method="post" action="{{ url_for('logout') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">

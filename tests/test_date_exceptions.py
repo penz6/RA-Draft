@@ -109,6 +109,7 @@ class DateExceptionTestCase(unittest.TestCase):
         _building_id, hra_id, ra_id, session_id = self.setup_session()
         self.set_kind(session_id, hra_id, "2026-08-14", "NO_DUTY")
         self.set_kind(session_id, hra_id, "2026-08-15", "WEEKDAY")
+        self.set_kind(session_id, hra_id, "2026-08-16", "NO_DUTY")
 
         with app.app_context():
             row = session_row(session_id)

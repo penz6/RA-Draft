@@ -2,7 +2,7 @@
   <div class="help-dialog-panel">
     <div class="help-dialog-head">
       <div>
-        <span class="role-badge">{{ me.role }}</span>
+        <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
         <h2 id="role-help-title">Your {{ me.role }} role</h2>
       </div>
       <button class="help-close" type="button" aria-label="Close instructions" data-help-close>&times;</button>

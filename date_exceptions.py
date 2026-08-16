@@ -71,7 +71,9 @@ def _session_id(row):
 
 def natural_date_kind(duty_date):
     parsed = date.fromisoformat(str(duty_date))
-    return DATE_KIND_WEEKEND if parsed.weekday() >= 5 else DATE_KIND_WEEKDAY
+    # Residence Life's duty week treats Friday and Saturday as weekend dates;
+    # Sunday belongs to the weekday group with Monday through Thursday.
+    return DATE_KIND_WEEKEND if parsed.weekday() in (4, 5) else DATE_KIND_WEEKDAY
 
 
 def date_kind_overrides(session_id):

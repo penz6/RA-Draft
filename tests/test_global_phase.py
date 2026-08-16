@@ -82,9 +82,9 @@ class GlobalPhaseTestCase(unittest.TestCase):
                 (session_id, blair_id),
             )
             for user_id, duty_date in (
-                (alex_id, "2026-08-14"),
+                (alex_id, "2026-08-16"),
                 (alex_id, "2026-08-17"),
-                (blair_id, "2026-08-14"),
+                (blair_id, "2026-08-16"),
             ):
                 conn.execute(
                     "INSERT INTO assignments(session_id,user_id,duty_date,created_by) "

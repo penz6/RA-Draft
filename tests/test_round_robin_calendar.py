@@ -193,7 +193,7 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
             row = session_row(session_id)
             self.assertEqual(
                 selectable_dates(row, alex_id),
-                ["2026-08-14", "2026-08-17"],
+                ["2026-08-16", "2026-08-17"],
             )
 
         self.pick(user_id=alex_id, session_id=session_id, duty_date="2026-08-15")
@@ -206,13 +206,13 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
                 0,
             )
 
-        self.pick(user_id=alex_id, session_id=session_id, duty_date="2026-08-14")
+        self.pick(user_id=alex_id, session_id=session_id, duty_date="2026-08-16")
         self.pick(user_id=blair_id, session_id=session_id, duty_date="2026-08-17")
         with app.app_context():
             row = session_row(session_id)
             self.assertEqual(
                 selectable_dates(row, alex_id),
-                ["2026-08-15", "2026-08-16"],
+                ["2026-08-14", "2026-08-15"],
             )
 
     def test_manager_pick_consumes_current_turn_and_skip_is_one_round(self):

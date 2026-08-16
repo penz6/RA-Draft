@@ -112,7 +112,7 @@ class SessionRuleTestCase(unittest.TestCase):
         }
         self.assertEqual(
             dates_for(row),
-            ["2026-08-14", "2026-08-17", "2026-08-15", "2026-08-16"],
+            ["2026-08-16", "2026-08-17", "2026-08-14", "2026-08-15"],
         )
 
     def test_hra_can_override_date_order(self):
@@ -128,7 +128,7 @@ class SessionRuleTestCase(unittest.TestCase):
         row["date_order"] = "WEEKENDS_FIRST"
         self.assertEqual(
             dates_for(row),
-            ["2026-08-15", "2026-08-16", "2026-08-14", "2026-08-17"],
+            ["2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17"],
         )
 
     def test_hra_and_admin_can_be_participants_and_pick(self):
