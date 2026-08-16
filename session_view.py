@@ -76,6 +76,7 @@ def view_session(session_id):
     self_selectable = (
         set(selectable_dates(row, user["id"]))
         if row["status"] == "OPEN"
+        and not row["picking_paused"]
         and current_picker
         and current_picker["id"] == user["id"]
         else set()
