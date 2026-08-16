@@ -8,6 +8,8 @@
 
   {% if draft.status == 'CLOSED' %}
   <div class="notice">This session is closed. An HRA or Admin can reopen it.</div>
+  {% elif draft.picking_paused %}
+  <div class="notice">Picking is paused. The calendar stays visible, but no duty dates can be selected until picking resumes.</div>
   {% elif next and me.id == next.id %}
   <div class="notice success">It is your turn. Select a highlighted date.</div>
   {% elif next %}
@@ -41,7 +43,7 @@
                 {% set kind_override = d in date_kind_overrides %}
                 {% set full = no_duty or filled >= capacity %}
                 {% set self_allowed = d in selectable_dates %}
-                <button class="calendar-day{% if date_kind == 'WEEKDAY' %} is-weekday{% elif date_kind == 'WEEKEND' %} is-weekend{% endif %}{% if full %} is-full{% endif %}{% if no_duty %} is-no-duty{% endif %}{% if self_allowed %} is-self-selectable{% endif %}" type="button" data-calendar-day data-date="{{ d }}" data-date-label="{{ d|date_label }}" data-full="{{ 'true' if full else 'false' }}" data-no-duty="{{ 'true' if no_duty else 'false' }}" data-self-selectable="{{ 'true' if self_allowed else 'false' }}" data-assigned-user-ids="{{ assignment_user_ids.get(d, '') }}" {% if draft.status != 'OPEN' or full or (not can_manage and not self_allowed) %}disabled{% endif %} aria-label="{{ d|date_label }}: {% if no_duty %}no one needed{% else %}{{ filled }} of {{ capacity }} assigned{% if assigned %}; {{ assigned|map(attribute='name')|join(', ') }}{% endif %}{% endif %}">
+                <button class="calendar-day{% if date_kind == 'WEEKDAY' %} is-weekday{% elif date_kind == 'WEEKEND' %} is-weekend{% endif %}{% if full %} is-full{% endif %}{% if no_duty %} is-no-duty{% endif %}{% if self_allowed %} is-self-selectable{% endif %}" type="button" data-calendar-day data-date="{{ d }}" data-date-label="{{ d|date_label }}" data-full="{{ 'true' if full else 'false' }}" data-no-duty="{{ 'true' if no_duty else 'false' }}" data-self-selectable="{{ 'true' if self_allowed else 'false' }}" data-assigned-user-ids="{{ assignment_user_ids.get(d, '') }}" {% if draft.status != 'OPEN' or draft.picking_paused or full or (not can_manage and not self_allowed) %}disabled{% endif %} aria-label="{{ d|date_label }}: {% if no_duty %}no one needed{% else %}{{ filled }} of {{ capacity }} assigned{% if assigned %}; {{ assigned|map(attribute='name')|join(', ') }}{% endif %}{% endif %}">
                   <span class="calendar-day-head">
                     <strong>{{ d[8:10]|int }}</strong>
                     <small>{{ date_kind_labels[date_kind] }}{% if kind_override and not no_duty %} · override{% endif %}</small>
