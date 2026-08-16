@@ -4,6 +4,10 @@ from authlib.integrations.base_client.errors import OAuthError
 from flask import abort, flash, redirect, render_template, request, session, url_for
 from requests.exceptions import RequestException
 
+# Install the additive account-status migration and current_user enforcement
+# before importing current_user into this module or any route modules.
+import core  # noqa: F401
+import account_status  # noqa: F401
 from core import (
     ADMIN_EMAILS,
     app,
@@ -46,6 +50,13 @@ def oauth_failure(message):
     return redirect(url_for("index"))
 
 
+def disabled_account_failure(conn):
+    conn.rollback()
+    return oauth_failure(
+        "This Duty Picking account is disabled. Contact an administrator if access should be restored."
+    )
+
+
 @app.route("/auth/callback")
 def auth_callback():
     try:
@@ -77,6 +88,8 @@ def auth_callback():
     claimed_precreated_user = False
 
     if user:
+        if user["disabled"]:
+            return disabled_account_failure(conn)
         email_owner = conn.execute(
             "SELECT id FROM users WHERE email=? COLLATE NOCASE AND id<>?",
             (email, user["id"]),
@@ -97,6 +110,8 @@ def auth_callback():
             (email,),
         ).fetchone()
         if email_owner:
+            if email_owner["disabled"]:
+                return disabled_account_failure(conn)
             if not str(email_owner["google_sub"]).startswith("manual:"):
                 conn.rollback()
                 return oauth_failure(
@@ -104,7 +119,7 @@ def auth_callback():
                 )
             linked = conn.execute(
                 "UPDATE users SET google_sub=?,email=?,name=? "
-                "WHERE id=? AND google_sub LIKE 'manual:%'",
+                "WHERE id=? AND google_sub LIKE 'manual:%' AND disabled=0",
                 (google_sub, email, display_name, email_owner["id"]),
             )
             if linked.rowcount != 1:
@@ -187,7 +202,7 @@ def onboarding():
         conn = db()
         conn.execute("BEGIN IMMEDIATE")
         account = conn.execute(
-            "SELECT role,building_id FROM users WHERE id=?",
+            "SELECT role,building_id,disabled FROM users WHERE id=?",
             (user["id"],),
         ).fetchone()
         building = conn.execute(
@@ -195,7 +210,7 @@ def onboarding():
             (building_id,),
         ).fetchone()
 
-        if not account:
+        if not account or account["disabled"]:
             conn.rollback()
             session.clear()
             return redirect(url_for("login"))
@@ -208,7 +223,7 @@ def onboarding():
 
         updated = conn.execute(
             "UPDATE users SET building_id=? "
-            "WHERE id=? AND role='RA' AND building_id IS NULL",
+            "WHERE id=? AND role='RA' AND building_id IS NULL AND disabled=0",
             (building_id, user["id"]),
         )
         if updated.rowcount != 1:
@@ -262,7 +277,7 @@ def dashboard():
         ).fetchall()
         participants = conn.execute(
             "SELECT u.*,b.name building_name FROM users u "
-            "JOIN buildings b ON b.id=u.building_id "
+            "JOIN buildings b ON b.id=u.building_id WHERE u.disabled=0 "
             "ORDER BY b.name,CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name"
         ).fetchall()
     else:
@@ -279,7 +294,8 @@ def dashboard():
         participants = (
             conn.execute(
                 "SELECT u.*,b.name building_name FROM users u "
-                "JOIN buildings b ON b.id=u.building_id WHERE u.building_id=? "
+                "JOIN buildings b ON b.id=u.building_id "
+                "WHERE u.building_id=? AND u.disabled=0 "
                 "ORDER BY CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name",
                 (user["building_id"],),
             ).fetchall()
