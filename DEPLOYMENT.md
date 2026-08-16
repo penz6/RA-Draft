@@ -31,11 +31,14 @@ ADMIN_EMAILS=you@rwu.edu
 PROXY_HOPS=1
 PANGOLIN_NETWORK=pangolin
 WEB_THREADS=64
+AUDIT_LOG_MAX_ROWS=5000
 ```
 
 `PUBLIC_HOST` is the hostname only, without a scheme or path. `PROXY_HOPS` must match the number of trusted forwarded-host/proto values between Pangolin and Flask. Keep it at `1` unless the deployment has been intentionally tested with another value.
 
 `WEB_THREADS` controls how many concurrent ordinary requests and visible live pages Gunicorn can serve. Each visible dashboard or session uses one lightweight Server-Sent Events connection. Hidden tabs close their connection and reconnect when visible again. The image defaults to 64 threads.
+
+`AUDIT_LOG_MAX_ROWS` bounds the persistent Admin audit trail. The default is 5,000 rows. Older audit rows are deleted automatically and SQLite reuses the freed pages for later records. This limit does not remove duty sessions or assignment history.
 
 The event broker is held in the application process, so the production container intentionally runs exactly one Gunicorn worker. Do not add workers or app replicas unless the broker is replaced with shared pub/sub such as Redis.
 
@@ -126,8 +129,28 @@ The first new user whose email appears in `ADMIN_EMAILS` becomes an admin. Every
 - Do not cache authenticated HTML, `.ics`, or `text/event-stream` responses at the proxy.
 - Back up the `ra-draft-data` volume off the VPS.
 - SQLite uses WAL mode. Use SQLite's backup API or stop the app briefly before copying the database and WAL files.
-- Review the Admin audit table for role, building, session, deferral, assignment, and deletion changes.
+- Review the Admin audit table for role, building, session, assignment, and access changes.
 - Pull newly published images regularly so dependency security updates are incorporated.
+
+## Storage limits
+
+The production container intentionally does not write a Gunicorn access log. Gunicorn error output remains available through Docker logs.
+
+The sample Compose file also caps the Docker `json-file` log at three 5 MB files (about 15 MB maximum for this container). The persistent audit table is bounded separately by `AUDIT_LOG_MAX_ROWS` and defaults to 5,000 rows.
+
+Docker images can consume much more disk than application logs after many deployments. After confirming a new deployment is healthy, remove dangling images that are no longer referenced by a container:
+
+```bash
+docker image prune -f
+```
+
+Check overall Docker disk use at any time with:
+
+```bash
+docker system df
+```
+
+Do not use `docker system prune --volumes` for routine cleanup because the named database volume is persistent application data.
 
 ## Update
 
@@ -135,4 +158,5 @@ The first new user whose email appears in `ADMIN_EMAILS` becomes an admin. Every
 git pull
 docker compose -f docker-compose.pangolin.yml pull
 docker compose -f docker-compose.pangolin.yml up -d --force-recreate
+docker image prune -f
 ```
