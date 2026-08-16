@@ -11,10 +11,16 @@ services:
       PROXY_HOPS: ${PROXY_HOPS:-1}
       DATABASE_PATH: /data/ra_draft.db
       WEB_THREADS: ${WEB_THREADS:-64}
+      AUDIT_LOG_MAX_ROWS: ${AUDIT_LOG_MAX_ROWS:-5000}
     volumes:
       - ra-draft-data:/data
     expose:
       - "8000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     cap_drop:
       - ALL
     security_opt:

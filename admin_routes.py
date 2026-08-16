@@ -61,6 +61,12 @@ def _building_still_exists(conn, building_id):
     )
 
 
+def _enabled_admin_count(conn):
+    return conn.execute(
+        "SELECT COUNT(*) n FROM users WHERE role='ADMIN' AND disabled=0"
+    ).fetchone()["n"]
+
+
 @app.route("/admin")
 @roles("ADMIN")
 def admin():
@@ -68,7 +74,7 @@ def admin():
         "SELECT u.*,b.name building_name,"
         "CASE WHEN u.google_sub LIKE 'manual:%' THEN 1 ELSE 0 END pending_google "
         "FROM users u LEFT JOIN buildings b ON b.id=u.building_id "
-        "ORDER BY u.name,u.email"
+        "ORDER BY u.disabled,u.name,u.email"
     ).fetchall()
     buildings = db().execute(
         "SELECT b.*,"
@@ -295,13 +301,10 @@ def edit_user(user_id):
         flash("That building no longer exists. Refresh and try again.", "error")
         return redirect(url_for("admin"))
 
-    if existing["role"] == "ADMIN" and role != "ADMIN":
-        admin_count = conn.execute(
-            "SELECT COUNT(*) n FROM users WHERE role='ADMIN'"
-        ).fetchone()["n"]
-        if admin_count <= 1:
+    if existing["role"] == "ADMIN" and role != "ADMIN" and not existing["disabled"]:
+        if _enabled_admin_count(conn) <= 1:
             conn.rollback()
-            flash("You cannot demote the last admin.", "error")
+            flash("You cannot demote the last enabled admin.", "error")
             return redirect(url_for("admin"))
 
     if role == existing["role"] and building_id == existing["building_id"]:
@@ -329,6 +332,68 @@ def edit_user(user_id):
     return redirect(url_for("admin"))
 
 
+@app.route("/admin/users/<int:user_id>/status", methods=["POST"])
+@roles("ADMIN")
+def admin_user_status(user_id):
+    """Enable or disable an account without deleting schedule history."""
+
+    require_csrf()
+    raw_disabled = request.form.get("disabled", "")
+    if raw_disabled not in ("0", "1"):
+        abort(400)
+    disabled = int(raw_disabled)
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    actor = _require_locked_admin(conn)
+    existing = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not existing:
+        conn.rollback()
+        abort(404)
+
+    if disabled and actor["id"] == user_id:
+        conn.rollback()
+        flash("You cannot disable your own signed-in account.", "error")
+        return redirect(url_for("admin"))
+
+    if disabled and existing["role"] == "ADMIN" and not existing["disabled"]:
+        if _enabled_admin_count(conn) <= 1:
+            conn.rollback()
+            flash("You cannot disable the last enabled admin.", "error")
+            return redirect(url_for("admin"))
+
+    if int(bool(existing["disabled"])) == disabled:
+        conn.rollback()
+        return redirect(url_for("admin"))
+
+    conn.execute(
+        "UPDATE users SET disabled=? WHERE id=?",
+        (disabled, user_id),
+    )
+    audit(
+        "admin.user.disable" if disabled else "admin.user.enable",
+        "user",
+        user_id,
+        {
+            "email": existing["email"],
+            "role": existing["role"],
+            "disabled": bool(disabled),
+        },
+    )
+    conn.commit()
+
+    if disabled:
+        # Dashboard/session SSE clients subscribe to their logout topic. Wake the
+        # disabled user's open pages immediately; future requests are rejected by
+        # current_user even if the browser still has the old session cookie.
+        from live_updates import publish_live_topics, topics_for_logout
+
+        publish_live_topics(topics_for_logout(user_id))
+
+    flash("User disabled." if disabled else "User enabled.", "success")
+    return redirect(url_for("admin"))
+
+
 @app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @roles("ADMIN")
 def delete_user(user_id):
@@ -352,13 +417,10 @@ def delete_user(user_id):
         )
         return redirect(url_for("admin"))
 
-    if existing["role"] == "ADMIN":
-        admin_count = conn.execute(
-            "SELECT COUNT(*) n FROM users WHERE role='ADMIN'"
-        ).fetchone()["n"]
-        if admin_count <= 1:
+    if existing["role"] == "ADMIN" and not existing["disabled"]:
+        if _enabled_admin_count(conn) <= 1:
             conn.rollback()
-            flash("You cannot delete the last admin.", "error")
+            flash("You cannot delete the last enabled admin.", "error")
             return redirect(url_for("admin"))
 
     has_schedule_history = conn.execute(
