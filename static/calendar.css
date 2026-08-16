@@ -5,6 +5,12 @@
 .turn-actions form{margin:0}
 .draft-person{grid-template-columns:2rem minmax(0,1fr);align-items:start}
 .draft-person .turn-actions{grid-column:2}
+.your-turn-alert{display:flex;align-items:center;gap:.75rem;margin-top:1rem;padding:.8rem .9rem;border:1px solid #efb1b1;border-radius:10px;color:var(--danger);background:var(--danger-soft)}
+.your-turn-icon{display:grid;width:2rem;height:2rem;flex:0 0 auto;place-items:center;border-radius:50%;color:#fff;background:var(--danger);font-weight:900;box-shadow:0 0 0 0 rgba(161,38,38,.28);animation:your-turn-pulse 1.5s ease-out infinite}
+.your-turn-copy{display:flex;min-width:0;flex-direction:column;line-height:1.25}
+.your-turn-copy strong{font-size:.92rem}
+.your-turn-copy small{margin-top:.1rem;color:#7e1d1d;font-size:.76rem}
+@keyframes your-turn-pulse{0%{box-shadow:0 0 0 0 rgba(161,38,38,.3)}70%{box-shadow:0 0 0 8px rgba(161,38,38,0)}100%{box-shadow:0 0 0 0 rgba(161,38,38,0)}}
 .participant-row.draggable-participant{grid-template-columns:38px 32px minmax(0,1fr) auto;cursor:grab}
 .participant-row.draggable-participant.is-dragging{opacity:.48;border:1px dashed var(--blue);background:var(--blue-soft)}
 .drag-handle{display:grid;width:36px;height:36px;place-items:center;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:white;cursor:grab;font-size:1rem;line-height:1;letter-spacing:0}
@@ -48,6 +54,7 @@
 .override-row>div{display:flex;flex-direction:column}
 .override-list{display:grid;gap:.6rem;margin-top:1rem}
 .capacity-input{flex:0 0 150px}
+@media(prefers-reduced-motion:reduce){.your-turn-icon{animation:none}}
 @media(max-width:900px){
   .calendar-layout{grid-template-columns:1fr}
   .turn-order-card{position:static}
