@@ -105,7 +105,7 @@
   </section>
 
   <div class="danger-zone">
-    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Stops picking while preserving the calendar.' if draft.status == 'OPEN' else 'Allows turns and manager assignments again.' }}</p></div>
+    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Ends the active session while preserving the calendar. Use Pause picking above for a temporary freeze.' if draft.status == 'OPEN' else 'Reopens the session with picking active.' }}</p></div>
     <form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">
