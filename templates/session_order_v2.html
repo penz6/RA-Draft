@@ -8,7 +8,9 @@
       <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
         <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
-        {% if draft.status == 'CLOSED' and next and next.id == p.id %}
+        {% if p.disabled %}
+        <span class="status-text disabled-user-status">Account disabled · {{ p.assignment_count }} assigned</span>
+        {% elif draft.status == 'CLOSED' and next and next.id == p.id %}
         <span class="status-text">Next when reopened · {{ p.assignment_count }} assigned</span>
         {% elif draft.picking_paused and next and next.id == p.id %}
         <span class="status-text current">Turn frozen · {{ p.assignment_count }} assigned</span>
@@ -41,7 +43,7 @@
   {% elif schedule_complete %}
   <div class="notice success">The calendar is complete.</div>
   {% else %}
-  <div class="notice">No participant can currently pick. A manager can assign an open date or skip the current turn.</div>
+  <div class="notice">No enabled participant can currently pick. A manager can assign an open date manually.</div>
   {% endif %}
 
   {% if draft.status == 'OPEN' and not draft.picking_paused and next and next.id == me.id %}
