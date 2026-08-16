@@ -2,42 +2,12 @@
 {% block title %}{{ draft.name }} | RA Duty Picking{% endblock %}
 {% block content %}
 <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to duty sessions</a>
-<div class="page-head session-heading" data-live-refresh data-live-state-url="{{ url_for('live_state', session_id=draft.id) }}" data-live-events-url="{{ url_for('live_events', session_id=draft.id) }}" data-live-version="{{ live_version }}">
-  <div>
-    <div class="eyebrow">{{ draft.building_name }}</div>
-    <h1>{{ draft.name }}</h1>
-    <p>Created by {{ draft.creator_name }}</p>
-  </div>
-  <div class="session-head-actions">
-    {% if can_manage and draft.status == 'OPEN' and (draft.picking_paused or not schedule_complete) %}
-    <form method="post" action="{{ url_for('session_picking', session_id=draft.id) }}">
-      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="paused" value="{{ 0 if draft.picking_paused else 1 }}">
-      <button class="button {{ 'secondary' if not draft.picking_paused else '' }}" type="submit">{{ 'Resume picking' if draft.picking_paused else 'Pause picking' }}</button>
-    </form>
-    {% endif %}
-    <a class="button secondary" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
-    {% if draft.status == 'OPEN' and draft.picking_paused %}
-    <span class="pill large closed">PICKING PAUSED</span>
-    {% endif %}
-    <span class="pill large {{ draft.status|lower }}">{{ draft.status }}</span>
-  </div>
+<div class="page-head session-heading" data-live-refresh data-live-state-url="{{ url_for('live_state', session_id=draft.id) }}" data-live-events-url="{{ url_for('live_events', session_id=draft.id) }}" data-live-partial-url="{{ url_for('session_live_fragments', session_id=draft.id) }}" data-live-version="{{ live_version }}">
+  {% include 'session_heading_live_v2.html' %}
 </div>
 
-<section class="summary-grid" aria-label="Session summary">
-  <div class="summary-item"><span>Date range</span><strong>{{ draft.start_date|date_label }} - {{ draft.end_date|date_label }}</strong></div>
-  <div class="summary-item"><span>Selection rule</span><strong>{{ draft.date_order|date_order_label }}</strong></div>
-  <div class="summary-item"><span>Filled slots</span><strong>{{ assigned_count }} of {{ total_slot_count }}</strong></div>
-  <div class="summary-item"><span>Open slots</span><strong>{{ open_slot_count }}</strong></div>
-</section>
-
-{% if schedule_complete %}
-<div class="notice success">Every duty slot is filled. The completed calendar can be downloaded above.</div>
-{% elif draft.status == 'OPEN' and draft.picking_paused %}
-<div class="notice">Picking is paused. {% if next %}<strong>{{ next.name }}</strong> keeps the current turn until an HRA or Admin resumes picking.{% else %}No turns will advance until an HRA or Admin resumes picking.{% endif %}</div>
-{% elif draft.status == 'OPEN' %}
-<div class="notice">{{ selection_phase }}</div>
-{% endif %}
+{% include 'session_summary_live_v2.html' %}
+{% include 'session_status_live_v2.html' %}
 
 <div class="session-layout calendar-layout">
   {% include 'session_order_v2.html' %}
