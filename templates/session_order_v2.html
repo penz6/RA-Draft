@@ -8,29 +8,25 @@
       <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
         <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
-        {% if p.deferred %}
-        <span class="status-text">Paused for future turns · {{ p.assignment_count }} assigned</span>
-        {% elif draft.status == 'CLOSED' and next and next.id == p.id %}
+        {% if draft.status == 'CLOSED' and next and next.id == p.id %}
         <span class="status-text">Next when reopened · {{ p.assignment_count }} assigned</span>
+        {% elif draft.picking_paused and next and next.id == p.id %}
+        <span class="status-text current">Turn frozen · {{ p.assignment_count }} assigned</span>
         {% elif next and next.id == p.id %}
         <span class="status-text current">Picking now · {{ p.assignment_count }} assigned</span>
         {% else %}
         <span class="status-text">{{ p.assignment_count }} assigned · waiting</span>
         {% endif %}
       </div>
-      {% if can_manage and draft.status == 'OPEN' and not schedule_complete %}
+      {% if can_manage and draft.status == 'OPEN' and not draft.picking_paused and not schedule_complete %}
       <div class="turn-actions">
         <button class="button small" type="button" data-manager-pick data-user-id="{{ p.id }}" data-user-name="{{ p.name }}">Pick for them</button>
-        {% if next and next.id == p.id and not p.deferred %}
+        {% if next and next.id == p.id %}
         <form method="post" action="{{ url_for('skip_participant_turn', session_id=draft.id, user_id=p.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <button class="button small secondary" type="submit">Skip once</button>
         </form>
         {% endif %}
-        <form method="post" action="{{ url_for('toggle_participant_pause', session_id=draft.id, user_id=p.id) }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <button class="button small ghost" type="submit">{{ 'Restore' if p.deferred else 'Pause' }}</button>
-        </form>
       </div>
       {% endif %}
     </li>
@@ -38,11 +34,13 @@
   </ol>
   {% if draft.status == 'CLOSED' and next %}
   <div class="current-picker"><span>Next picker when reopened</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  {% elif draft.picking_paused and next %}
+  <div class="current-picker"><span>Current turn · paused</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
   {% elif next %}
   <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
   {% elif schedule_complete %}
   <div class="notice success">The calendar is complete.</div>
   {% else %}
-  <div class="notice">No participant can currently pick. Restore a paused participant or assign a date manually.</div>
+  <div class="notice">No participant can currently pick. A manager can assign an open date or skip the current turn.</div>
   {% endif %}
 </section>
