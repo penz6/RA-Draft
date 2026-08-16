@@ -14,7 +14,7 @@
         {% for a in picks %}
         <tr>
           <td data-label="Participant"><strong>{{ a.name }}</strong></td>
-          <td data-label="Role">{{ a.role }}</td>
+          <td data-label="Role"><span class="inline-role{% if a.role == 'ADMIN' %} admin-role{% endif %}">{{ a.role }}</span></td>
           <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
           <td data-label="Actions">
             <div class="button-group">
