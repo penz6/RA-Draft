@@ -3,41 +3,34 @@
     <div class="help-dialog-head">
       <div>
         <span class="role-badge">{{ me.role }}</span>
-        <h2 id="role-help-title">How RA Duty Picking works</h2>
+        <h2 id="role-help-title">Your {{ me.role }} role</h2>
       </div>
       <button class="help-close" type="button" aria-label="Close instructions" data-help-close>&times;</button>
     </div>
 
     {% if me.role == 'RA' %}
-    <h3>RA permissions</h3>
     <ul class="help-permissions">
-      <li>Choose a building once on first sign-in; an Admin can correct it later.</li>
-      <li>See sessions and the live assignment calendar for that building.</li>
-      <li><strong>Wait for your turn.</strong> The order repeats until all duty slots are filled.</li>
-      <li>When your turn opens, click an available calendar date and confirm it.</li>
-      <li>Download your own event or the full session iCalendar file.</li>
+      <li>Choose your assigned building on first sign-in.</li>
+      <li>View duty sessions, turn order, and the live assignment calendar for your building.</li>
+      <li><strong>Wait for your turn.</strong> When your turn is active, choose one highlighted date. Turns repeat until every required slot is filled.</li>
+      <li>See assignments update as the session progresses.</li>
+      <li>Download your duty event or the full session calendar.</li>
     </ul>
-    <p class="help-limit">RAs cannot change the order, assign other people, skip turns, or alter capacity.</p>
     {% elif me.role == 'HRA' %}
-    <h3>HRA permissions</h3>
     <ul class="help-permissions">
-      <li>Everything an RA can do, including picking when included in a session.</li>
-      <li>Create sessions for the assigned building and drag participants into turn order.</li>
-      <li>Pick a date for any participant directly from the turn list and calendar.</li>
-      <li>Skip one turn, pause or restore future turns, and remove incorrect assignments.</li>
-      <li>Choose weekday-first, any-date, or weekend-first selection and override individual date capacity.</li>
-      <li>Treat edge-case dates as weekdays or weekends, or mark dates as no one needed.</li>
-      <li>Close or reopen sessions and download the full schedule.</li>
+      <li>Create and manage duty sessions for your assigned building, including participants and turn order.</li>
+      <li>Take your own turns when included in a session, or pick a date for a participant.</li>
+      <li>Skip a turn, pause or restore participants, and remove incorrect assignments.</li>
+      <li>Set date-selection rules, per-date capacity, weekday/weekend treatment, and dates where no coverage is needed.</li>
+      <li>Close or reopen sessions and download the completed schedule.</li>
     </ul>
-    <p class="help-limit">HRAs cannot manage another building or change user roles.</p>
     {% else %}
-    <h3>Admin permissions</h3>
     <ul class="help-permissions">
-      <li>Everything an HRA can do, across every building.</li>
-      <li>Pick normally when included in a session.</li>
-      <li>Create buildings and assign user roles and buildings.</li>
-      <li>Manage every turn, assignment, capacity override, date treatment, and session state.</li>
-      <li>Review the audit log for administrative and scheduling changes.</li>
+      <li>Create and manage users, roles, and buildings.</li>
+      <li>Create and manage duty sessions across all buildings and participate when included.</li>
+      <li>Manage turn actions and assignments for session participants.</li>
+      <li>Set date-selection rules, capacity overrides, weekday/weekend treatment, and dates where no coverage is needed.</li>
+      <li>Close or reopen sessions, export calendars, and review audit history.</li>
     </ul>
     {% endif %}
 

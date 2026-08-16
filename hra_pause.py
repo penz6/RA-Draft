@@ -14,6 +14,22 @@ from core import (
 )
 
 
+def _locked_manager_session(conn, session_id):
+    manager = current_user()
+    row = session_row(session_id)
+    if not row:
+        conn.rollback()
+        abort(404)
+    if not can_manage(manager, row):
+        conn.rollback()
+        abort(403)
+    if row["status"] != "OPEN":
+        conn.rollback()
+        flash("Reopen the session before changing participant turns.", "error")
+        return None, None
+    return manager, row
+
+
 @app.route("/sessions/<int:session_id>/pause/<int:user_id>", methods=["POST"])
 @roles("HRA", "ADMIN")
 def toggle_participant_pause(session_id, user_id):
@@ -28,6 +44,10 @@ def toggle_participant_pause(session_id, user_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    manager, row = _locked_manager_session(conn, session_id)
+    if not row:
+        return redirect(url_for("view_session", session_id=session_id))
+
     participant = conn.execute(
         "SELECT 1 FROM session_order WHERE session_id=? AND user_id=?",
         (session_id, user_id),
@@ -77,6 +97,10 @@ def skip_participant_turn(session_id, user_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    manager, row = _locked_manager_session(conn, session_id)
+    if not row:
+        return redirect(url_for("view_session", session_id=session_id))
+
     current = next_picker(session_id)
     if not current or current["id"] != user_id:
         conn.rollback()

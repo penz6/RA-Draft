@@ -170,6 +170,8 @@ def logout():
 @login_required
 def onboarding():
     user = current_user()
+    if not user:
+        return redirect(url_for("login"))
     if user["role"] != "RA" or user["building_id"] is not None:
         return redirect(url_for("dashboard"))
 
@@ -234,23 +236,38 @@ def onboarding():
 @login_required
 def dashboard():
     user = current_user()
+    if not user:
+        return redirect(url_for("login"))
     if user["role"] == "RA" and user["building_id"] is None:
         return redirect(url_for("onboarding"))
 
+    # Keep the rendered dashboard and its embedded live-state version on one
+    # SQLite read snapshot. If a write lands immediately afterward, SSE sees a
+    # different version and refreshes instead of leaving stale HTML marked current.
+    conn = db()
+    conn.execute("BEGIN")
+    user = current_user()
+    if not user:
+        conn.rollback()
+        return redirect(url_for("login"))
+    if user["role"] == "RA" and user["building_id"] is None:
+        conn.rollback()
+        return redirect(url_for("onboarding"))
+
     if user["role"] == "ADMIN":
-        sessions = db().execute(
+        sessions = conn.execute(
             "SELECT s.*,b.name building_name FROM draft_sessions s "
             "JOIN buildings b ON b.id=s.building_id "
             "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC"
         ).fetchall()
-        participants = db().execute(
+        participants = conn.execute(
             "SELECT u.*,b.name building_name FROM users u "
             "JOIN buildings b ON b.id=u.building_id "
             "ORDER BY b.name,CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name"
         ).fetchall()
     else:
         sessions = (
-            db().execute(
+            conn.execute(
                 "SELECT s.*,b.name building_name FROM draft_sessions s "
                 "JOIN buildings b ON b.id=s.building_id WHERE s.building_id=? "
                 "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC",
@@ -260,7 +277,7 @@ def dashboard():
             else []
         )
         participants = (
-            db().execute(
+            conn.execute(
                 "SELECT u.*,b.name building_name FROM users u "
                 "JOIN buildings b ON b.id=u.building_id WHERE u.building_id=? "
                 "ORDER BY CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name",
@@ -270,13 +287,17 @@ def dashboard():
             else []
         )
 
-    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    buildings = conn.execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    live_version = dashboard_state_version(user)
+    conn.commit()
+
     return render_template(
         "dashboard_v2.html",
+        me=user,
         sessions=sessions,
         buildings=buildings,
         participants=participants,
-        live_version=dashboard_state_version(user),
+        live_version=live_version,
         auto_open_help=bool(session.pop("show_role_help", False)),
     )
 

@@ -24,6 +24,28 @@ def ics_escape(text):
     )
 
 
+def fold_ical_line(line):
+    """Fold an iCalendar content line to RFC 5545's 75-octet limit."""
+
+    text = str(line)
+    if not text:
+        return [""]
+    parts = []
+    current = ""
+    first = True
+    for character in text:
+        # Continuation lines begin with one space, leaving 74 octets for data.
+        limit = 75 if first else 74
+        if current and len((current + character).encode("utf-8")) > limit:
+            parts.append(current if first else f" {current}")
+            current = character
+            first = False
+        else:
+            current += character
+    parts.append(current if first else f" {current}")
+    return parts
+
+
 def first_name(value):
     cleaned = " ".join(str(value or "").split())
     return cleaned.split(" ", 1)[0] if cleaned else "Unassigned"
@@ -75,18 +97,21 @@ def event_lines(*, uid, duty_date, summary, location, generated_at, description=
 
 
 def calendar_response(events, filename):
-    body = "\r\n".join(
-        [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "PRODID:-//RA Draft//Duty Scheduler//EN",
-            *events,
-            "END:VCALENDAR",
-            "",
-        ]
-    )
+    raw_lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "PRODID:-//RA Draft//Duty Scheduler//EN",
+        *events,
+        "END:VCALENDAR",
+    ]
+    folded_lines = [
+        folded
+        for line in raw_lines
+        for folded in fold_ical_line(line)
+    ]
+    body = "\r\n".join([*folded_lines, ""])
     return Response(
         body,
         content_type="text/calendar; charset=utf-8",
@@ -98,8 +123,10 @@ def calendar_response(events, filename):
 @login_required
 def calendar_ics(assignment_id):
     row = assignment_row(assignment_id)
+    if not row:
+        abort(404)
     user = current_user()
-    if not row or (user["role"] != "ADMIN" and row["user_id"] != user["id"]):
+    if user["role"] != "ADMIN" and row["user_id"] != user["id"]:
         abort(403)
 
     generated_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -118,8 +145,10 @@ def calendar_ics(assignment_id):
 @login_required
 def session_calendar_ics(session_id):
     row = session_row(session_id)
+    if not row:
+        abort(404)
     user = current_user()
-    if not row or not can_view_session(user, row):
+    if not can_view_session(user, row):
         abort(403)
 
     assignments = db().execute(

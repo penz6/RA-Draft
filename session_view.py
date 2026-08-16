@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from flask import abort, render_template
+from flask import abort, redirect, render_template, url_for
 
 from core import (
     DATE_KIND_LABELS,
@@ -34,15 +34,24 @@ from live_updates import session_state_version
 @app.route("/sessions/<int:session_id>")
 @login_required
 def view_session(session_id):
+    # Render from one read snapshot so the HTML and data-live-version describe
+    # the exact same database state. A later commit is then caught by SSE.
+    conn = db()
+    conn.execute("BEGIN")
     row = session_row(session_id)
     if not row:
+        conn.rollback()
         abort(404)
     user = current_user()
+    if not user:
+        conn.rollback()
+        return redirect(url_for("login"))
     if not can_view_session(user, row):
+        conn.rollback()
         abort(403)
 
     people = ordered_people(session_id)
-    picks = db().execute(
+    picks = conn.execute(
         "SELECT a.*,u.name,u.role,o.position FROM assignments a "
         "JOIN users u ON u.id=a.user_id "
         "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
@@ -66,15 +75,23 @@ def view_session(session_id):
     current_picker = next_picker(session_id)
     self_selectable = (
         set(selectable_dates(row, user["id"]))
-        if current_picker and current_picker["id"] == user["id"]
+        if row["status"] == "OPEN"
+        and current_picker
+        and current_picker["id"] == user["id"]
         else set()
     )
     complete = session_complete(row)
     filled = filled_slots(session_id)
     slots = total_slots(row)
+    people_count = participant_count(session_id)
+    manager_allowed = can_manage(user, row)
+    phase_label = selection_phase_label(row)
+    live_version = session_state_version(row, user)
+    conn.commit()
 
     return render_template(
         "session_v2.html",
+        me=user,
         draft=row,
         people=people,
         picks=picks,
@@ -94,8 +111,8 @@ def view_session(session_id):
         },
         selectable_dates=self_selectable,
         next=current_picker,
-        can_manage=can_manage(user, row),
-        participant_count=participant_count(session_id),
+        can_manage=manager_allowed,
+        participant_count=people_count,
         assigned_count=filled,
         total_slot_count=slots,
         open_slot_count=max(slots - filled, 0),
@@ -106,6 +123,6 @@ def view_session(session_id):
             and counts.get(duty_date, 0) < capacities[duty_date]
         ),
         schedule_complete=complete,
-        selection_phase=selection_phase_label(row),
-        live_version=session_state_version(row, user),
+        selection_phase=phase_label,
+        live_version=live_version,
     )

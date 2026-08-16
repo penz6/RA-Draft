@@ -44,8 +44,6 @@ class LiveSubscriber:
             self._condition.notify()
 
     def get(self, timeout=None):
-        """Queue-compatible API retained for tests and diagnostics."""
-
         with self._condition:
             ready = self._condition.wait_for(lambda: bool(self._pending), timeout=timeout)
             if not ready:
@@ -56,12 +54,7 @@ class LiveSubscriber:
 
 
 class LiveEventBroker:
-    """Fan out scoped invalidation signals to connected SSE clients.
-
-    The production image intentionally runs one threaded Gunicorn worker so
-    every request and stream shares this in-process broker. Multiple workers or
-    replicas require shared pub/sub such as Redis.
-    """
+    """Fan out scoped invalidation signals to connected SSE clients."""
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -101,8 +94,6 @@ def publish_live_topics(*topics):
 
 
 def _topics_for_committed_request():
-    """Map the committed request to the smallest useful stream categories."""
-
     endpoint = request.endpoint or ""
     view_args = request.view_args or {}
     topics = set()
@@ -135,8 +126,6 @@ def _topics_for_committed_request():
     }:
         topics.update({"dashboard:all", "session:all"})
     elif not topics:
-        # A future committed route without an explicit mapping must still avoid
-        # stale clients. Version hashes prevent irrelevant pages from reloading.
         topics.update({"dashboard:all", "session:all"})
 
     return topics
@@ -144,8 +133,6 @@ def _topics_for_committed_request():
 
 @app.before_request
 def track_live_commit_boundary():
-    """Track actual SQLite COMMIT statements for requests that can mutate state."""
-
     should_track = request.method in _MUTATING_METHODS or request.endpoint == "auth_callback"
     if not should_track:
         return
@@ -164,19 +151,17 @@ def track_live_commit_boundary():
 
 
 def _publish_committed_change(response):
-    """Publish only after a successful response that actually committed data."""
-
     connection = g.get("db")
     if connection is not None:
         connection.set_trace_callback(None)
-    if response.status_code < 400 and getattr(g, "live_commits", 0):
+    # The COMMIT is the source of truth. If response construction fails after
+    # the commit, clients still need to hear that the database changed.
+    if getattr(g, "live_commits", 0):
         publish_live_topics(_topics_for_committed_request())
     return response
 
 
 def _preserve_sse_headers(response):
-    """Run after global headers so proxies never transform or buffer the stream."""
-
     if response.mimetype == "text/event-stream":
         response.headers["Cache-Control"] = "private, no-cache, no-store, no-transform"
         response.headers["Pragma"] = "no-cache"
@@ -187,9 +172,6 @@ def _preserve_sse_headers(response):
     return response
 
 
-# Flask executes application after-request callbacks in reverse order. Insert
-# these first so security_headers runs before the SSE finalizer, and publication
-# occurs only after the response was built and the route's transaction ended.
 app.after_request_funcs.setdefault(None, []).insert(0, _preserve_sse_headers)
 app.after_request_funcs.setdefault(None, []).insert(0, _publish_committed_change)
 
@@ -295,7 +277,9 @@ def dashboard_state_version(user):
     )
 
 
-def session_state_version(row, viewer=None):
+def session_state_version(row, viewer):
+    """Return the viewer-aware session fingerprint used by HTML and SSE."""
+
     session_id = row["id"]
     people = _rows(
         "SELECT u.id,u.name,u.email,u.role,o.position,"
@@ -323,16 +307,14 @@ def session_state_version(row, viewer=None):
             "created_at",
         ),
     )
-    viewer_state = None
-    if viewer is not None:
-        viewer_state = [
-            viewer["id"],
-            viewer["name"],
-            viewer["email"],
-            viewer["role"],
-            viewer["building_id"],
-            viewer["building_name"],
-        ]
+    viewer_state = [
+        viewer["id"],
+        viewer["name"],
+        viewer["email"],
+        viewer["role"],
+        viewer["building_id"],
+        viewer["building_name"],
+    ]
 
     return _digest(
         {
@@ -370,6 +352,24 @@ def session_state_version(row, viewer=None):
     )
 
 
+def _read_snapshot(callback):
+    """Run a live-state calculation on one SQLite read snapshot."""
+
+    connection = db()
+    owns_transaction = not connection.in_transaction
+    if owns_transaction:
+        connection.execute("BEGIN")
+    try:
+        value = callback()
+    except BaseException:
+        if owns_transaction and connection.in_transaction:
+            connection.rollback()
+        raise
+    if owns_transaction:
+        connection.commit()
+    return value
+
+
 def _parse_session_id():
     raw_session_id = request.args.get("session_id")
     if raw_session_id is None:
@@ -381,31 +381,37 @@ def _parse_session_id():
 
 
 def _authorized_version(session_id):
-    user = current_user()
-    if not user:
-        abort(401)
-    if session_id is None:
-        return dashboard_state_version(user)
+    def calculate():
+        user = current_user()
+        if not user:
+            abort(401)
+        if session_id is None:
+            return dashboard_state_version(user)
 
-    row = session_row(session_id)
-    if not row:
-        abort(404)
-    if not can_view_session(user, row):
-        abort(403)
-    return session_state_version(row, user)
+        row = session_row(session_id)
+        if not row:
+            abort(404)
+        if not can_view_session(user, row):
+            abort(403)
+        return session_state_version(row, user)
+
+    return _read_snapshot(calculate)
 
 
 def _stream_version(session_id):
-    user = current_user()
-    if not user:
-        return None
-    if session_id is None:
-        return dashboard_state_version(user)
+    def calculate():
+        user = current_user()
+        if not user:
+            return None
+        if session_id is None:
+            return dashboard_state_version(user)
 
-    row = session_row(session_id)
-    if not row or not can_view_session(user, row):
-        return None
-    return session_state_version(row, user)
+        row = session_row(session_id)
+        if not row or not can_view_session(user, row):
+            return None
+        return session_state_version(row, user)
+
+    return _read_snapshot(calculate)
 
 
 def _subscription_topics(user, row):
@@ -448,8 +454,6 @@ def live_events():
         if not can_view_session(user, row):
             abort(403)
 
-    # Subscribe before computing the initial version. Changes made during the
-    # query remain queued, eliminating the narrow connection race.
     subscriber = live_event_broker.subscribe(_subscription_topics(user, row))
     try:
         initial_version = _authorized_version(session_id)
