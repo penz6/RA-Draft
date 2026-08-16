@@ -21,16 +21,23 @@ def session_status(session_id):
     if not can_manage(user, row):
         conn.rollback()
         abort(403)
-    if status == row["status"]:
+    if status == row["status"] and not row["picking_paused"]:
         conn.rollback()
         return redirect(url_for("view_session", session_id=session_id))
 
-    conn.execute("UPDATE draft_sessions SET status=? WHERE id=?", (status, session_id))
+    conn.execute(
+        "UPDATE draft_sessions SET status=?,picking_paused=0 WHERE id=?",
+        (status, session_id),
+    )
     audit(
         "draft.session.status",
         "session",
         session_id,
-        {"old_status": row["status"], "new_status": status},
+        {
+            "old_status": row["status"],
+            "new_status": status,
+            "cleared_picking_pause": bool(row["picking_paused"]),
+        },
     )
     conn.commit()
     return redirect(url_for("view_session", session_id=session_id))
