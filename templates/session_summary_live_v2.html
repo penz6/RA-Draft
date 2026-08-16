@@ -1,0 +1,6 @@
+<section class="summary-grid" aria-label="Session summary" data-session-live-summary>
+  <div class="summary-item"><span>Date range</span><strong>{{ draft.start_date|date_label }} - {{ draft.end_date|date_label }}</strong></div>
+  <div class="summary-item"><span>Selection rule</span><strong>{{ draft.date_order|date_order_label }}</strong></div>
+  <div class="summary-item"><span>Filled slots</span><strong>{{ assigned_count }} of {{ total_slot_count }}</strong></div>
+  <div class="summary-item"><span>Open slots</span><strong>{{ open_slot_count }}</strong></div>
+</section>
