@@ -49,6 +49,10 @@ def manual_assign(session_id):
         conn.rollback()
         flash("Reopen the session before assigning duty dates.", "error")
         return redirect(url_for("view_session", session_id=session_id))
+    if row["picking_paused"]:
+        conn.rollback()
+        flash("Resume picking before assigning duty dates.", "error")
+        return redirect(url_for("view_session", session_id=session_id))
     if not is_participant(session_id, user_id):
         conn.rollback()
         abort(400)
@@ -76,7 +80,9 @@ def manual_assign(session_id):
         flash("That date is already at capacity.", "error")
         return redirect(url_for("view_session", session_id=session_id))
 
-    was_paused = bool(
+    # Legacy per-user deferral markers are inert, but remove one if present so
+    # old records do not linger once that participant is touched again.
+    legacy_marker = bool(
         conn.execute(
             "SELECT 1 FROM session_deferrals WHERE session_id=? AND user_id=?",
             (session_id, user_id),
@@ -93,7 +99,7 @@ def manual_assign(session_id):
         flash("That assignment could not be added.", "error")
         return redirect(url_for("view_session", session_id=session_id))
 
-    if was_paused:
+    if legacy_marker:
         conn.execute(
             "DELETE FROM session_deferrals WHERE session_id=? AND user_id=?",
             (session_id, user_id),
@@ -110,7 +116,6 @@ def manual_assign(session_id):
             "user_id": user_id,
             "duty_date": duty_date,
             "consumed_turn": consumed_turn,
-            "restored_participant": was_paused,
         },
     )
     complete = session_complete(row)
