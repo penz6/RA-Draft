@@ -91,7 +91,7 @@ def create_session():
             continue
         seen.add(uid)
         if not conn.execute(
-            "SELECT 1 FROM users WHERE id=? AND building_id=? "
+            "SELECT 1 FROM users WHERE id=? AND building_id=? AND disabled=0 "
             "AND role IN ('RA','HRA','ADMIN')",
             (uid, building_id),
         ).fetchone():
@@ -106,7 +106,7 @@ def create_session():
 
     if not selected:
         conn.rollback()
-        flash("Select at least one participant for the duty session.", "error")
+        flash("Select at least one enabled participant for the duty session.", "error")
         return redirect(url_for("dashboard"))
 
     capacity = min(requested_capacity, len(selected))
