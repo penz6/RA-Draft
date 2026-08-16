@@ -1,6 +1,7 @@
 import os
 
 from portal_app import app
+import storage_policy  # noqa: E402,F401
 
 if __name__ == "__main__":
     app.run(
