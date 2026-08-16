@@ -32,7 +32,7 @@ _ensure_picking_pause_column()
 
 def ordered_people(session_id):
     return core.db().execute(
-        "SELECT u.id,u.name,u.email,u.role,o.position,"
+        "SELECT u.id,u.name,u.email,u.role,u.disabled,o.position,"
         "(SELECT COUNT(*) FROM assignments a "
         " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) AS assignment_count,"
         "0 AS deferred "
@@ -50,7 +50,7 @@ def next_picker(session_id):
     active = core.db().execute(
         "SELECT u.*,o.position FROM session_order o "
         "JOIN users u ON u.id=o.user_id "
-        "WHERE o.session_id=? ORDER BY o.position",
+        "WHERE o.session_id=? AND u.disabled=0 ORDER BY o.position",
         (session_id,),
     ).fetchall()
     if not active:
@@ -74,7 +74,9 @@ def advance_turn(session_id, after_user_id):
         raise ValueError("User is not in the session order.")
 
     active = core.db().execute(
-        "SELECT position FROM session_order WHERE session_id=? ORDER BY position",
+        "SELECT o.position FROM session_order o "
+        "JOIN users u ON u.id=o.user_id "
+        "WHERE o.session_id=? AND u.disabled=0 ORDER BY o.position",
         (session_id,),
     ).fetchall()
     if not active:
