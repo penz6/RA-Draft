@@ -34,22 +34,21 @@ def _install_audit_retention():
         (offset,),
     )
 
-    # Use a database trigger rather than relying on every application route to
-    # remember retention. The validated integer is embedded as a literal because
-    # SQLite does not support parameters inside CREATE TRIGGER statements.
-    conn.execute("DROP TRIGGER IF EXISTS audit_log_retention")
-    conn.execute(
-        f"""
+    # SQLite does not allow bound parameters inside CREATE TRIGGER. The only
+    # interpolated value is a range-validated integer; construct the DDL
+    # separately so ordinary .execute() calls remain parameterized by policy.
+    trigger_sql = """
         CREATE TRIGGER audit_log_retention
         AFTER INSERT ON audit_log
         BEGIN
           DELETE FROM audit_log
           WHERE id < (
-            SELECT id FROM audit_log ORDER BY id DESC LIMIT 1 OFFSET {offset}
+            SELECT id FROM audit_log ORDER BY id DESC LIMIT 1 OFFSET __OFFSET__
           );
-        END
-        """
-    )
+        END;
+    """.replace("__OFFSET__", str(offset))
+    conn.execute("DROP TRIGGER IF EXISTS audit_log_retention")
+    conn.executescript(trigger_sql)
     conn.commit()
     conn.close()
 
