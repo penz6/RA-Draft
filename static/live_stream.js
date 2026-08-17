@@ -4,11 +4,6 @@
   const liveRegion = document.querySelector("[data-live-refresh]");
   if (!liveRegion) return;
 
-  // The legacy polling block in app.js looks for this attribute. Claim the
-  // region before app.js executes so only this hardened stream client runs.
-  liveRegion.removeAttribute("data-live-refresh");
-  liveRegion.dataset.liveStreamActive = "true";
-
   const liveStateUrl = liveRegion.dataset.liveStateUrl;
   const liveEventsUrl = liveRegion.dataset.liveEventsUrl;
   const livePartialUrl = liveRegion.dataset.livePartialUrl || "";
@@ -16,6 +11,7 @@
     livePartialUrl && document.querySelector("[data-turn-order]")
   );
   const viewStateKey = `ra-draft-live-view:${window.location.pathname}${window.location.search}`;
+
   let liveVersion = liveRegion.dataset.liveVersion || "";
   let pendingVersion = "";
   let noticeSnoozed = false;
@@ -45,7 +41,7 @@
     try {
       window.sessionStorage.setItem(key, value);
     } catch (_error) {
-      // Scroll preservation is a convenience; storage failures must not block picks.
+      // View preservation is a convenience; storage failures must not block actions.
     }
   };
 
@@ -63,7 +59,9 @@
     calendarScrolls: Array.from(document.querySelectorAll(".calendar-scroll"))
       .map((element) => element.scrollLeft),
     hadTurnAlert: Boolean(document.querySelector("[data-your-turn-alert]")),
-    managerPanelOpen: Boolean(document.querySelector("[data-session-assignments] .manager-panel[open]")),
+    managerPanelOpen: Boolean(
+      document.querySelector("[data-session-assignments] .manager-panel[open]")
+    ),
   });
 
   const saveViewState = () => {
@@ -114,8 +112,7 @@
       }
       pendingTurnDing = false;
     } catch (_error) {
-      // Browsers may require a user gesture before sound. Keep the visual alert
-      // and play the pending ding on the next tap/key press when possible.
+      // Some browsers require a user gesture before audio can start.
       pendingTurnDing = true;
     }
   };
@@ -263,11 +260,17 @@
     current.replaceWith(parseFragment(html, selector));
   };
 
-  const applyPartialSessionUpdate = async () => {
-    if (!hasPartialSessionUpdates || partialUpdateInFlight || !pendingVersion) return;
+  const applyPartialSessionUpdate = async ({ force = false } = {}) => {
+    if (
+      !hasPartialSessionUpdates
+      || partialUpdateInFlight
+      || (!pendingVersion && !force)
+    ) return false;
+
     if (refreshBlocked()) {
+      if (force) pendingVersion = pendingVersion || "__local__";
       showPendingNotice();
-      return;
+      return force;
     }
 
     const requestedVersion = pendingVersion;
@@ -282,7 +285,7 @@
       });
       if (response.status === 401 || response.status === 403 || response.redirected) {
         reloadPreservingView();
-        return;
+        return false;
       }
       if (!response.ok) throw new Error("Live fragment request failed.");
 
@@ -305,7 +308,11 @@
 
       liveVersion = payload.version;
       liveRegion.dataset.liveVersion = payload.version;
-      if (pendingVersion === requestedVersion || pendingVersion === payload.version) {
+      if (
+        !pendingVersion
+        || pendingVersion === requestedVersion
+        || pendingVersion === payload.version
+      ) {
         pendingVersion = "";
       }
       partialUpdateFailures = 0;
@@ -315,14 +322,18 @@
       initializeFormSnapshots();
       window.RADraftSessionUI?.resetAfterLivePatch?.();
       restoreCapturedViewState(viewState, { playNewTurnDing: true });
+      return true;
     } catch (_error) {
       partialUpdateFailures += 1;
-      if (partialUpdateFailures >= 2) {
-        reloadPreservingView();
-      } else {
-        showPendingNotice();
-        window.setTimeout(() => applyPendingRefresh(), 1500);
+      if (!force) {
+        if (partialUpdateFailures >= 2) {
+          reloadPreservingView();
+        } else {
+          showPendingNotice();
+          window.setTimeout(() => applyPendingRefresh(), 1500);
+        }
       }
+      return false;
     } finally {
       partialUpdateInFlight = false;
       if (pendingVersion && pendingVersion !== requestedVersion) {
@@ -351,6 +362,23 @@
     applyPendingRefresh();
   };
 
+  const refreshSessionNow = async () => {
+    if (!hasPartialSessionUpdates) return false;
+    if (refreshBlocked()) {
+      pendingVersion = pendingVersion || "__local__";
+      noticeSnoozed = false;
+      showPendingNotice();
+      return true;
+    }
+    return applyPartialSessionUpdate({ force: true });
+  };
+
+  window.RADraftLiveSession = {
+    supportsPartial: hasPartialSessionUpdates,
+    refreshNow: refreshSessionNow,
+    reload: reloadPreservingView,
+  };
+
   const syncFormDirty = (form) => {
     if (!(form instanceof HTMLFormElement)) return;
     const baseline = formSnapshots.get(form);
@@ -366,9 +394,6 @@
   });
   document.addEventListener("change", (event) => {
     const form = event.target instanceof HTMLElement ? event.target.closest("form") : null;
-    // app.js may make additional checkbox/order changes in response to the same
-    // change event (for example when switching buildings). Wait one task so the
-    // dirty fingerprint reflects the final form state rather than an interim one.
     if (form) window.setTimeout(() => syncFormDirty(form), 0);
   });
   document.addEventListener("reset", (event) => {
@@ -389,10 +414,12 @@
       window.setTimeout(applyPendingRefresh, 0);
     }
   });
-  document.addEventListener("submit", () => {
-    // Session actions still use normal POST/redirect responses for the person
-    // submitting them. Preserve that person's exact view on the redirect while
-    // observers receive partial live updates with no page reload.
+  document.addEventListener("submit", (event) => {
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+    if (form?.matches("[data-live-pick-form]")) return;
+
+    // Non-enhanced actions still use normal POST/redirect. Preserve the current
+    // session view for those less frequent manager actions.
     saveViewState();
     liveSubmitting = true;
     disconnectStream();
@@ -430,7 +457,7 @@
       }
       requestRefresh(payload.version);
     } catch (_error) {
-      // Ignore malformed or incomplete events; reconnect/state fallback wins.
+      // Ignore malformed events; reconnect/state fallback will recover.
     }
   };
 
@@ -454,7 +481,7 @@
       if (!liveVersion) liveVersion = payload.version;
       else requestRefresh(payload.version);
     } catch (_error) {
-      // Temporary network loss must not interrupt a pick or unsaved form.
+      // Temporary network loss must not interrupt an action or unsaved form.
     } finally {
       stateCheckInFlight = false;
     }
@@ -495,8 +522,7 @@
       reloadPreservingView(delay);
     });
     eventSource.addEventListener("reconnect", () => {
-      // The server intentionally closes streams periodically. EventSource
-      // reconnects automatically and the next request revalidates the session.
+      // The server intentionally rotates streams; EventSource reconnects itself.
     });
     eventSource.addEventListener("error", () => {
       eventSourceFailures += 1;
