@@ -134,6 +134,7 @@ class LiveMobileFixTestCase(unittest.TestCase):
         self.assertIn("data-live-refresh", session_page)
         self.assertIn(f"/live-state?session_id={session_id}", session_page)
         self.assertIn(f"/live-events?session_id={session_id}", session_page)
+        self.assertIn("data-live-pick-form", session_page)
         before_turn = self.request(
             "get",
             f"/live-state?session_id={session_id}",
@@ -144,8 +145,10 @@ class LiveMobileFixTestCase(unittest.TestCase):
             "post",
             f"/sessions/{session_id}/choose",
             data={"csrf": csrf, "duty_date": "2026-09-01"},
+            headers={"X-RA-Draft-Async": "1", "Accept": "application/json"},
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
         after_turn = self.request(
             "get",
             f"/live-state?session_id={session_id}",
@@ -262,7 +265,9 @@ class LiveMobileFixTestCase(unittest.TestCase):
     def test_mobile_css_and_client_use_push_updates(self):
         root = Path(__file__).resolve().parents[1]
         css = (root / "static" / "calendar.css").read_text(encoding="utf-8")
-        javascript = (root / "static" / "app.js").read_text(encoding="utf-8")
+        live_client = (root / "static" / "live_stream.js").read_text(encoding="utf-8")
+        app_client = (root / "static" / "app.js").read_text(encoding="utf-8")
+        session_client = (root / "static" / "session_live_ui.js").read_text(encoding="utf-8")
         dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
         base_template = (root / "templates" / "base.html").read_text(encoding="utf-8")
         mobile = css.split("@media(max-width:650px){", 1)[1].split(
@@ -280,10 +285,12 @@ class LiveMobileFixTestCase(unittest.TestCase):
         )
         self.assertIn(".drag-handle{display:none}", mobile)
         self.assertNotIn(".calendar-grid{display:grid;grid-template-columns:1fr", mobile)
-        self.assertIn("new window.EventSource(liveEventsUrl", javascript)
-        self.assertIn("dataset.liveEventsUrl", javascript)
-        self.assertIn('addEventListener("update"', javascript)
-        self.assertNotIn("setInterval(pollLiveState, 2500)", javascript)
+        self.assertIn("new window.EventSource(liveEventsUrl", live_client)
+        self.assertIn("dataset.liveEventsUrl", live_client)
+        self.assertIn('addEventListener("update"', live_client)
+        self.assertIn("X-RA-Draft-Async", session_client)
+        self.assertNotIn("new window.EventSource", app_client)
+        self.assertNotIn("setInterval(pollLiveState, 2500)", live_client)
         self.assertNotIn("live_events.js", base_template)
         self.assertIn("--workers 1", dockerfile)
         self.assertIn("--threads ${WEB_THREADS:-64}", dockerfile)
