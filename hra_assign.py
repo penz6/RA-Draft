@@ -18,6 +18,7 @@ from core import (
     session_complete,
     session_row,
 )
+from session_action_response import session_action_response
 
 
 @app.route("/sessions/<int:session_id>/assign", methods=["POST"])
@@ -26,7 +27,9 @@ def manual_assign(session_id):
     require_csrf()
     row = session_row(session_id)
     manager = current_user()
-    if not row or not can_manage(manager, row):
+    if not row:
+        abort(404)
+    if not can_manage(manager, row):
         abort(403)
 
     try:
@@ -47,12 +50,20 @@ def manual_assign(session_id):
         abort(403)
     if row["status"] != "OPEN":
         conn.rollback()
-        flash("Reopen the session before assigning duty dates.", "error")
-        return redirect(url_for("view_session", session_id=session_id))
+        return session_action_response(
+            session_id,
+            "Reopen the session before assigning duty dates.",
+            category="error",
+            status=409,
+        )
     if row["picking_paused"]:
         conn.rollback()
-        flash("Resume picking before assigning duty dates.", "error")
-        return redirect(url_for("view_session", session_id=session_id))
+        return session_action_response(
+            session_id,
+            "Resume picking before assigning duty dates.",
+            category="error",
+            status=409,
+        )
     if not is_participant(session_id, user_id):
         conn.rollback()
         abort(400)
@@ -67,8 +78,12 @@ def manual_assign(session_id):
     ).fetchone()
     if duplicate:
         conn.rollback()
-        flash("That participant is already assigned to that date.", "error")
-        return redirect(url_for("view_session", session_id=session_id))
+        return session_action_response(
+            session_id,
+            "That participant is already assigned to that date.",
+            category="error",
+            status=409,
+        )
 
     assigned = conn.execute(
         "SELECT COUNT(*) AS n FROM assignments WHERE session_id=? AND duty_date=?",
@@ -77,8 +92,12 @@ def manual_assign(session_id):
     capacity = effective_capacity(row, duty_date)
     if assigned >= capacity:
         conn.rollback()
-        flash("That date is already at capacity.", "error")
-        return redirect(url_for("view_session", session_id=session_id))
+        return session_action_response(
+            session_id,
+            "That date is already at capacity.",
+            category="error",
+            status=409,
+        )
 
     # Legacy per-user deferral markers are inert, but remove one if present so
     # old records do not linger once that participant is touched again.
@@ -96,8 +115,12 @@ def manual_assign(session_id):
         )
     except sqlite3.IntegrityError:
         conn.rollback()
-        flash("That assignment could not be added.", "error")
-        return redirect(url_for("view_session", session_id=session_id))
+        return session_action_response(
+            session_id,
+            "That assignment could not be added.",
+            category="error",
+            status=409,
+        )
 
     if legacy_marker:
         conn.execute(
@@ -120,13 +143,12 @@ def manual_assign(session_id):
     )
     complete = session_complete(row)
     conn.commit()
-    flash(
+    return session_action_response(
+        session_id,
         "Every duty slot is filled."
         if complete
         else ("Assignment added and the turn advanced." if consumed_turn else "Assignment added."),
-        "success",
     )
-    return redirect(url_for("view_session", session_id=session_id))
 
 
 @app.route(
