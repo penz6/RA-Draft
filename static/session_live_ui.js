@@ -3,9 +3,7 @@
 
   let managerTarget = null;
 
-  const patchedCalendar = () => document.querySelector(
-    '[data-duty-calendar][data-live-patched="true"]'
-  );
+  const activeCalendar = () => document.querySelector("[data-duty-calendar]");
 
   const inPatchedRegion = (element) => Boolean(
     element?.closest?.('[data-live-patched="true"]')
@@ -25,17 +23,37 @@
 
   const stopManagerMode = () => {
     managerTarget = null;
-    const calendar = patchedCalendar();
+    const calendar = activeCalendar();
     if (!calendar) return;
     calendar.classList.remove("is-manager-selecting");
     const banner = calendar.querySelector("[data-manager-mode]");
     if (banner) banner.hidden = true;
   };
 
+  const refreshAuthoritativeState = async () => {
+    const live = window.RADraftLiveSession;
+    if (!live?.supportsPartial || typeof live.refreshNow !== "function") return false;
+    const refreshed = await live.refreshNow();
+    if (!refreshed) live.reload?.();
+    return refreshed;
+  };
+
+  const parseActionPayload = async (response) => {
+    const contentType = response.headers.get("Content-Type") || "";
+    if (!contentType.includes("application/json")) return null;
+    try {
+      return await response.json();
+    } catch (_error) {
+      return null;
+    }
+  };
+
   document.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (!target) return;
 
+    // app.js attaches confirmation handlers to the initial page. This delegated
+    // fallback covers controls inserted later by a live fragment patch.
     const confirmButton = target.closest("[data-confirm]");
     if (confirmButton && inPatchedRegion(confirmButton)) {
       if (!window.confirm(confirmButton.dataset.confirm || "Continue?")) {
@@ -45,8 +63,8 @@
     }
 
     const managerPick = target.closest("[data-manager-pick]");
-    if (managerPick && inPatchedRegion(managerPick)) {
-      const calendar = patchedCalendar();
+    if (managerPick) {
+      const calendar = activeCalendar();
       if (!calendar) return;
       managerTarget = {
         id: managerPick.dataset.userId,
@@ -63,7 +81,7 @@
       return;
     }
 
-    const calendar = target.closest('[data-duty-calendar][data-live-patched="true"]');
+    const calendar = target.closest("[data-duty-calendar]");
     if (!calendar) return;
 
     const cancelManager = target.closest("[data-manager-cancel]");
@@ -124,10 +142,74 @@
     showDialog(selfDialog);
   });
 
-  document.addEventListener("submit", (event) => {
+  document.addEventListener("submit", async (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
-    if (form?.closest('[data-duty-calendar][data-live-patched="true"]')) {
+    if (!form?.matches("[data-live-pick-form]")) return;
+
+    const live = window.RADraftLiveSession;
+    if (!live?.supportsPartial || typeof window.fetch !== "function") {
+      // Progressive enhancement: without the live client, the real form keeps
+      // the existing server-side POST/redirect behavior.
+      return;
+    }
+
+    event.preventDefault();
+    if (form.dataset.submitting === "true") return;
+    form.dataset.submitting = "true";
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalLabel = submitButton?.textContent || "";
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Saving...";
+    }
+
+    const dialog = form.closest("dialog");
+    try {
+      const response = await window.fetch(form.action, {
+        method: "POST",
+        body: new window.FormData(form),
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "X-RA-Draft-Async": "1",
+        },
+      });
+
+      if (response.redirected || response.status === 401 || response.status === 403) {
+        live.reload?.();
+        return;
+      }
+
+      const payload = await parseActionPayload(response);
+      closeDialog(dialog);
       stopManagerMode();
+
+      if (!response.ok || !payload?.ok) {
+        await refreshAuthoritativeState();
+        window.alert(payload?.message || "That pick could not be completed. The schedule was refreshed.");
+        return;
+      }
+
+      // Do not wait for our own SSE event. Pull the authoritative post-commit
+      // fragments immediately so the picker sees the same update as observers.
+      await refreshAuthoritativeState();
+    } catch (_error) {
+      closeDialog(dialog);
+      stopManagerMode();
+      const refreshed = await refreshAuthoritativeState();
+      if (refreshed) {
+        window.alert(
+          "The connection was interrupted. The schedule was refreshed before another pick can be attempted."
+        );
+      }
+    } finally {
+      delete form.dataset.submitting;
+      if (submitButton?.isConnected) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
     }
   }, true);
 
