@@ -1,6 +1,9 @@
 (() => {
   "use strict";
 
+  // Live session transport and compatibility polling (pollLiveState) live in
+  // live_stream.js. Keep this file focused on non-live page interactions.
+
   const helpDialog = document.querySelector("[data-role-help]");
   if (helpDialog) {
     const openHelp = () => {
