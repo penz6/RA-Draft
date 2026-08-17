@@ -1,0 +1,9 @@
+<div data-session-live-status>
+  {% if schedule_complete %}
+  <div class="notice success">Every duty slot is filled. The completed calendar can be downloaded above.</div>
+  {% elif draft.status == 'OPEN' and draft.picking_paused %}
+  <div class="notice">Picking is paused. {% if next %}<strong>{{ next.name }}</strong> keeps the current turn until an HRA or Admin resumes picking.{% else %}No turns will advance until an HRA or Admin resumes picking.{% endif %}</div>
+  {% elif draft.status == 'OPEN' %}
+  <div class="notice">{{ selection_phase }}</div>
+  {% endif %}
+</div>

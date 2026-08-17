@@ -1,3 +1,4 @@
+.session-heading>[data-session-live-heading]{display:contents}
 .session-head-actions{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
 .calendar-layout{grid-template-columns:minmax(300px,.7fr) minmax(0,1.7fr)}
 .turn-order-card{position:sticky;top:92px}

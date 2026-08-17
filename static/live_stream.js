@@ -11,7 +11,10 @@
 
   const liveStateUrl = liveRegion.dataset.liveStateUrl;
   const liveEventsUrl = liveRegion.dataset.liveEventsUrl;
-  const turnOrder = document.querySelector("[data-turn-order]");
+  const livePartialUrl = liveRegion.dataset.livePartialUrl || "";
+  const hasPartialSessionUpdates = Boolean(
+    livePartialUrl && document.querySelector("[data-turn-order]")
+  );
   const viewStateKey = `ra-draft-live-view:${window.location.pathname}${window.location.search}`;
   let liveVersion = liveRegion.dataset.liveVersion || "";
   let pendingVersion = "";
@@ -20,6 +23,8 @@
   let eventSourceFailures = 0;
   let fallbackTimer = null;
   let stateCheckInFlight = false;
+  let partialUpdateInFlight = false;
+  let partialUpdateFailures = 0;
   let liveSubmitting = false;
   let liveDragging = false;
   let turnAudioContext = null;
@@ -52,16 +57,18 @@
     }
   };
 
+  const captureViewState = () => ({
+    savedAt: Date.now(),
+    scrollY: window.scrollY,
+    calendarScrolls: Array.from(document.querySelectorAll(".calendar-scroll"))
+      .map((element) => element.scrollLeft),
+    hadTurnAlert: Boolean(document.querySelector("[data-your-turn-alert]")),
+    managerPanelOpen: Boolean(document.querySelector("[data-session-assignments] .manager-panel[open]")),
+  });
+
   const saveViewState = () => {
-    if (!turnOrder) return;
-    const calendarScrolls = Array.from(document.querySelectorAll(".calendar-scroll"))
-      .map((element) => element.scrollLeft);
-    safeSessionSet(viewStateKey, JSON.stringify({
-      savedAt: Date.now(),
-      scrollY: window.scrollY,
-      calendarScrolls,
-      hadTurnAlert: Boolean(document.querySelector("[data-your-turn-alert]")),
-    }));
+    if (!hasPartialSessionUpdates) return;
+    safeSessionSet(viewStateKey, JSON.stringify(captureViewState()));
   };
 
   const getTurnAudioContext = () => {
@@ -122,6 +129,29 @@
   document.addEventListener("pointerdown", unlockTurnSound, true);
   document.addEventListener("keydown", unlockTurnSound, true);
 
+  const restoreCapturedViewState = (state, { playNewTurnDing = false } = {}) => {
+    if (!state) return;
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (Number.isFinite(state.scrollY)) window.scrollTo(0, state.scrollY);
+        const calendarScrolls = Array.isArray(state.calendarScrolls)
+          ? state.calendarScrolls
+          : [];
+        document.querySelectorAll(".calendar-scroll").forEach((element, index) => {
+          const left = Number(calendarScrolls[index]);
+          if (Number.isFinite(left)) element.scrollLeft = left;
+        });
+        if (state.managerPanelOpen) {
+          const panel = document.querySelector("[data-session-assignments] .manager-panel");
+          if (panel) panel.open = true;
+        }
+
+        const hasTurnAlert = Boolean(document.querySelector("[data-your-turn-alert]"));
+        if (playNewTurnDing && hasTurnAlert && !state.hadTurnAlert) playTurnDing();
+      });
+    });
+  };
+
   const restoreViewState = () => {
     const rawState = safeSessionGet(viewStateKey);
     if (!rawState) return;
@@ -134,22 +164,7 @@
       return;
     }
     if (!state || Date.now() - Number(state.savedAt || 0) > 30000) return;
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        if (Number.isFinite(state.scrollY)) window.scrollTo(0, state.scrollY);
-        const calendarScrolls = Array.isArray(state.calendarScrolls)
-          ? state.calendarScrolls
-          : [];
-        document.querySelectorAll(".calendar-scroll").forEach((element, index) => {
-          const left = Number(calendarScrolls[index]);
-          if (Number.isFinite(left)) element.scrollLeft = left;
-        });
-
-        const hasTurnAlert = Boolean(document.querySelector("[data-your-turn-alert]"));
-        if (hasTurnAlert && !state.hadTurnAlert) playTurnDing();
-      });
-    });
+    restoreCapturedViewState(state, { playNewTurnDing: true });
   };
 
   const reloadPreservingView = (delay = 0) => {
@@ -198,7 +213,9 @@
   const noticeTitle = document.createElement("strong");
   noticeTitle.textContent = "The duty schedule changed";
   const noticeText = document.createElement("span");
-  noticeText.textContent = "Reload to see the newest turn and assignments. Your current edits have not been discarded.";
+  noticeText.textContent = hasPartialSessionUpdates
+    ? "Live updates are waiting while you finish your current edit. They will apply automatically without reloading the page."
+    : "Reload to see the newest schedule. Your current edits have not been discarded.";
   noticeCopy.append(noticeTitle, noticeText);
 
   const noticeActions = document.createElement("div");
@@ -206,7 +223,7 @@
   const reloadButton = document.createElement("button");
   reloadButton.type = "button";
   reloadButton.className = "button small";
-  reloadButton.textContent = "Reload updates";
+  reloadButton.textContent = "Reload page";
   reloadButton.addEventListener("click", () => reloadPreservingView());
   const keepEditingButton = document.createElement("button");
   keepEditingButton.type = "button";
@@ -224,13 +241,107 @@
     if (!noticeSnoozed) notice.hidden = false;
   };
 
+  const initializeFormSnapshots = () => {
+    document.querySelectorAll("form").forEach((form) => {
+      formSnapshots.set(form, formFingerprint(form));
+    });
+  };
+
+  const parseFragment = (html, selector) => {
+    if (typeof html !== "string") throw new Error("Missing live fragment.");
+    const template = document.createElement("template");
+    template.innerHTML = html.trim();
+    const fragment = template.content.querySelector(selector);
+    if (!fragment) throw new Error(`Invalid live fragment for ${selector}.`);
+    fragment.dataset.livePatched = "true";
+    return fragment;
+  };
+
+  const replaceLiveFragment = (selector, html) => {
+    const current = document.querySelector(selector);
+    if (!current) throw new Error(`Missing current live region ${selector}.`);
+    current.replaceWith(parseFragment(html, selector));
+  };
+
+  const applyPartialSessionUpdate = async () => {
+    if (!hasPartialSessionUpdates || partialUpdateInFlight || !pendingVersion) return;
+    if (refreshBlocked()) {
+      showPendingNotice();
+      return;
+    }
+
+    const requestedVersion = pendingVersion;
+    partialUpdateInFlight = true;
+    const viewState = captureViewState();
+    try {
+      const response = await window.fetch(livePartialUrl, {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (response.status === 401 || response.status === 403 || response.redirected) {
+        reloadPreservingView();
+        return;
+      }
+      if (!response.ok) throw new Error("Live fragment request failed.");
+
+      const payload = await response.json();
+      if (
+        !payload
+        || typeof payload.version !== "string"
+        || !payload.fragments
+        || typeof payload.fragments !== "object"
+      ) {
+        throw new Error("Live fragment response was incomplete.");
+      }
+
+      replaceLiveFragment("[data-session-live-heading]", payload.fragments.heading);
+      replaceLiveFragment("[data-session-live-summary]", payload.fragments.summary);
+      replaceLiveFragment("[data-session-live-status]", payload.fragments.status);
+      replaceLiveFragment("[data-turn-order]", payload.fragments.turn_order);
+      replaceLiveFragment("[data-duty-calendar]", payload.fragments.calendar);
+      replaceLiveFragment("[data-session-assignments]", payload.fragments.assignments);
+
+      liveVersion = payload.version;
+      liveRegion.dataset.liveVersion = payload.version;
+      if (pendingVersion === requestedVersion || pendingVersion === payload.version) {
+        pendingVersion = "";
+      }
+      partialUpdateFailures = 0;
+      notice.hidden = true;
+      noticeSnoozed = false;
+      dirtyForms.clear();
+      initializeFormSnapshots();
+      window.RADraftSessionUI?.resetAfterLivePatch?.();
+      restoreCapturedViewState(viewState, { playNewTurnDing: true });
+    } catch (_error) {
+      partialUpdateFailures += 1;
+      if (partialUpdateFailures >= 2) {
+        reloadPreservingView();
+      } else {
+        showPendingNotice();
+        window.setTimeout(() => applyPendingRefresh(), 1500);
+      }
+    } finally {
+      partialUpdateInFlight = false;
+      if (pendingVersion && pendingVersion !== requestedVersion) {
+        window.setTimeout(() => applyPendingRefresh(), 0);
+      }
+    }
+  };
+
   const applyPendingRefresh = () => {
     if (!pendingVersion) return;
     if (refreshBlocked()) {
       showPendingNotice();
       return;
     }
-    reloadPreservingView();
+    if (pendingVersion === "__reload__" || !hasPartialSessionUpdates) {
+      reloadPreservingView();
+      return;
+    }
+    void applyPartialSessionUpdate();
   };
 
   const requestRefresh = (version, force = false) => {
@@ -247,12 +358,6 @@
     if (formFingerprint(form) === baseline) dirtyForms.delete(form);
     else dirtyForms.add(form);
     applyPendingRefresh();
-  };
-
-  const initializeFormSnapshots = () => {
-    document.querySelectorAll("form").forEach((form) => {
-      formSnapshots.set(form, formFingerprint(form));
-    });
   };
 
   document.addEventListener("input", (event) => {
@@ -285,8 +390,9 @@
     }
   });
   document.addEventListener("submit", () => {
-    // Session actions also use a normal POST/redirect. Preserve the same view for
-    // the person making the pick, not only for observers receiving an SSE update.
+    // Session actions still use normal POST/redirect responses for the person
+    // submitting them. Preserve that person's exact view on the redirect while
+    // observers receive partial live updates with no page reload.
     saveViewState();
     liveSubmitting = true;
     disconnectStream();
@@ -386,7 +492,7 @@
         // A malformed reload event still requires a safe page reload.
       }
       disconnectStream();
-      window.setTimeout(() => window.location.reload(), delay);
+      reloadPreservingView(delay);
     });
     eventSource.addEventListener("reconnect", () => {
       // The server intentionally closes streams periodically. EventSource

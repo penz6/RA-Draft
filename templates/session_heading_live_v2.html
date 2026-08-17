@@ -1,0 +1,21 @@
+<div data-session-live-heading>
+  <div>
+    <div class="eyebrow">{{ draft.building_name }}</div>
+    <h1>{{ draft.name }}</h1>
+    <p>Created by {{ draft.creator_name }}</p>
+  </div>
+  <div class="session-head-actions">
+    {% if can_manage and draft.status == 'OPEN' and (draft.picking_paused or not schedule_complete) %}
+    <form method="post" action="{{ url_for('session_picking', session_id=draft.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="paused" value="{{ 0 if draft.picking_paused else 1 }}">
+      <button class="button {{ 'secondary' if not draft.picking_paused else '' }}" type="submit">{{ 'Resume picking' if draft.picking_paused else 'Pause picking' }}</button>
+    </form>
+    {% endif %}
+    <a class="button secondary" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
+    {% if draft.status == 'OPEN' and draft.picking_paused %}
+    <span class="pill large closed">PICKING PAUSED</span>
+    {% endif %}
+    <span class="pill large {{ draft.status|lower }}">{{ draft.status }}</span>
+  </div>
+</div>
