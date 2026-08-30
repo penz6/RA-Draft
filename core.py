@@ -108,6 +108,8 @@ app.config.update(
     MAX_FORM_PARTS=500,
 )
 
+# Trust only the explicitly configured Pangolin/reverse-proxy hops. The app
+# port must not be exposed directly to the Internet when this is non-zero.
 if PROXY_HOPS:
     app.wsgi_app = ProxyFix(
         app.wsgi_app,
@@ -340,24 +342,45 @@ def _normalize_existing_capacities(conn):
         )
 
 
+def _table_exists(conn, table_name):
+    """Check if a database table exists in the sqlite catalog."""
+    return (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,),
+        ).fetchone()
+        is not None
+    )
+
+
 def _ensure_performance_indexes(conn):
-    """Create composite query optimization indexes if not already present."""
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_assignments_session_date ON assignments(session_id, duty_date)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_users_building ON users(building_id)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_sessions_building ON draft_sessions(building_id)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id)"
-    )
+    """Ensure database query indexes exist for query optimization across all tables."""
+    if _table_exists(conn, "audit_log"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log(target_type, target_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(created_at)")
+    if _table_exists(conn, "assignments"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_user_session ON assignments(user_id, session_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_session_date ON assignments(session_id, duty_date)")
+    if _table_exists(conn, "session_order"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_session_order_lookup ON session_order(session_id, user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_session_order_position ON session_order(session_id, position)")
+    if _table_exists(conn, "session_date_capacities"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_session_capacities_lookup ON session_date_capacities(session_id, duty_date)")
+    if _table_exists(conn, "session_date_overrides"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_session_overrides_lookup ON session_date_overrides(session_id, duty_date)")
+    if _table_exists(conn, "users"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_users_building ON users(building_id)")
+    if _table_exists(conn, "draft_sessions"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_draft_sessions_building ON draft_sessions(building_id)")
+    if _table_exists(conn, "duty_swap_requests"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_duty_swaps_session_status ON duty_swap_requests(session_id, status)")
 
 
 def _install_audit_retention(conn):
     """Install SQLite trigger and prune old rows to enforce audit log row limit."""
+    if not _table_exists(conn, "audit_log"):
+        return
     offset = AUDIT_LOG_MAX_ROWS - 1
     conn.execute(
         "DELETE FROM audit_log WHERE id < ("
@@ -646,9 +669,6 @@ def inject_user():
     return {"me": current_user()}
 
 
-ROLES = ("RA", "HRA", "ADMIN")
-
-
 def login_required(fn):
     """Route decorator requiring a signed-in user or redirecting to login."""
     @wraps(fn)
@@ -713,8 +733,11 @@ def audit(action, target_type=None, target_id=None, details=None, actor_user_id=
 
 def _session_id(row):
     """Safely extract integer session ID from a SQLite row, dict, or integer."""
-    if isinstance(row, sqlite3.Row) or isinstance(row, dict):
-        return row["id"]
+    if isinstance(row, (sqlite3.Row, dict)):
+        try:
+            return row["id"]
+        except (KeyError, IndexError):
+            return None
     try:
         return int(row)
     except (TypeError, ValueError):
@@ -765,7 +788,7 @@ def participant_count(session_id):
     return db().execute(
         "SELECT COUNT(*) AS n FROM session_order WHERE session_id=?",
         (session_id,),
-    ).fetchone()["n"]
+    ).fetchone()[\"n\"]
 
 
 def is_participant(session_id, user_id):
@@ -852,10 +875,8 @@ def effective_date_kind(row, duty_date, overrides=None):
 
 def date_kinds_for(row):
     """Map each date in session to its effective date kind."""
-    session_id = _session_id(row)
-    overrides = date_kind_overrides(session_id) if session_id is not None else {}
     return {
-        duty_date: effective_date_kind(row, duty_date, overrides)
+        duty_date: effective_date_kind(row, duty_date)
         for duty_date in calendar_dates(row)
     }
 
@@ -1113,7 +1134,7 @@ def next_picker(session_id):
     rotated = [item for item in active if item["position"] >= start_position]
     rotated.extend(item for item in active if item["position"] < start_position)
     for participant in rotated:
-        if selectable_dates(row, participant["id"], _precomputed=precomputed):
+        if selectable_dates(row, participant["id"]):
             return participant
     return None
 
