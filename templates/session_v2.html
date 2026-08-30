@@ -9,6 +9,10 @@
 {% include 'session_summary_live_v2.html' %}
 {% include 'session_status_live_v2.html' %}
 
+{% if can_manage %}
+{% include 'session_manager_v2.html' %}
+{% endif %}
+
 <div class="session-layout calendar-layout">
   {% include 'session_order_v2.html' %}
   {% include 'session_dates_v2.html' %}
