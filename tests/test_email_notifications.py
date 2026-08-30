@@ -199,6 +199,35 @@ class EmailNotificationTestCase(unittest.TestCase):
             self.assertEqual(response.status_code, 302)
             approved_notify.assert_called_once_with(batch_id, data["hra_id"])
 
+    def test_manager_manual_swap_sends_approved_notification_after_commit(self):
+        data = self.create_session(status="CLOSED")
+
+        with patch.object(swap_email_hooks, "MAIL_ENABLED", True), patch.object(
+            swap_email_hooks, "send_swap_approved_notifications"
+        ) as approved_notify:
+            csrf = self.login_as(data["hra_id"], "hra-manual-csrf")
+            response = self.request(
+                "post",
+                f"/swaps/session/{data['session_id']}/manager-swap",
+                data={
+                    "csrf": csrf,
+                    "first_assignment_id": str(data["a1"]),
+                    "second_assignment_id": str(data["b1"]),
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+
+            with app.app_context():
+                swap = db().execute(
+                    "SELECT batch_id,status,reviewed_by FROM duty_swap_requests WHERE session_id=?",
+                    (data["session_id"],),
+                ).fetchone()
+                self.assertEqual(swap["status"], "APPROVED")
+                self.assertEqual(swap["reviewed_by"], data["hra_id"])
+                batch_id = swap["batch_id"]
+
+            approved_notify.assert_called_once_with(batch_id, data["hra_id"])
+
 
 if __name__ == "__main__":
     unittest.main()
