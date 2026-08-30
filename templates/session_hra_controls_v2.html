@@ -1,27 +1,26 @@
-<div class="manager-content">
-  <section class="manager-section">
-    <div class="section-head compact">
-      <div><h3>Date selection rule</h3><p>Control which type of required date must be filled first.</p></div>
+<div class="manager-settings-grid">
+  <section class="manager-setting-card">
+    <div class="manager-setting-head">
+      <h3>Picking order</h3>
+      <p>Choose which type of open date people should fill first.</p>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_order', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <label class="field grow">Selection rule
         <select name="date_order" required>
-          <option value="WEEKDAYS_FIRST" {% if draft.date_order == 'WEEKDAYS_FIRST' %}selected{% endif %}>Fill weekdays before weekends</option>
-          <option value="CHRONOLOGICAL" {% if draft.date_order == 'CHRONOLOGICAL' %}selected{% endif %}>Allow any open date</option>
-          <option value="WEEKENDS_FIRST" {% if draft.date_order == 'WEEKENDS_FIRST' %}selected{% endif %}>Fill weekends before weekdays</option>
+          <option value="WEEKDAYS_FIRST" {% if draft.date_order == 'WEEKDAYS_FIRST' %}selected{% endif %}>Weekdays first</option>
+          <option value="CHRONOLOGICAL" {% if draft.date_order == 'CHRONOLOGICAL' %}selected{% endif %}>Any open date</option>
+          <option value="WEEKENDS_FIRST" {% if draft.date_order == 'WEEKENDS_FIRST' %}selected{% endif %}>Weekends first</option>
         </select>
       </label>
-      <button class="button small" type="submit">Save</button>
+      <button class="button small" type="submit">Save rule</button>
     </form>
   </section>
 
-  <section class="manager-section">
-    <div class="section-head compact">
-      <div>
-        <h3>Date treatment</h3>
-        <p>Override whether an edge-case date counts as a weekday or weekend, or mark it as requiring no staffing.</p>
-      </div>
+  <section class="manager-setting-card">
+    <div class="manager-setting-head">
+      <h3>Date treatment</h3>
+      <p>Handle a holiday or other special date without changing the whole session.</p>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_kind', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -37,12 +36,12 @@
           <option value="AUTO">Calendar default</option>
           <option value="WEEKDAY">Weekday</option>
           <option value="WEEKEND">Weekend</option>
-          <option value="NO_DUTY">No one needed</option>
+          <option value="NO_DUTY">No staffing needed</option>
         </select>
       </label>
       <button class="button small" type="submit">Apply</button>
     </form>
-    <p class="muted manager-note">A date with existing assignments cannot be marked “no one needed” until those assignments are removed.</p>
+    <p class="muted manager-note">A date with existing assignments must be cleared before it can be marked as needing no staffing.</p>
 
     {% if date_kind_overrides %}
     <div class="override-list" aria-label="Current date treatment overrides">
@@ -57,7 +56,7 @@
             <input type="hidden" name="csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="duty_date" value="{{ d }}">
             <input type="hidden" name="date_kind" value="AUTO">
-            <button class="button ghost small" type="submit">Use calendar default</button>
+            <button class="button ghost small" type="submit">Reset</button>
           </form>
         </div>
         {% endif %}
@@ -66,36 +65,41 @@
     {% endif %}
   </section>
 
-  <section class="manager-section">
-    <div class="section-head compact">
-      <div><h3>Per-date capacity</h3><p>The session default is {{ draft.capacity }}. Set a different limit for one staffed date, or leave it blank to reset.</p></div>
+  <section class="manager-setting-card full">
+    <div class="manager-setting-head">
+      <h3>Per-date staffing</h3>
+      <p>The normal capacity is {{ draft.capacity }} people. Override only the dates that need a different number.</p>
     </div>
     <form class="inline-form manager-rule-form" method="post" action="{{ url_for('update_date_capacity', session_id=draft.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <label class="field grow">Duty date
         <select name="duty_date" required>
           {% for d in dates %}
-          <option value="{{ d }}" {% if date_kinds[d] == 'NO_DUTY' %}disabled{% endif %}>{{ d|date_label }} · {% if date_kinds[d] == 'NO_DUTY' %}no one needed{% else %}current capacity {{ capacities[d] }}{% endif %}</option>
+          <option value="{{ d }}" {% if date_kinds[d] == 'NO_DUTY' %}disabled{% endif %}>{{ d|date_label }} · {% if date_kinds[d] == 'NO_DUTY' %}no staffing{% else %}currently {{ capacities[d] }}{% endif %}</option>
           {% endfor %}
         </select>
       </label>
-      <label class="field capacity-input">Capacity
+      <label class="field capacity-input">People needed
         <input type="number" name="capacity" min="1" max="{{ participant_count }}" inputmode="numeric" placeholder="Default {{ draft.capacity }}">
       </label>
       <button class="button small" type="submit">Apply</button>
     </form>
+    <p class="muted manager-note">Leave the number blank and apply to restore the session default for that date.</p>
 
     {% if capacity_overrides %}
     <div class="override-list" aria-label="Current date capacity overrides">
       {% for d in dates %}
         {% if d in capacity_overrides %}
         <div class="override-row">
-          <div><strong>{{ d|date_label }}</strong><small>{{ capacity_overrides[d] }} people instead of {{ draft.capacity }}</small></div>
+          <div>
+            <strong>{{ d|date_label }}</strong>
+            <small>{{ capacity_overrides[d] }} people instead of {{ draft.capacity }}</small>
+          </div>
           <form method="post" action="{{ url_for('update_date_capacity', session_id=draft.id) }}">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="duty_date" value="{{ d }}">
             <input type="hidden" name="capacity" value="">
-            <button class="button ghost small" type="submit">Use default</button>
+            <button class="button ghost small" type="submit">Reset</button>
           </form>
         </div>
         {% endif %}
@@ -103,13 +107,4 @@
     </div>
     {% endif %}
   </section>
-
-  <div class="danger-zone">
-    <div><strong>{{ 'Close this session' if draft.status == 'OPEN' else 'Reopen this session' }}</strong><p>{{ 'Ends the active session while preserving the calendar. Use Pause picking above for a temporary freeze.' if draft.status == 'OPEN' else 'Reopens the session with picking active.' }}</p></div>
-    <form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
-      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">
-      <button class="button {{ 'danger' if draft.status == 'OPEN' else 'secondary' }}" type="submit" data-confirm="{{ 'Close this duty session?' if draft.status == 'OPEN' else 'Reopen this duty session?' }}">{{ 'Close session' if draft.status == 'OPEN' else 'Reopen session' }}</button>
-    </form>
-  </div>
 </div>
