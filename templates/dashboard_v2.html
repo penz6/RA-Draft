@@ -36,9 +36,6 @@
         </span>
       </div>
       <div class="shift-card-actions">
-        <a href="{{ shift.google_url }}" target="_blank" rel="noopener noreferrer" class="button small secondary gcal-btn">
-          + Add to Google Calendar
-        </a>
         <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">
           View Session &rarr;
         </a>
@@ -154,6 +151,11 @@
         </dl>
         <span class="session-arrow" aria-hidden="true">&rarr;</span>
       </a>
+      {% if s.status == 'CLOSED' %}
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-shrink:0;">
+        <a class="button small secondary" href="{{ url_for('swap_page', session_id=s.id) }}">Duty Swaps</a>
+      </div>
+      {% endif %}
       {% if me.role == 'ADMIN' %}
       <div class="session-admin-actions">
         <form method="POST" action="{{ url_for('delete_session', session_id=s.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete session \'{{ s.name }}\'? This cannot be undone.');" style="margin:0;">

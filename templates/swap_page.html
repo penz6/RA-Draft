@@ -1,0 +1,334 @@
+{% extends 'base.html' %}
+{% block title %}Duty Swaps &mdash; {{ draft.name }} | RA Duty Picking{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back-link" href="{{ url_for('view_session', session_id=draft.id) }}">&larr; Back to session</a>
+    <div class="eyebrow">{{ draft.building_name }}</div>
+    <h1>Duty Swaps</h1>
+    <p>{{ draft.name }}</p>
+  </div>
+  <div class="session-head-actions">
+    <span class="pill large closed">CLOSED</span>
+  </div>
+</div>
+
+{# ─── Incoming Swap Requests (I'm the target) ─── #}
+{% if incoming %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Incoming Swap Requests</h2>
+      <p>Another RA wants to trade shifts with you. Review and respond below.</p>
+    </div>
+    <span class="count-badge">{{ incoming|length }}</span>
+  </div>
+  {% for batch in incoming %}
+  <div class="swap-batch-card">
+    <div class="swap-batch-header">
+      <strong>{{ batch.requester_name }}</strong> wants to swap {{ batch.pairs|length }} date{{ 's' if batch.pairs|length > 1 else '' }} with you
+      <small class="muted">&bull; {{ batch.created_at|date_label }}</small>
+    </div>
+    <div class="swap-pairs-list">
+      {% for pair in batch.pairs %}
+      <div class="swap-pair">
+        <span class="swap-pair-from">Their {{ pair.requester_date|date_label }}</span>
+        <span class="swap-arrow">&harr;</span>
+        <span class="swap-pair-to">Your {{ pair.target_date|date_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="swap-actions">
+      <form method="post" action="{{ url_for('target_review_swap', batch_id=batch.batch_id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="APPROVE">
+        <button class="button small" type="submit">Approve</button>
+      </form>
+      <form method="post" action="{{ url_for('target_review_swap', batch_id=batch.batch_id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="REJECT">
+        <button class="button ghost small" type="submit">Reject</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ─── HRA Review Panel ─── #}
+{% if can_manage and hra_review %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">HRA Review</div>
+      <h2>Swaps Awaiting Your Approval</h2>
+      <p>These swaps have been approved by the target RA and need your final sign-off.</p>
+    </div>
+    <span class="count-badge">{{ hra_review|length }}</span>
+  </div>
+  {% for batch in hra_review %}
+  <div class="swap-batch-card">
+    <div class="swap-batch-header">
+      <strong>{{ batch.requester_name }}</strong> &harr; <strong>{{ batch.target_name }}</strong>
+      &bull; {{ batch.pairs|length }} date{{ 's' if batch.pairs|length > 1 else '' }}
+    </div>
+    <div class="swap-pairs-list">
+      {% for pair in batch.pairs %}
+      <div class="swap-pair">
+        <span class="swap-pair-from">{{ batch.requester_name }}: {{ pair.requester_date|date_label }}</span>
+        <span class="swap-arrow">&harr;</span>
+        <span class="swap-pair-to">{{ batch.target_name }}: {{ pair.target_date|date_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="swap-actions">
+      <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="APPROVE">
+        <button class="button small" type="submit">Approve swap</button>
+      </form>
+      <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="REJECT">
+        <button class="button ghost small" type="submit">Reject</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ─── Request a Swap ─── #}
+{% if my_picks %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Request a Swap</h2>
+      <p>Select your dates and a partner to swap with. All selected dates will be submitted as one batch.</p>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('request_swap_batch', session_id=draft.id) }}" id="swap-request-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+
+    <label class="field">Swap partner:
+      <select id="swap-partner-select" name="swap_partner" required>
+        <option value="">-- Choose an RA --</option>
+        {% for p in other_participants %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="swap-date-picker" style="margin-top:1rem;">
+      <h3 style="margin-bottom:0.5rem;">Select date pairs</h3>
+      <p class="muted" style="margin-bottom:1rem;">For each of your dates, choose which date from the partner you'd like to swap it with.</p>
+
+      <div class="table-wrap">
+        <table class="assignment-table" id="swap-pairs-table">
+          <thead><tr><th>Include</th><th>Your date</th><th>Their date</th></tr></thead>
+          <tbody>
+            {% for pick in my_picks %}
+            <tr data-swap-row>
+              <td data-label="Include">
+                <input type="checkbox" class="swap-include-check" data-my-assignment-id="{{ pick.id }}">
+              </td>
+              <td data-label="Your date">{{ pick.duty_date|date_label }}</td>
+              <td data-label="Their date">
+                <select class="swap-target-select" disabled>
+                  <option value="">-- Select --</option>
+                </select>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-top:1rem;">
+      <button class="button" type="submit" id="swap-submit-btn" disabled>Submit swap request</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{# ─── My Outgoing Requests ─── #}
+{% if outgoing %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>My Swap Requests</h2>
+      <p>Swap requests you've submitted.</p>
+    </div>
+    <span class="count-badge">{{ outgoing|length }}</span>
+  </div>
+  {% for batch in outgoing %}
+  <div class="swap-batch-card">
+    <div class="swap-batch-header">
+      Swap with <strong>{{ batch.target_name }}</strong>
+      &bull; {{ batch.pairs|length }} date{{ 's' if batch.pairs|length > 1 else '' }}
+      <span class="pill small {{ batch.status|lower }}">
+        {% if batch.status == 'PENDING' %}Waiting for {{ batch.target_name }}
+        {% elif batch.status == 'TARGET_APPROVED' %}Waiting for HRA
+        {% elif batch.status == 'APPROVED' %}Approved
+        {% elif batch.status == 'REJECTED' %}Rejected
+        {% elif batch.status == 'CANCELLED' %}Cancelled
+        {% endif %}
+      </span>
+    </div>
+    <div class="swap-pairs-list">
+      {% for pair in batch.pairs %}
+      <div class="swap-pair">
+        <span class="swap-pair-from">Your {{ pair.requester_date|date_label }}</span>
+        <span class="swap-arrow">&harr;</span>
+        <span class="swap-pair-to">Their {{ pair.target_date|date_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if batch.status in ('PENDING', 'TARGET_APPROVED') %}
+    <div class="swap-actions">
+      <form method="post" action="{{ url_for('cancel_swap_batch', batch_id=batch.batch_id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="button danger small" type="submit">Cancel request</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ─── Swap History ─── #}
+{% if history %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Swap History</h2>
+      <p>Completed, rejected, and cancelled swaps in this session.</p>
+    </div>
+  </div>
+  {% for batch in history %}
+  <div class="swap-batch-card" style="opacity: 0.7;">
+    <div class="swap-batch-header">
+      <strong>{{ batch.requester_name }}</strong> &harr; <strong>{{ batch.target_name }}</strong>
+      <span class="pill small {{ batch.status|lower }}">{{ batch.status }}</span>
+    </div>
+    <div class="swap-pairs-list">
+      {% for pair in batch.pairs %}
+      <div class="swap-pair">
+        <span>{{ pair.requester_date|date_label }} &harr; {{ pair.target_date|date_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<script>
+(function() {
+  "use strict";
+
+  // Data for other picks, grouped by user
+  const otherPicks = {
+    {% for pick in other_picks %}
+    "{{ pick.id }}": { userId: "{{ pick.user_id }}", date: "{{ pick.duty_date|date_label }}", rawDate: "{{ pick.duty_date }}" },
+    {% endfor %}
+  };
+
+  // Group picks by user_id
+  const picksByUser = {};
+  for (const [assignmentId, info] of Object.entries(otherPicks)) {
+    if (!picksByUser[info.userId]) picksByUser[info.userId] = [];
+    picksByUser[info.userId].push({ id: assignmentId, date: info.date, rawDate: info.rawDate });
+  }
+
+  const partnerSelect = document.getElementById("swap-partner-select");
+  const form = document.getElementById("swap-request-form");
+  const submitBtn = document.getElementById("swap-submit-btn");
+  if (!partnerSelect || !form) return;
+
+  function updateTargetSelects() {
+    const partnerId = partnerSelect.value;
+    const available = picksByUser[partnerId] || [];
+
+    document.querySelectorAll("[data-swap-row]").forEach(function(row) {
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      select.innerHTML = '<option value="">-- Select --</option>';
+      available.forEach(function(pick) {
+        const opt = document.createElement("option");
+        opt.value = pick.id;
+        opt.textContent = pick.date;
+        select.appendChild(opt);
+      });
+      select.disabled = !check.checked || !partnerId;
+    });
+    updateSubmitState();
+  }
+
+  function updateSubmitState() {
+    const partnerId = partnerSelect.value;
+    let anyChecked = false;
+    let allValid = true;
+
+    document.querySelectorAll("[data-swap-row]").forEach(function(row) {
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      if (check.checked) {
+        anyChecked = true;
+        if (!select.value) allValid = false;
+      }
+    });
+
+    submitBtn.disabled = !partnerId || !anyChecked || !allValid;
+  }
+
+  partnerSelect.addEventListener("change", updateTargetSelects);
+
+  document.addEventListener("change", function(e) {
+    if (e.target.matches(".swap-include-check")) {
+      const row = e.target.closest("[data-swap-row]");
+      const select = row.querySelector(".swap-target-select");
+      select.disabled = !e.target.checked || !partnerSelect.value;
+      if (!e.target.checked) select.value = "";
+      updateSubmitState();
+    }
+    if (e.target.matches(".swap-target-select")) {
+      updateSubmitState();
+    }
+  });
+
+  form.addEventListener("submit", function(e) {
+    // Build hidden inputs for selected pairs
+    const existing = form.querySelectorAll("input[name='my_assignment_ids'], input[name='target_assignment_ids']");
+    existing.forEach(function(el) { el.remove(); });
+
+    let count = 0;
+    document.querySelectorAll("[data-swap-row]").forEach(function(row) {
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      if (check.checked && select.value) {
+        const myInput = document.createElement("input");
+        myInput.type = "hidden";
+        myInput.name = "my_assignment_ids";
+        myInput.value = check.dataset.myAssignmentId;
+        form.appendChild(myInput);
+
+        const targetInput = document.createElement("input");
+        targetInput.type = "hidden";
+        targetInput.name = "target_assignment_ids";
+        targetInput.value = select.value;
+        form.appendChild(targetInput);
+        count++;
+      }
+    });
+
+    if (count === 0) {
+      e.preventDefault();
+      window.alert("Select at least one date pair to swap.");
+    }
+  });
+})();
+</script>
+{% endblock %}

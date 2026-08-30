@@ -18,7 +18,6 @@ from core import (
     date_kinds_for,
     dates_for,
     filled_slots,
-    google_calendar_url,
     login_required,
     next_picker,
     ordered_people,
@@ -27,7 +26,6 @@ from core import (
     selection_phase_label,
     session_complete,
     session_row,
-    session_swap_requests,
     total_slots,
     db,
 )
@@ -81,10 +79,6 @@ def _session_template_context(session_id, user):
     phase_label = selection_phase_label(row)
     live_version = session_state_version(row, user)
 
-    swaps = session_swap_requests(session_id)
-    pending_swaps = [s for s in swaps if s["status"] == "PENDING"]
-    my_swaps = [s for s in swaps if s["requester_user_id"] == user["id"] or s["target_user_id"] == user["id"]]
-
     return {
         "me": user,
         "draft": row,
@@ -120,10 +114,6 @@ def _session_template_context(session_id, user):
         "schedule_complete": complete,
         "selection_phase": phase_label,
         "live_version": live_version,
-        "swaps": swaps,
-        "pending_swaps": pending_swaps,
-        "my_swaps": my_swaps,
-        "google_calendar_url": google_calendar_url,
     }
 
 

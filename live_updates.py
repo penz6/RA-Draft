@@ -114,12 +114,25 @@ def _topics_for_committed_request():
         topics.add("dashboard:all")
     elif endpoint in {"session_status", "update_date_order", "delete_session"}:
         topics.add("dashboard:all")
-    elif endpoint in {"request_duty_swap", "review_duty_swap", "cancel_duty_swap"}:
+    elif endpoint in {"request_swap_batch", "target_review_swap", "hra_review_swap", "cancel_swap_batch"}:
         raw_session_id = view_args.get("session_id")
         if raw_session_id is not None:
             try:
                 topics.add(_topic("session", raw_session_id))
             except (TypeError, ValueError):
+                pass
+        # For batch routes, find the session from the batch
+        batch_id = view_args.get("batch_id")
+        if batch_id is not None:
+            try:
+                from core import db as get_db
+                swap_row = get_db().execute(
+                    "SELECT session_id FROM duty_swap_requests WHERE batch_id=? LIMIT 1",
+                    (batch_id,),
+                ).fetchone()
+                if swap_row:
+                    topics.add(_topic("session", swap_row["session_id"]))
+            except Exception:
                 pass
         topics.add("dashboard:all")
     elif endpoint.startswith("admin") or endpoint in {

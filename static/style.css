@@ -497,6 +497,21 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
   .turn-actions form .button{width:100%}
   .calendar-weekdays,.calendar-grid{min-width:320px}
 }
+
+/* ─── Swap page ─── */
+.swap-batch-card{background:var(--surface-card);border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem}
+.swap-batch-card:last-child{margin-bottom:0}
+.swap-batch-header{display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;font-size:0.97rem}
+.swap-pairs-list{display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem}
+.swap-pair{display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;background:var(--surface-2);border-radius:10px;font-size:0.93rem}
+.swap-pair-from,.swap-pair-to{flex:1}
+.swap-arrow{color:var(--blue);font-weight:700;font-size:1.1em;flex-shrink:0}
+.swap-actions{display:flex;gap:0.5rem;flex-wrap:wrap}
+.swap-actions form{display:inline}
+.pill.pending,.pill.target_approved{background:var(--gold-soft);color:var(--gold)}
+.pill.approved{background:var(--success-soft);color:var(--success)}
+.pill.rejected,.pill.cancelled{background:var(--danger-soft);color:var(--danger)}
+
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important}
 }

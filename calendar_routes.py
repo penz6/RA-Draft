@@ -124,38 +124,7 @@ def calendar_response(events, filename):
     )
 
 
-def assignment_row(assignment_id):
-    """Retrieve assignment row joined with session, building, and user name."""
-    return db().execute(
-        "SELECT a.*,s.name session_name,b.name building_name,u.name user_name "
-        "FROM assignments a JOIN draft_sessions s ON s.id=a.session_id "
-        "JOIN buildings b ON b.id=s.building_id "
-        "JOIN users u ON u.id=a.user_id WHERE a.id=?",
-        (assignment_id,),
-    ).fetchone()
 
-
-@app.route("/calendar/<int:assignment_id>.ics")
-@login_required
-def calendar_ics(assignment_id):
-    """Export a single duty assignment as an iCalendar file."""
-    row = assignment_row(assignment_id)
-    if not row:
-        abort(404)
-    user = current_user()
-    if user["role"] != "ADMIN" and row["user_id"] != user["id"]:
-        abort(403)
-
-    generated_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    events = event_lines(
-        uid=f"ra-draft-{assignment_id}@{PUBLIC_HOST}",
-        duty_date=row["duty_date"],
-        summary=calendar_summary(row["building_name"], [row["user_name"]]),
-        location=row["building_name"],
-        generated_at=generated_at,
-        description=row["session_name"],
-    )
-    return calendar_response(events, f"duty-{row['duty_date']}.ics")
 
 
 @app.route("/calendar/session/<int:session_id>.ics")
@@ -172,7 +141,7 @@ def session_calendar_ics(session_id):
     assignments = db().execute(
         "SELECT a.duty_date,u.name,o.position FROM assignments a "
         "JOIN users u ON u.id=a.user_id "
-        "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
+        "LEFT JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
         "WHERE a.session_id=? ORDER BY a.duty_date,o.position,a.id",
         (session_id,),
     ).fetchall()
