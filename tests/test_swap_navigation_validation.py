@@ -54,6 +54,10 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
                 "INSERT INTO users(google_sub,email,name,role,building_id) VALUES(?,?,?,?,?)",
                 ("hra", "hra@g.rwu.edu", "HRA User", "HRA", building_id),
             ).lastrowid
+            admin_id = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) VALUES(?,?,?,?,?)",
+                ("admin", "admin@rwu.edu", "Admin User", "ADMIN", None),
+            ).lastrowid
             alice_id = conn.execute(
                 "INSERT INTO users(google_sub,email,name,role,building_id) VALUES(?,?,?,?,?)",
                 ("alice", "alice@g.rwu.edu", "Alice RA", "RA", building_id),
@@ -91,6 +95,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             return {
                 "session_id": session_id,
                 "hra_id": hra_id,
+                "admin_id": admin_id,
                 "alice_id": alice_id,
                 "bob_id": bob_id,
                 "alice_sep1": alice_sep1,
@@ -145,6 +150,44 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         response = self._post_swap(self.data["alice_sep3"], self.data["bob_sep4"])
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["ok"])
+
+    def test_admin_can_give_final_swap_approval_for_any_building(self):
+        self.login_as(self.data["alice_id"])
+        response = self._post_swap(self.data["alice_sep3"], self.data["bob_sep4"])
+        self.assertEqual(response.status_code, 200)
+
+        with app.app_context():
+            batch_id = db().execute(
+                "SELECT batch_id FROM duty_swap_requests WHERE session_id=? LIMIT 1",
+                (self.data["session_id"],),
+            ).fetchone()["batch_id"]
+
+        self.login_as(self.data["bob_id"])
+        response = self.request(
+            "post",
+            f"/swaps/batch/{batch_id}/target-review",
+            data={"csrf": "swap-validation-csrf", "action": "APPROVE"},
+            headers={"X-RA-Draft-Async": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Admin has no building assignment, but inherits HRA management rights globally.
+        self.login_as(self.data["admin_id"])
+        response = self.request(
+            "post",
+            f"/swaps/batch/{batch_id}/hra-review",
+            data={"csrf": "swap-validation-csrf", "action": "APPROVE"},
+            headers={"X-RA-Draft-Async": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+
+        with app.app_context():
+            status = db().execute(
+                "SELECT status FROM duty_swap_requests WHERE batch_id=? LIMIT 1",
+                (batch_id,),
+            ).fetchone()["status"]
+        self.assertEqual(status, "APPROVED")
 
     def test_multi_pair_batch_may_free_dates_that_would_be_duplicates_individually(self):
         self.login_as(self.data["alice_id"])
