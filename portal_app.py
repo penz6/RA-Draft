@@ -1,3 +1,5 @@
+"""Main Flask application entrypoint, authentication flows, and dashboard views."""
+
 import secrets
 
 from authlib.integrations.base_client.errors import OAuthError
@@ -19,22 +21,26 @@ from core import (
     oauth,
     require_csrf,
     safe_display_name,
+    user_upcoming_shifts,
 )
 
 
 @app.route("/")
 def index():
+    """Render the public landing page."""
     return render_template("index.html")
 
 
 @app.route("/healthz")
 def healthz():
+    """Health check endpoint for container orchestrators and VPS monitors."""
     db().execute("SELECT 1").fetchone()
     return {"status": "ok"}
 
 
 @app.route("/login")
 def login():
+    """Initiate Google OpenID Connect OAuth login flow."""
     if current_user():
         return redirect(url_for("dashboard"))
     return oauth.google.authorize_redirect(
@@ -45,12 +51,14 @@ def login():
 
 
 def oauth_failure(message):
+    """Clear session and redirect to landing page with an error notification."""
     session.clear()
     flash(message, "error")
     return redirect(url_for("index"))
 
 
 def disabled_account_failure(conn):
+    """Roll back transaction and notify user that their account is disabled."""
     conn.rollback()
     return oauth_failure(
         "This Duty Picking account is disabled. Contact an administrator if access should be restored."
@@ -59,6 +67,7 @@ def disabled_account_failure(conn):
 
 @app.route("/auth/callback")
 def auth_callback():
+    """Handle Google OAuth return callback, authenticate user, and sync profile."""
     try:
         token = oauth.google.authorize_access_token()
         info = token.get("userinfo")
@@ -172,6 +181,7 @@ def auth_callback():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    """Log out the current user and invalidate the session."""
     require_csrf()
     uid = session.get("uid")
     if isinstance(uid, int):
@@ -184,6 +194,7 @@ def logout():
 @app.route("/onboarding", methods=["GET", "POST"])
 @login_required
 def onboarding():
+    """Handle first-time building assignment for newly signed up Resident Assistants."""
     user = current_user()
     if not user:
         return redirect(url_for("login"))
@@ -250,15 +261,13 @@ def onboarding():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    """Render the authenticated dashboard showing building draft sessions and actions."""
     user = current_user()
     if not user:
         return redirect(url_for("login"))
     if user["role"] == "RA" and user["building_id"] is None:
         return redirect(url_for("onboarding"))
 
-    # Keep the rendered dashboard and its embedded live-state version on one
-    # SQLite read snapshot. If a write lands immediately afterward, SSE sees a
-    # different version and refreshes instead of leaving stale HTML marked current.
     conn = db()
     conn.execute("BEGIN")
     user = current_user()
@@ -305,6 +314,7 @@ def dashboard():
 
     buildings = conn.execute("SELECT * FROM buildings ORDER BY name").fetchall()
     live_version = dashboard_state_version(user)
+    upcoming_shifts = user_upcoming_shifts(user["id"])
     conn.commit()
 
     return render_template(
@@ -313,9 +323,62 @@ def dashboard():
         sessions=sessions,
         buildings=buildings,
         participants=participants,
+        upcoming_shifts=upcoming_shifts,
         live_version=live_version,
         auto_open_help=bool(session.pop("show_role_help", False)),
     )
+
+
+@app.route("/dashboard/live-fragments")
+@login_required
+def dashboard_live_fragments():
+    """Return updated dashboard HTML fragments for background SSE live updates."""
+    user = current_user()
+    if not user:
+        abort(401)
+    if user["role"] == "RA" and user["building_id"] is None:
+        return redirect(url_for("onboarding"))
+
+    conn = db()
+    conn.execute("BEGIN")
+    user = current_user()
+    if not user:
+        conn.rollback()
+        abort(401)
+
+    if user["role"] == "ADMIN":
+        sessions = conn.execute(
+            "SELECT s.*,b.name building_name FROM draft_sessions s "
+            "JOIN buildings b ON b.id=s.building_id "
+            "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC"
+        ).fetchall()
+    else:
+        sessions = (
+            conn.execute(
+                "SELECT s.*,b.name building_name FROM draft_sessions s "
+                "JOIN buildings b ON b.id=s.building_id WHERE s.building_id=? "
+                "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC",
+                (user["building_id"],),
+            ).fetchall()
+            if user["building_id"]
+            else []
+        )
+
+    version = dashboard_state_version(user)
+    try:
+        fragments = {
+            "sessions": render_template(
+                "dashboard_sessions_fragment.html",
+                me=user,
+                sessions=sessions,
+            ),
+        }
+    except BaseException:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    conn.commit()
+    return {"version": version, "fragments": fragments}
 
 
 import round_robin  # noqa: E402,F401
@@ -328,3 +391,4 @@ import session_choose  # noqa: E402,F401
 import session_create  # noqa: E402,F401
 import session_status  # noqa: E402,F401
 import session_view  # noqa: E402,F401
+import session_routes  # noqa: E402,F401

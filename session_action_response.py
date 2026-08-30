@@ -2,6 +2,7 @@ from flask import flash, redirect, request, url_for
 
 
 def async_session_action_requested():
+    """Check if the request indicates an asynchronous background live action."""
     return request.headers.get("X-RA-Draft-Async") == "1"
 
 

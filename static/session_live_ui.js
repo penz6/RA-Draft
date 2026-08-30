@@ -52,14 +52,16 @@
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (!target) return;
 
-    // app.js attaches confirmation handlers to the initial page. This delegated
-    // fallback covers controls inserted later by a live fragment patch.
-    const confirmButton = target.closest("[data-confirm]");
-    if (confirmButton && inPatchedRegion(confirmButton)) {
-      if (!window.confirm(confirmButton.dataset.confirm || "Continue?")) {
-        event.preventDefault();
-        return;
-      }
+    const swapTrigger = target.closest("[data-swap-trigger]");
+    if (swapTrigger) {
+      const dialog = document.querySelector("[data-swap-dialog]");
+      if (!dialog) return;
+      const myIdInput = dialog.querySelector("[data-swap-my-id]");
+      const myDateLabel = dialog.querySelector("[data-swap-my-date]");
+      if (myIdInput) myIdInput.value = swapTrigger.dataset.assignmentId;
+      if (myDateLabel) myDateLabel.textContent = swapTrigger.dataset.dutyDate;
+      showDialog(dialog);
+      return;
     }
 
     const managerPick = target.closest("[data-manager-pick]");
@@ -144,7 +146,7 @@
 
   document.addEventListener("submit", async (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
-    if (!form?.matches("[data-live-pick-form]")) return;
+    if (!form?.matches("[data-live-pick-form],[data-live-action-form]")) return;
 
     const live = window.RADraftLiveSession;
     if (!live?.supportsPartial || typeof window.fetch !== "function") {

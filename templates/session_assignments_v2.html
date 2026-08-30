@@ -4,8 +4,56 @@
     <div class="button-group">
       <span class="count-badge">{{ assigned_count }}</span>
       <a class="button secondary small" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
+      <a class="button secondary small" href="{{ url_for('my_session_calendar_ics', session_id=draft.id) }}">Export my dates</a>
     </div>
   </div>
+
+  {% if pending_swaps and can_manage %}
+  <div class="pending-swaps-panel">
+    <h3>Pending Duty Swaps</h3>
+    <div class="swap-requests-list">
+      {% for swap in pending_swaps %}
+      <div class="swap-request-card">
+        <div class="swap-details">
+          <strong>{{ swap.requester_name }}</strong> ({{ swap.requester_date|date_label }})
+          <span class="swap-arrow">&harr;</span>
+          <strong>{{ swap.target_name }}</strong> ({{ swap.target_date|date_label }})
+        </div>
+        <div class="swap-actions">
+          <form method="post" action="{{ url_for('review_duty_swap', session_id=draft.id, swap_id=swap.id) }}" data-live-action-form>
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="APPROVE">
+            <button class="button small" type="submit">Approve swap</button>
+          </form>
+          <form method="post" action="{{ url_for('review_duty_swap', session_id=draft.id, swap_id=swap.id) }}" data-live-action-form>
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="REJECT">
+            <button class="button ghost small" type="submit">Reject</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if my_swaps %}
+  <div class="my-swaps-panel">
+    {% for swap in my_swaps %}
+      {% if swap.status == 'PENDING' %}
+      <div class="notice">
+        <span>Swap pending: Trade your shift with <strong>{{ swap.target_name if swap.requester_user_id == me.id else swap.requester_name }}</strong>. Waiting for HRA approval.</span>
+        {% if swap.requester_user_id == me.id %}
+        <form method="post" action="{{ url_for('cancel_duty_swap', session_id=draft.id, swap_id=swap.id) }}" data-live-action-form class="inline-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="button danger small" type="submit">Cancel request</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div class="table-wrap">
     <table class="assignment-table">
@@ -18,11 +66,12 @@
           <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
           <td data-label="Actions">
             <div class="button-group">
-              {% if a.user_id == me.id or me.role == 'ADMIN' %}
-              <a class="text-link" href="{{ url_for('calendar_ics', assignment_id=a.id) }}">My iCal</a>
+              {% if a.user_id == me.id %}
+              <a class="button secondary small gcal-btn" href="{{ google_calendar_url(draft.building_name, a.duty_date, draft.name) }}" target="_blank" rel="noopener" title="Add to Google Calendar">+ GCal</a>
+              <button class="button ghost small" type="button" data-swap-trigger data-assignment-id="{{ a.id }}" data-duty-date="{{ a.duty_date|date_label }}">Swap</button>
               {% endif %}
               {% if can_manage %}
-              <form method="post" action="{{ url_for('delete_assignment', session_id=draft.id, assignment_id=a.id) }}">
+              <form method="post" action="{{ url_for('delete_assignment', session_id=draft.id, assignment_id=a.id) }}" data-live-action-form>
                 <input type="hidden" name="csrf" value="{{ csrf_token() }}">
                 <button class="button danger small" type="submit" data-confirm="Remove this assignment?">Remove</button>
               </form>
@@ -36,6 +85,29 @@
       </tbody>
     </table>
   </div>
+
+  <dialog class="calendar-dialog" data-swap-dialog>
+    <form method="post" action="{{ url_for('request_duty_swap', session_id=draft.id) }}" data-live-action-form>
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="my_assignment_id" data-swap-my-id>
+      <h3>Request Duty Swap</h3>
+      <p>Trade your shift on <strong data-swap-my-date></strong> with another RA in this session. The HRA will review and approve the request.</p>
+      <label class="field">Select colleague's shift:
+        <select name="target_assignment_id" required>
+          <option value="">-- Choose a shift --</option>
+          {% for pick in picks %}
+            {% if pick.user_id != me.id %}
+            <option value="{{ pick.id }}">{{ pick.duty_date|date_label }} &mdash; {{ pick.name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button class="button ghost" type="button" data-dialog-close>Cancel</button>
+        <button class="button" type="submit">Submit swap request</button>
+      </div>
+    </form>
+  </dialog>
 
   {% if can_manage %}
   <details class="manager-panel">

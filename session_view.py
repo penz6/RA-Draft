@@ -1,5 +1,6 @@
-from collections import defaultdict
+"""Session view rendering and real-time partial HTML fragment endpoints."""
 
+from collections import defaultdict
 from flask import abort, redirect, render_template, url_for
 
 from core import (
@@ -17,6 +18,7 @@ from core import (
     date_kinds_for,
     dates_for,
     filled_slots,
+    google_calendar_url,
     login_required,
     next_picker,
     ordered_people,
@@ -25,6 +27,7 @@ from core import (
     selection_phase_label,
     session_complete,
     session_row,
+    session_swap_requests,
     total_slots,
     db,
 )
@@ -32,6 +35,7 @@ from live_updates import session_state_version
 
 
 def _session_template_context(session_id, user):
+    """Compile complete template context dictionary for a draft session view."""
     row = session_row(session_id)
     if not row:
         abort(404)
@@ -77,6 +81,10 @@ def _session_template_context(session_id, user):
     phase_label = selection_phase_label(row)
     live_version = session_state_version(row, user)
 
+    swaps = session_swap_requests(session_id)
+    pending_swaps = [s for s in swaps if s["status"] == "PENDING"]
+    my_swaps = [s for s in swaps if s["requester_user_id"] == user["id"] or s["target_user_id"] == user["id"]]
+
     return {
         "me": user,
         "draft": row,
@@ -112,10 +120,15 @@ def _session_template_context(session_id, user):
         "schedule_complete": complete,
         "selection_phase": phase_label,
         "live_version": live_version,
+        "swaps": swaps,
+        "pending_swaps": pending_swaps,
+        "my_swaps": my_swaps,
+        "google_calendar_url": google_calendar_url,
     }
 
 
 def _begin_session_snapshot(session_id):
+    """Open an explicit transaction snapshot to read session state consistently."""
     conn = db()
     conn.execute("BEGIN")
     try:
@@ -134,8 +147,7 @@ def _begin_session_snapshot(session_id):
 @app.route("/sessions/<int:session_id>")
 @login_required
 def view_session(session_id):
-    # Render from one read snapshot so the HTML and data-live-version describe
-    # the exact same database state. A later commit is then caught by SSE.
+    """Render the interactive session picking page within a read transaction."""
     conn, context = _begin_session_snapshot(session_id)
     if context is None:
         return redirect(url_for("login"))
@@ -152,8 +164,7 @@ def view_session(session_id):
 @app.route("/sessions/<int:session_id>/live-fragments")
 @login_required
 def session_live_fragments(session_id):
-    """Return the current dynamic session regions without reloading the page."""
-
+    """Return dynamic session HTML fragments for background SSE live updates."""
     conn, context = _begin_session_snapshot(session_id)
     if context is None:
         return redirect(url_for("login"))

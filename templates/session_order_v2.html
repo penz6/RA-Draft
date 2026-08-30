@@ -24,7 +24,7 @@
       <div class="turn-actions">
         <button class="button small" type="button" data-manager-pick data-user-id="{{ p.id }}" data-user-name="{{ p.name }}">Pick for them</button>
         {% if next and next.id == p.id %}
-        <form method="post" action="{{ url_for('skip_participant_turn', session_id=draft.id, user_id=p.id) }}">
+        <form method="post" action="{{ url_for('skip_participant_turn', session_id=draft.id, user_id=p.id) }}" data-live-action-form>
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <button class="button small secondary" type="submit">Skip once</button>
         </form>

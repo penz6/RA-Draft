@@ -9,6 +9,46 @@
   <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
 </div>
 
+{% if upcoming_shifts %}
+<section class="card upcoming-shifts-card">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">Personal Schedule</div>
+      <h2>My upcoming duty shifts</h2>
+    </div>
+    <span class="count-badge">{{ upcoming_shifts|length }}</span>
+  </div>
+  <div class="upcoming-shifts-grid">
+    {% for shift in upcoming_shifts %}
+    <div class="shift-card">
+      <div class="shift-card-head">
+        <span class="shift-date">{{ shift.duty_date|date_label }}</span>
+        <span class="pill small time-pill">7:00 PM &ndash; 8:00 AM</span>
+      </div>
+      <div class="shift-card-body">
+        <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
+        <span class="shift-partners">
+          {% if shift.partner_names %}
+            On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>
+          {% else %}
+            Solo duty
+          {% endif %}
+        </span>
+      </div>
+      <div class="shift-card-actions">
+        <a href="{{ shift.google_url }}" target="_blank" rel="noopener noreferrer" class="button small secondary gcal-btn">
+          + Add to Google Calendar
+        </a>
+        <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">
+          View Session &rarr;
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {% if me.role in ['HRA', 'ADMIN'] %}
 <section class="card create-session-card">
   <div class="section-head">
@@ -101,18 +141,28 @@
   </div>
   <div class="session-list">
     {% for s in sessions %}
-    <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}">
-      <div class="session-card-main">
-        <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
-        <p>{{ s.building_name }}</p>
+    <div class="session-item-row" style="display:flex; align-items:center; gap:0.75rem;">
+      <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}" style="flex:1;">
+        <div class="session-card-main">
+          <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
+          <p>{{ s.building_name }}</p>
+        </div>
+        <dl class="session-meta">
+          <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
+          <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
+          <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
+        </dl>
+        <span class="session-arrow" aria-hidden="true">&rarr;</span>
+      </a>
+      {% if me.role == 'ADMIN' %}
+      <div class="session-admin-actions">
+        <form method="POST" action="{{ url_for('delete_session', session_id=s.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete session \'{{ s.name }}\'? This cannot be undone.');" style="margin:0;">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button type="submit" class="button danger small">Delete session</button>
+        </form>
       </div>
-      <dl class="session-meta">
-        <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
-        <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
-        <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
-      </dl>
-      <span class="session-arrow" aria-hidden="true">&rarr;</span>
-    </a>
+      {% endif %}
+    </div>
     {% else %}
     <div class="empty-state compact"><h3>No sessions yet</h3><p>New duty sessions will appear here.</p></div>
     {% endfor %}

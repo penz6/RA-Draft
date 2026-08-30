@@ -112,7 +112,15 @@ def _topics_for_committed_request():
 
     if endpoint == "create_session":
         topics.add("dashboard:all")
-    elif endpoint in {"session_status", "update_date_order"}:
+    elif endpoint in {"session_status", "update_date_order", "delete_session"}:
+        topics.add("dashboard:all")
+    elif endpoint in {"request_duty_swap", "review_duty_swap", "cancel_duty_swap"}:
+        raw_session_id = view_args.get("session_id")
+        if raw_session_id is not None:
+            try:
+                topics.add(_topic("session", raw_session_id))
+            except (TypeError, ValueError):
+                pass
         topics.add("dashboard:all")
     elif endpoint.startswith("admin") or endpoint in {
         "add_building",

@@ -1,8 +1,9 @@
+"""Administrative console routes for user management, buildings, and audit logs."""
+
 import secrets
 
 from flask import abort, flash, redirect, render_template, request, url_for
 
-import date_exceptions  # noqa: F401
 from core import (
     ADMIN_EMAILS,
     allowed_email,
@@ -17,6 +18,7 @@ from core import (
 
 
 def normalize_admin_email(value):
+    """Validate and sanitize an email address against the allowed university domains."""
     email = str(value or "").strip().lower()
     if (
         not email
@@ -32,6 +34,7 @@ def normalize_admin_email(value):
 
 
 def form_building_id(raw_value):
+    """Parse and validate an optional building ID integer from form data."""
     raw = str(raw_value or "").strip()
     if not raw:
         return None
@@ -48,6 +51,7 @@ def form_building_id(raw_value):
 
 
 def _require_locked_admin(conn):
+    """Verify that current user has ADMIN role or abort transaction with HTTP 403."""
     actor = current_user()
     if not actor or actor["role"] != "ADMIN":
         conn.rollback()
@@ -56,12 +60,14 @@ def _require_locked_admin(conn):
 
 
 def _building_still_exists(conn, building_id):
+    """Check if the specified building ID exists in the database."""
     return building_id is None or bool(
         conn.execute("SELECT 1 FROM buildings WHERE id=?", (building_id,)).fetchone()
     )
 
 
 def _enabled_admin_count(conn):
+    """Return the total count of enabled system administrators."""
     return conn.execute(
         "SELECT COUNT(*) n FROM users WHERE role='ADMIN' AND disabled=0"
     ).fetchone()["n"]
@@ -70,6 +76,7 @@ def _enabled_admin_count(conn):
 @app.route("/admin")
 @roles("ADMIN")
 def admin():
+    """Render the master administrative dashboard showing users, buildings, and audit logs."""
     users = db().execute(
         "SELECT u.*,b.name building_name,"
         "CASE WHEN u.google_sub LIKE 'manual:%' THEN 1 ELSE 0 END pending_google "
@@ -97,6 +104,7 @@ def admin():
 @app.route("/admin/buildings", methods=["POST"])
 @roles("ADMIN")
 def add_building():
+    """Create a new campus residence hall or building."""
     require_csrf()
     try:
         name = clean_single_line(request.form.get("name"), max_length=80)
@@ -126,6 +134,7 @@ def add_building():
 @app.route("/admin/buildings/<int:building_id>/rename", methods=["POST"])
 @roles("ADMIN")
 def rename_building(building_id):
+    """Rename an existing building record across the system."""
     require_csrf()
     try:
         name = clean_single_line(request.form.get("name"), max_length=80)
@@ -173,6 +182,7 @@ def rename_building(building_id):
 @app.route("/admin/buildings/<int:building_id>/delete", methods=["POST"])
 @roles("ADMIN")
 def delete_building(building_id):
+    """Delete a building if it has no associated draft session history."""
     require_csrf()
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
@@ -223,6 +233,7 @@ def delete_building(building_id):
 @app.route("/admin/users", methods=["POST"])
 @roles("ADMIN")
 def add_user():
+    """Pre-create a user account pending first Google OAuth sign-in."""
     require_csrf()
     try:
         name = clean_single_line(request.form.get("name"), max_length=120)
@@ -279,6 +290,7 @@ def add_user():
 @app.route("/admin/users/<int:user_id>", methods=["POST"])
 @roles("ADMIN")
 def edit_user(user_id):
+    """Modify role or building assignment for an existing user account."""
     require_csrf()
     role = request.form.get("role", "")
     if role not in ("RA", "HRA", "ADMIN"):
@@ -335,8 +347,7 @@ def edit_user(user_id):
 @app.route("/admin/users/<int:user_id>/status", methods=["POST"])
 @roles("ADMIN")
 def admin_user_status(user_id):
-    """Enable or disable an account without deleting schedule history."""
-
+    """Enable or disable a user account without deleting schedule history."""
     require_csrf()
     raw_disabled = request.form.get("disabled", "")
     if raw_disabled not in ("0", "1"):
@@ -397,6 +408,7 @@ def admin_user_status(user_id):
 @app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @roles("ADMIN")
 def delete_user(user_id):
+    """Permanently delete a user account if no duty assignments or draft history exist."""
     require_csrf()
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
@@ -445,7 +457,7 @@ def delete_user(user_id):
         return redirect(url_for("admin"))
 
     conn.execute(
-        "UPDATE audit_log SET actor_user_id=NULL WHERE actor_user_id=?",
+        "UPDATE audit_log SET actor_user_id=NULL WHERE actor_user_id=? ",
         (user_id,),
     )
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
