@@ -9,7 +9,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
-import urllib.parse
+
 
 from authlib.integrations.flask_client import OAuth
 from flask import Flask, abort, g, redirect, render_template, request, session, url_for
@@ -217,9 +217,11 @@ CREATE TABLE IF NOT EXISTS duty_swap_requests (
   requester_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
   target_user_id INTEGER NOT NULL REFERENCES users(id),
   target_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','TARGET_APPROVED','APPROVED','REJECTED','CANCELLED')),
+  batch_id TEXT,
   reviewed_by INTEGER REFERENCES users(id),
   reviewed_at TEXT,
+  target_reviewed_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -452,15 +454,72 @@ def migrate_schema(conn):
         "requester_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,"
         "target_user_id INTEGER NOT NULL REFERENCES users(id),"
         "target_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,"
-        "status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),"
+        "status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','TARGET_APPROVED','APPROVED','REJECTED','CANCELLED')),"
+        "batch_id TEXT,"
         "reviewed_by INTEGER REFERENCES users(id),"
         "reviewed_at TEXT,"
+        "target_reviewed_at TEXT,"
         "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
         ")"
     )
+    # Migrate existing duty_swap_requests tables to add new columns and updated CHECK constraint
+    if _table_exists(conn, "duty_swap_requests"):
+        table_sql_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='duty_swap_requests'"
+        ).fetchone()
+        table_sql = table_sql_row["sql"] if table_sql_row else ""
+        if "TARGET_APPROVED" not in table_sql:
+            conn.execute("ALTER TABLE duty_swap_requests RENAME TO duty_swap_requests_old")
+            conn.execute(
+                "CREATE TABLE duty_swap_requests ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,"
+                "requester_user_id INTEGER NOT NULL REFERENCES users(id),"
+                "requester_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,"
+                "target_user_id INTEGER NOT NULL REFERENCES users(id),"
+                "target_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,"
+                "status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','TARGET_APPROVED','APPROVED','REJECTED','CANCELLED')),"
+                "batch_id TEXT,"
+                "reviewed_by INTEGER REFERENCES users(id),"
+                "reviewed_at TEXT,"
+                "target_reviewed_at TEXT,"
+                "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            )
+            old_cols = {
+                row["name"] for row in conn.execute("PRAGMA table_info(duty_swap_requests_old)")
+            }
+            if "batch_id" in old_cols and "target_reviewed_at" in old_cols:
+                conn.execute(
+                    "INSERT INTO duty_swap_requests "
+                    "(id, session_id, requester_user_id, requester_assignment_id, target_user_id, target_assignment_id, status, batch_id, reviewed_by, reviewed_at, target_reviewed_at, created_at) "
+                    "SELECT id, session_id, requester_user_id, requester_assignment_id, target_user_id, target_assignment_id, status, batch_id, reviewed_by, reviewed_at, target_reviewed_at, created_at FROM duty_swap_requests_old"
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO duty_swap_requests "
+                    "(id, session_id, requester_user_id, requester_assignment_id, target_user_id, target_assignment_id, status, batch_id, reviewed_by, reviewed_at, target_reviewed_at, created_at) "
+                    "SELECT id, session_id, requester_user_id, requester_assignment_id, target_user_id, target_assignment_id, status, NULL, reviewed_by, reviewed_at, NULL, created_at FROM duty_swap_requests_old"
+                )
+            conn.execute("DROP TABLE duty_swap_requests_old")
+
+        else:
+            swap_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(duty_swap_requests)")
+            }
+            if "batch_id" not in swap_columns:
+                conn.execute("ALTER TABLE duty_swap_requests ADD COLUMN batch_id TEXT")
+            if "target_reviewed_at" not in swap_columns:
+                conn.execute("ALTER TABLE duty_swap_requests ADD COLUMN target_reviewed_at TEXT")
+
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_swaps_session_status ON duty_swap_requests(session_id, status)"
     )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_swaps_batch ON duty_swap_requests(batch_id)"
+    )
+
+
 
     _migrate_assignments_for_multiple_picks(conn)
     _normalize_existing_capacities(conn)
@@ -1171,25 +1230,6 @@ def advance_turn(session_id, after_user_id):
     )
 
 
-def google_calendar_url(building_name, duty_date, session_name="RA Duty"):
-    """Generate a 1-click Google Calendar web intent URL for a 7:00 PM to 8:00 AM shift."""
-    start = date.fromisoformat(duty_date)
-    end = start + timedelta(days=1)
-    start_str = f"{start.strftime('%Y%m%d')}T190000"
-    end_str = f"{end.strftime('%Y%m%d')}T080000"
-    title = f"{building_name} RA Duty"
-    details = f"Resident Assistant Duty Shift for {session_name}."
-    params = {
-        "action": "TEMPLATE",
-        "text": title,
-        "dates": f"{start_str}/{end_str}",
-        "details": details,
-        "location": building_name,
-    }
-    return f"https://calendar.google.com/calendar/render?{urllib.parse.urlencode(params)}"
-
-
-app.jinja_env.globals["google_calendar_url"] = google_calendar_url
 
 
 def user_upcoming_shifts(user_id):
@@ -1223,7 +1263,6 @@ def user_upcoming_shifts(user_id):
             "session_status": r["session_status"],
             "building_name": r["building_name"],
             "partner_names": [p["name"] for p in partners],
-            "google_url": google_calendar_url(r["building_name"], r["duty_date"], r["session_name"]),
         })
     return shifts
 
@@ -1242,6 +1281,73 @@ def session_swap_requests(session_id):
         "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
         "LEFT JOIN users ur ON ur.id=sr.reviewed_by "
         "WHERE sr.session_id=? "
-        "ORDER BY CASE sr.status WHEN 'PENDING' THEN 0 ELSE 1 END, sr.created_at DESC",
+        "ORDER BY CASE sr.status WHEN 'PENDING' THEN 0 WHEN 'TARGET_APPROVED' THEN 1 ELSE 2 END, sr.created_at DESC",
         (session_id,),
     ).fetchall()
+
+
+def pending_target_swaps(user_id):
+    """Retrieve swap batches awaiting target user approval."""
+    return db().execute(
+        "SELECT sr.*, "
+        "u1.name AS requester_name, a1.duty_date AS requester_date, "
+        "u2.name AS target_name, a2.duty_date AS target_date, "
+        "s.name AS session_name, b.name AS building_name "
+        "FROM duty_swap_requests sr "
+        "JOIN users u1 ON u1.id=sr.requester_user_id "
+        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
+        "JOIN users u2 ON u2.id=sr.target_user_id "
+        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
+        "JOIN draft_sessions s ON s.id=sr.session_id "
+        "JOIN buildings b ON b.id=s.building_id "
+        "WHERE sr.target_user_id=? AND sr.status='PENDING' "
+        "ORDER BY sr.created_at DESC",
+        (user_id,),
+    ).fetchall()
+
+
+def hra_pending_swaps(building_id):
+    """Retrieve swap batches awaiting HRA approval for a building."""
+    return db().execute(
+        "SELECT sr.*, "
+        "u1.name AS requester_name, a1.duty_date AS requester_date, "
+        "u2.name AS target_name, a2.duty_date AS target_date, "
+        "s.name AS session_name "
+        "FROM duty_swap_requests sr "
+        "JOIN users u1 ON u1.id=sr.requester_user_id "
+        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
+        "JOIN users u2 ON u2.id=sr.target_user_id "
+        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
+        "JOIN draft_sessions s ON s.id=sr.session_id "
+        "WHERE s.building_id=? AND sr.status='TARGET_APPROVED' "
+        "ORDER BY sr.created_at DESC",
+        (building_id,),
+    ).fetchall()
+
+
+def swap_batch_details(batch_id):
+    """Retrieve all swap request rows belonging to a batch."""
+    return db().execute(
+        "SELECT sr.*, "
+        "u1.name AS requester_name, a1.duty_date AS requester_date, "
+        "u2.name AS target_name, a2.duty_date AS target_date "
+        "FROM duty_swap_requests sr "
+        "JOIN users u1 ON u1.id=sr.requester_user_id "
+        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
+        "JOIN users u2 ON u2.id=sr.target_user_id "
+        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
+        "WHERE sr.batch_id=? "
+        "ORDER BY a1.duty_date",
+        (batch_id,),
+    ).fetchall()
+
+
+def user_pending_swap_count(user_id):
+    """Count pending incoming swap requests for a user (for badge display)."""
+    row = db().execute(
+        "SELECT COUNT(DISTINCT batch_id) AS n FROM duty_swap_requests "
+        "WHERE target_user_id=? AND status='PENDING'",
+        (user_id,),
+    ).fetchone()
+    return row["n"] if row else 0
+
