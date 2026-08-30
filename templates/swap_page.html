@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Duty Swaps &mdash; {{ draft.name }} | RA Duty Picking{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head swap-page-head">
   <div>
     <a class="back-link" href="{{ url_for('view_session', session_id=draft.id) }}">&larr; Back to session</a>
     <div class="eyebrow">{{ draft.building_name }}</div>
@@ -9,112 +9,140 @@
     <p>{{ draft.name }}</p>
   </div>
   <div class="session-head-actions">
+    <a class="button secondary" href="{{ url_for('view_session', session_id=draft.id) }}">View session</a>
     <span class="pill large closed">CLOSED</span>
   </div>
 </div>
 
-{% if incoming %}
-<section class="card">
-  <div class="section-head">
-    <div>
-      <h2>Incoming Swap Requests</h2>
-      <p>Another RA wants to trade shifts with you. Review and respond below.</p>
-    </div>
-    <span class="count-badge">{{ incoming|length }}</span>
-  </div>
-  {% for batch in incoming %}
-  <div class="swap-batch-card">
-    <div class="swap-batch-header">
-      <strong>{{ batch.requester_name }}</strong> wants to swap {{ batch.pairs|length }} date{{ 's' if batch.pairs|length > 1 else '' }} with you
-      <small class="muted">&bull; {{ batch.created_at|date_label }}</small>
-    </div>
-    <div class="swap-pairs-list">
-      {% for pair in batch.pairs %}
-      <div class="swap-pair">
-        <span class="swap-pair-from">Their {{ pair.requester_date|date_label }}</span>
-        <span class="swap-arrow">&harr;</span>
-        <span class="swap-pair-to">Your {{ pair.target_date|date_label }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="swap-actions">
-      <form method="post" action="{{ url_for('target_review_swap', batch_id=batch.batch_id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="APPROVE">
-        <button class="button small" type="submit">Approve</button>
-      </form>
-      <form method="post" action="{{ url_for('target_review_swap', batch_id=batch.batch_id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="REJECT">
-        <button class="button ghost small" type="submit">Reject</button>
-      </form>
-    </div>
-  </div>
-  {% endfor %}
+<section class="card swap-workflow-card" aria-label="Duty swap approval process">
+  <ol class="swap-workflow-steps">
+    <li class="swap-workflow-step">
+      <span class="swap-step-number">1</span>
+      <span><strong>Request a trade</strong><small>Choose another RA and the shifts you want to exchange.</small></span>
+    </li>
+    <li class="swap-workflow-step">
+      <span class="swap-step-number">2</span>
+      <span><strong>Partner reviews</strong><small>The other RA must approve the exact shift trade.</small></span>
+    </li>
+    <li class="swap-workflow-step">
+      <span class="swap-step-number">3</span>
+      <span><strong>HRA approves</strong><small>The schedule changes only after final manager approval.</small></span>
+    </li>
+  </ol>
 </section>
-{% endif %}
 
-{% if can_manage and hra_review %}
-<section class="card">
-  <div class="section-head">
-    <div>
-      <div class="eyebrow">HRA Review</div>
-      <h2>Swaps Awaiting Your Approval</h2>
-      <p>These swaps have been approved by the target RA and need your final sign-off.</p>
-    </div>
-    <span class="count-badge">{{ hra_review|length }}</span>
-  </div>
-  {% for batch in hra_review %}
-  <div class="swap-batch-card">
-    <div class="swap-batch-header">
-      <strong>{{ batch.requester_name }}</strong> &harr; <strong>{{ batch.target_name }}</strong>
-      &bull; {{ batch.pairs|length }} date{{ 's' if batch.pairs|length > 1 else '' }}
-    </div>
-    <div class="swap-pairs-list">
-      {% for pair in batch.pairs %}
-      <div class="swap-pair">
-        <span class="swap-pair-from">{{ batch.requester_name }}: {{ pair.requester_date|date_label }}</span>
-        <span class="swap-arrow">&harr;</span>
-        <span class="swap-pair-to">{{ batch.target_name }}: {{ pair.target_date|date_label }}</span>
+{% if incoming or (can_manage and hra_review) %}
+<div class="swap-attention-grid">
+  {% if incoming %}
+  <section class="card swap-attention-card">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Needs your response</div>
+        <h2>Incoming requests</h2>
+        <p>Review the proposed dates before accepting or declining.</p>
       </div>
+      <span class="count-badge">{{ incoming|length }}</span>
+    </div>
+    <div class="swap-review-list">
+      {% for batch in incoming %}
+      <article class="swap-review-card">
+        <div class="swap-review-top">
+          <div>
+            <span class="swap-card-label">Partner approval</span>
+            <h3>{{ batch.requester_name }} wants to trade with you</h3>
+            <p>{{ batch.pairs|length }} shift{{ 's' if batch.pairs|length > 1 else '' }} requested &bull; {{ batch.created_at|date_label }}</p>
+          </div>
+          <span class="pill small pending">Pending</span>
+        </div>
+        <div class="swap-pairs-list">
+          {% for pair in batch.pairs %}
+          <div class="swap-pair">
+            <span class="swap-pair-from"><small>{{ batch.requester_name }}</small><br><strong>{{ pair.requester_date|date_label }}</strong></span>
+            <span class="swap-arrow" aria-hidden="true">&harr;</span>
+            <span class="swap-pair-to"><small>You</small><br><strong>{{ pair.target_date|date_label }}</strong></span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="swap-actions">
+          <form method="post" action="{{ url_for('target_review_swap', batch_id=batch.batch_id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="APPROVE">
+            <button class="button small" type="submit">Approve request</button>
+          </form>
+          <form method="post" action="{{ url_for('target_review_swap', batch_id=batch.batch_id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="REJECT">
+            <button class="button ghost small" type="submit" data-confirm="Decline this duty swap request?">Decline</button>
+          </form>
+        </div>
+      </article>
       {% endfor %}
     </div>
-    <div class="swap-actions">
-      <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="APPROVE">
-        <button class="button small" type="submit">Approve swap</button>
-      </form>
-      <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="REJECT">
-        <button class="button ghost small" type="submit">Reject</button>
-      </form>
+  </section>
+  {% endif %}
+
+  {% if can_manage and hra_review %}
+  <section class="card swap-attention-card">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Final approval</div>
+        <h2>HRA review queue</h2>
+        <p>Both RAs already agreed. Approving will immediately update the schedule.</p>
+      </div>
+      <span class="count-badge">{{ hra_review|length }}</span>
     </div>
-  </div>
-  {% endfor %}
-</section>
+    <div class="swap-review-list">
+      {% for batch in hra_review %}
+      <article class="swap-review-card">
+        <div class="swap-review-top">
+          <div>
+            <span class="swap-card-label">Ready for manager review</span>
+            <h3>{{ batch.requester_name }} &harr; {{ batch.target_name }}</h3>
+            <p>{{ batch.pairs|length }} agreed shift{{ 's' if batch.pairs|length > 1 else '' }}</p>
+          </div>
+          <span class="pill small target_approved">RA approved</span>
+        </div>
+        <div class="swap-pairs-list">
+          {% for pair in batch.pairs %}
+          <div class="swap-pair">
+            <span class="swap-pair-from"><small>{{ batch.requester_name }}</small><br><strong>{{ pair.requester_date|date_label }}</strong></span>
+            <span class="swap-arrow" aria-hidden="true">&harr;</span>
+            <span class="swap-pair-to"><small>{{ batch.target_name }}</small><br><strong>{{ pair.target_date|date_label }}</strong></span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="swap-actions">
+          <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="APPROVE">
+            <button class="button small" type="submit" data-confirm="Approve this swap and update both RAs' assignments?">Approve &amp; update schedule</button>
+          </form>
+          <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="REJECT">
+            <button class="button ghost small" type="submit" data-confirm="Reject this agreed duty swap?">Reject</button>
+          </form>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
 {% endif %}
 
 {% if my_picks %}
-<section class="card">
+<section class="card swap-builder-card">
   <div class="section-head">
     <div>
-      <h2>Request a Swap</h2>
-      <p>Select your dates and a partner to swap with. All selected dates will be submitted as one batch.</p>
+      <div class="eyebrow">New request</div>
+      <h2>Build a swap request</h2>
+      <p>Choose the partner first, then select only the shifts you want to trade.</p>
     </div>
   </div>
+
   <form method="post" action="{{ url_for('request_swap_batch', session_id=draft.id) }}" id="swap-request-form">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-
-    <label class="field">Swap partner:
-      <select id="swap-partner-select" name="swap_partner" required>
-        <option value="">-- Choose an RA --</option>
-        {% for p in other_participants %}
-        <option value="{{ p.id }}">{{ p.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
 
     <div id="swap-partner-data" hidden aria-hidden="true">
       {% for pick in other_picks %}
@@ -127,34 +155,61 @@
       {% endfor %}
     </div>
 
-    <div class="swap-date-picker">
-      <h3>Select date pairs</h3>
-      <p class="muted">For each of your dates, choose which date from the partner you'd like to swap it with.</p>
+    <div class="swap-builder-steps">
+      <div class="swap-builder-step">
+        <span class="swap-builder-step-number">1</span>
+        <div class="swap-builder-step-content">
+          <div class="swap-builder-step-head">
+            <h3>Choose the RA</h3>
+            <p>Their available shifts will appear in the next step.</p>
+          </div>
+          <label class="field swap-partner-field">Swap partner
+            <select id="swap-partner-select" name="swap_partner" required>
+              <option value="">Choose an RA</option>
+              {% for p in other_participants %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+      </div>
 
-      <div class="table-wrap">
-        <table class="assignment-table" id="swap-pairs-table">
-          <thead><tr><th>Include</th><th>Your date</th><th>Their date</th></tr></thead>
-          <tbody>
+      <div class="swap-builder-step">
+        <span class="swap-builder-step-number">2</span>
+        <div class="swap-builder-step-content">
+          <div class="swap-builder-step-head">
+            <h3>Choose the shift pairs</h3>
+            <p>Turn on a row to include your shift, then choose which of your partner's shifts you want in return.</p>
+          </div>
+          <div class="swap-builder-list" id="swap-pairs-list">
             {% for pick in my_picks %}
-            <tr data-swap-row>
-              <td data-label="Include">
-                <input type="checkbox" class="swap-include-check" data-my-assignment-id="{{ pick.id }}">
-              </td>
-              <td data-label="Your date">{{ pick.duty_date|date_label }}</td>
-              <td data-label="Their date">
-                <select class="swap-target-select" disabled>
-                  <option value="">-- Select --</option>
+            <div class="swap-builder-row" data-swap-row>
+              <label class="swap-shift-toggle">
+                <input type="checkbox" class="swap-include-check" data-my-assignment-id="{{ pick.id }}" aria-label="Include your {{ pick.duty_date|date_label }} shift">
+                <span class="swap-shift-copy">
+                  <small>Your shift</small>
+                  <strong>{{ pick.duty_date|date_label }}</strong>
+                </span>
+              </label>
+              <span class="swap-builder-arrow" aria-hidden="true">&rarr;</span>
+              <label class="field swap-target-field">Trade for
+                <select class="swap-target-select" disabled aria-label="Partner shift to receive for your {{ pick.duty_date|date_label }} shift">
+                  <option value="">Choose a partner first</option>
                 </select>
-              </td>
-            </tr>
+              </label>
+            </div>
             {% endfor %}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="form-actions">
-      <button class="button" type="submit" id="swap-submit-btn" disabled>Submit swap request</button>
+    <div class="swap-builder-summary" aria-live="polite">
+      <div class="swap-builder-summary-copy">
+        <strong data-swap-summary-title>Choose a swap partner to begin</strong>
+        <span data-swap-summary-copy>No request will be sent until every selected shift has a matching partner shift.</span>
+      </div>
+      <button class="button" type="submit" id="swap-submit-btn" disabled>Send swap request</button>
     </div>
   </form>
 </section>
@@ -164,71 +219,82 @@
 <section class="card">
   <div class="section-head">
     <div>
-      <h2>My Swap Requests</h2>
-      <p>Swap requests you've submitted.</p>
+      <h2>My requests</h2>
+      <p>Track requests you created and cancel one while it is still pending approval.</p>
     </div>
     <span class="count-badge">{{ outgoing|length }}</span>
   </div>
-  {% for batch in outgoing %}
-  <div class="swap-batch-card">
-    <div class="swap-batch-header">
-      Swap with <strong>{{ batch.target_name }}</strong>
-      &bull; {{ batch.pairs|length }} date{{ 's' if batch.pairs|length > 1 else '' }}
-      <span class="pill small {{ batch.status|lower }}">
-        {% if batch.status == 'PENDING' %}Waiting for {{ batch.target_name }}
-        {% elif batch.status == 'TARGET_APPROVED' %}Waiting for HRA
-        {% elif batch.status == 'APPROVED' %}Approved
-        {% elif batch.status == 'REJECTED' %}Rejected
-        {% elif batch.status == 'CANCELLED' %}Cancelled
-        {% endif %}
-      </span>
-    </div>
-    <div class="swap-pairs-list">
-      {% for pair in batch.pairs %}
-      <div class="swap-pair">
-        <span class="swap-pair-from">Your {{ pair.requester_date|date_label }}</span>
-        <span class="swap-arrow">&harr;</span>
-        <span class="swap-pair-to">Their {{ pair.target_date|date_label }}</span>
+  <div class="swap-status-list">
+    {% for batch in outgoing %}
+    <article class="swap-status-card">
+      <div class="swap-status-top">
+        <div>
+          <h3>Swap with {{ batch.target_name }}</h3>
+          <p>{{ batch.pairs|length }} shift{{ 's' if batch.pairs|length > 1 else '' }}</p>
+        </div>
+        <span class="pill small {{ batch.status|lower }}">
+          {% if batch.status == 'PENDING' %}Waiting for {{ batch.target_name }}
+          {% elif batch.status == 'TARGET_APPROVED' %}Waiting for HRA
+          {% elif batch.status == 'APPROVED' %}Approved
+          {% elif batch.status == 'REJECTED' %}Rejected
+          {% elif batch.status == 'CANCELLED' %}Cancelled
+          {% endif %}
+        </span>
       </div>
-      {% endfor %}
-    </div>
-    {% if batch.status in ('PENDING', 'TARGET_APPROVED') %}
-    <div class="swap-actions">
-      <form method="post" action="{{ url_for('cancel_swap_batch', batch_id=batch.batch_id) }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <button class="button danger small" type="submit">Cancel request</button>
-      </form>
-    </div>
-    {% endif %}
+      <div class="swap-pairs-list">
+        {% for pair in batch.pairs %}
+        <div class="swap-pair">
+          <span class="swap-pair-from"><small>You give</small><br><strong>{{ pair.requester_date|date_label }}</strong></span>
+          <span class="swap-arrow" aria-hidden="true">&harr;</span>
+          <span class="swap-pair-to"><small>You receive</small><br><strong>{{ pair.target_date|date_label }}</strong></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if batch.status in ('PENDING', 'TARGET_APPROVED') %}
+      <div class="swap-actions">
+        <form method="post" action="{{ url_for('cancel_swap_batch', batch_id=batch.batch_id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="button ghost small" type="submit" data-confirm="Cancel this duty swap request?">Cancel request</button>
+        </form>
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
   </div>
-  {% endfor %}
 </section>
 {% endif %}
 
 {% if history %}
-<section class="card">
-  <div class="section-head">
-    <div>
-      <h2>Swap History</h2>
-      <p>Completed, rejected, and cancelled swaps in this session.</p>
-    </div>
-  </div>
-  {% for batch in history %}
-  <div class="swap-batch-card">
-    <div class="swap-batch-header">
-      <strong>{{ batch.requester_name }}</strong> &harr; <strong>{{ batch.target_name }}</strong>
-      <span class="pill small {{ batch.status|lower }}">{{ batch.status }}</span>
-    </div>
-    <div class="swap-pairs-list">
-      {% for pair in batch.pairs %}
-      <div class="swap-pair">
-        <span>{{ pair.requester_date|date_label }} &harr; {{ pair.target_date|date_label }}</span>
+<details class="card swap-history-card">
+  <summary class="swap-history-summary">
+    <span>
+      <h2>Session swap history</h2>
+      <p>Completed, rejected, and cancelled swaps for this session.</p>
+    </span>
+    <span class="count-badge">{{ history|length }}</span>
+  </summary>
+  <div class="swap-history-list">
+    {% for batch in history %}
+    <article class="swap-status-card">
+      <div class="swap-status-top">
+        <div>
+          <h3>{{ batch.requester_name }} &harr; {{ batch.target_name }}</h3>
+        </div>
+        <span class="pill small {{ batch.status|lower }}">{{ batch.status }}</span>
       </div>
-      {% endfor %}
-    </div>
+      <div class="swap-pairs-list">
+        {% for pair in batch.pairs %}
+        <div class="swap-pair">
+          <span class="swap-pair-from"><strong>{{ pair.requester_date|date_label }}</strong></span>
+          <span class="swap-arrow" aria-hidden="true">&harr;</span>
+          <span class="swap-pair-to"><strong>{{ pair.target_date|date_label }}</strong></span>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+    {% endfor %}
   </div>
-  {% endfor %}
-</section>
+</details>
 {% endif %}
 
 <script src="{{ url_for('static', filename='swap_page.js') }}" defer></script>
