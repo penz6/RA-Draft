@@ -73,7 +73,7 @@ def manual_assign(session_id):
 
     current = next_picker(session_id)
     duplicate = conn.execute(
-        "SELECT 1 FROM assignments WHERE session_id=? AND user_id=? AND duty_date=? ",
+        "SELECT 1 FROM assignments WHERE session_id=? AND user_id=? AND duty_date=?",
         (session_id, user_id, duty_date),
     ).fetchone()
     if duplicate:

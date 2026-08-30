@@ -119,7 +119,8 @@
           </div>
           <input type="hidden" name="order_{{ participant.id }}" value="{{ loop.index }}" data-order-input>
         </div>
-        {% else %}\n        <p class="empty-copy">No users are assigned to this building yet.</p>
+        {% else %}
+        <p class="empty-copy">No users are assigned to this building yet.</p>
         {% endfor %}
       </div>
       <p class="empty-copy" data-no-participants hidden>No users are assigned to the selected building.</p>

@@ -74,116 +74,98 @@ def auth_callback():
         return oauth_failure("Google login failed. Try again.")
 
     if not google_identity_allowed(info):
-        return oauth_failure("Please sign in with a verified RWU Google account (@g.rwu.edu or @rwu.edu).")
+        return oauth_failure(
+            "Please sign in with a verified RWU Google account (@g.rwu.edu or @rwu.edu)."
+        )
 
+    google_sub = str(info["sub"])
     email = info["email"].lower()
-    subject = str(info["sub"])
-    name = safe_display_name(
-        info.get("name") or info.get("given_name"),
-        email.split("@")[0],
+    display_name = safe_display_name(
+        info.get("name"),
+        fallback=info.get("given_name", email),
     )
-    bootstrap_admin = email in ADMIN_EMAILS
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
 
-    user = conn.execute(
-        "SELECT * FROM users WHERE google_sub=?",
-        (subject,),
+    account = conn.execute(
+        "SELECT id,disabled FROM users WHERE google_sub=?",
+        (google_sub,),
     ).fetchone()
+    is_new = False
+    claimed_precreated_user = False
 
-    if user:
-        if bool(user["disabled"]):
+    if account:
+        if account["disabled"]:
             return disabled_account_failure(conn)
-        updates = []
-        parameters = []
-        if name and name != user["name"]:
-            updates.append("name=?")
-            parameters.append(name)
-        if email != user["email"]:
-            updates.append("email=?")
-            parameters.append(email)
-        if bootstrap_admin and user["role"] != "ADMIN":
-            updates.append("role='ADMIN'")
-        if updates:
-            parameters.append(user["id"])
+        uid = account["id"]
+        conn.execute(
+            "UPDATE users SET email=?,name=? WHERE id=?",
+            (email, display_name, uid),
+        )
+    else:
+        precreated = conn.execute(
+            "SELECT id,disabled,role,building_id FROM users "
+            "WHERE email=? COLLATE NOCASE AND google_sub LIKE 'manual:%'",
+            (email,),
+        ).fetchone()
+        if precreated:
+            if precreated["disabled"]:
+                return disabled_account_failure(conn)
+            uid = precreated["id"]
+            claimed_precreated_user = True
             conn.execute(
-                f"UPDATE users SET {','.join(updates)} WHERE id=?",
-                tuple(parameters),
+                "UPDATE users SET google_sub=?,name=? WHERE id=?",
+                (google_sub, display_name, uid),
             )
             audit(
-                "auth.profile_synced",
+                "auth.google_link",
                 "user",
-                user["id"],
-                {"updated_fields": updates},
-                actor_user_id=user["id"],
+                uid,
+                {"previous_role": precreated["role"]},
+                actor_user_id=uid,
             )
-            conn.commit()
-            user = conn.execute(
-                "SELECT * FROM users WHERE id=?",
-                (user["id"],),
-            ).fetchone()
         else:
-            conn.commit()
-        session["uid"] = user["id"]
-        return redirect(url_for("dashboard"))
+            is_new = True
+            existing_email = conn.execute(
+                "SELECT id FROM users WHERE email=? COLLATE NOCASE",
+                (email,),
+            ).fetchone()
+            if existing_email:
+                conn.rollback()
+                return oauth_failure(
+                    "That email belongs to another registered account. Contact an administrator."
+                )
 
-    precreated = conn.execute(
-        "SELECT * FROM users WHERE email=? COLLATE NOCASE AND google_sub LIKE 'manual:%'",
-        (email,),
-    ).fetchone()
-    if precreated:
-        if bool(precreated["disabled"]):
-            return disabled_account_failure(conn)
-        new_role = "ADMIN" if bootstrap_admin else precreated["role"]
-        conn.execute(
-            "UPDATE users SET google_sub=?,name=?,role=? WHERE id=?",
-            (subject, name, new_role, precreated["id"]),
-        )
-        audit(
-            "auth.google_linked",
-            "user",
-            precreated["id"],
-            {
-                "previous_placeholder": precreated["google_sub"],
-                "role": new_role,
-                "building_id": precreated["building_id"],
-            },
-            actor_user_id=precreated["id"],
-        )
-        conn.commit()
-        session["uid"] = precreated["id"]
-        return redirect(url_for("dashboard"))
+            role = "ADMIN" if email in ADMIN_EMAILS else "RA"
+            cur = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
+                (google_sub, email, display_name, role),
+            )
+            uid = cur.lastrowid
+            audit(
+                "auth.user_created",
+                "user",
+                uid,
+                {"role": role},
+                actor_user_id=uid,
+            )
 
-    conflict = conn.execute(
-        "SELECT id FROM users WHERE email=? COLLATE NOCASE",
-        (email,),
-    ).fetchone()
-    if conflict:
-        conn.rollback()
-        return oauth_failure(
-            "An account with this email already exists under a different identity."
-        )
-
-    initial_role = "ADMIN" if bootstrap_admin else "RA"
-    cur = conn.execute(
-        "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
-        (subject, email, name, initial_role),
-    )
-    user_id = cur.lastrowid
+    session.clear()
+    session["uid"] = uid
+    session["show_role_help"] = True
+    session.permanent = True
     audit(
-        "auth.user_created",
+        "auth.login",
         "user",
-        user_id,
-        {"email": email, "role": initial_role, "bootstrap_admin": bootstrap_admin},
-        actor_user_id=user_id,
+        uid,
+        {
+            "new_user": is_new,
+            "claimed_precreated_user": claimed_precreated_user,
+        },
+        actor_user_id=uid,
     )
     conn.commit()
-
-    session["uid"] = user_id
-    session["show_role_help"] = True
-    if initial_role == "RA":
-        return redirect(url_for("onboarding"))
     return redirect(url_for("dashboard"))
 
 
@@ -194,6 +176,7 @@ def logout():
     uid = session.get("uid")
     if isinstance(uid, int):
         audit("auth.logout", "user", uid, actor_user_id=uid)
+        db().commit()
     session.clear()
     return redirect(url_for("index"))
 
@@ -208,54 +191,61 @@ def onboarding():
     if user["role"] != "RA" or user["building_id"] is not None:
         return redirect(url_for("dashboard"))
 
-    conn = db()
-    buildings = conn.execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
 
     if request.method == "POST":
         require_csrf()
         try:
-            building_id = int(request.form.get("building_id", 0))
+            building_id = int(request.form.get("building_id", ""))
         except (TypeError, ValueError):
-            building_id = 0
+            abort(400)
 
+        conn = db()
         conn.execute("BEGIN IMMEDIATE")
-        user = current_user()
-        if not user:
-            conn.rollback()
-            return redirect(url_for("login"))
-        if user["role"] != "RA" or user["building_id"] is not None:
-            conn.rollback()
-            return redirect(url_for("dashboard"))
-
-        target = conn.execute(
+        account = conn.execute(
+            "SELECT role,building_id,disabled FROM users WHERE id=?",
+            (user["id"],),
+        ).fetchone()
+        building = conn.execute(
             "SELECT id,name FROM buildings WHERE id=?",
             (building_id,),
         ).fetchone()
-        if not target:
-            conn.rollback()
-            flash("Please choose a valid building.", "error")
-            return render_template(
-                "onboarding.html",
-                buildings=buildings,
-                user=user,
-            )
 
-        conn.execute(
-            "UPDATE users SET building_id=? WHERE id=?",
+        if not account or account["disabled"]:
+            conn.rollback()
+            session.clear()
+            return redirect(url_for("login"))
+        if account["role"] != "RA" or account["building_id"] is not None:
+            conn.rollback()
+            return redirect(url_for("dashboard"))
+        if not building:
+            conn.rollback()
+            abort(400)
+
+        updated = conn.execute(
+            "UPDATE users SET building_id=? "
+            "WHERE id=? AND role='RA' AND building_id IS NULL AND disabled=0",
             (building_id, user["id"]),
         )
+        if updated.rowcount != 1:
+            conn.rollback()
+            return redirect(url_for("dashboard"))
+
         audit(
-            "user.onboard_building",
-            "building",
-            building_id,
-            {"building_name": target["name"]},
-            actor_user_id=user["id"],
+            "profile.building.select",
+            "user",
+            user["id"],
+            {"building_id": building_id},
         )
         conn.commit()
-        flash(f"You're set for {target['name']}.", "success")
+        flash(f"Building set to {building['name']}.", "success")
         return redirect(url_for("dashboard"))
 
-    return render_template("onboarding.html", buildings=buildings, user=user)
+    return render_template(
+        "onboarding.html",
+        buildings=buildings,
+        auto_open_help=bool(session.pop("show_role_help", False)),
+    )
 
 
 @app.route("/dashboard")
@@ -286,10 +276,10 @@ def dashboard():
         ).fetchall()
         participants = conn.execute(
             "SELECT u.*,b.name building_name FROM users u "
-            "LEFT JOIN buildings b ON b.id=u.building_id "
-            "WHERE u.disabled=0 ORDER BY b.name,u.name"
+            "JOIN buildings b ON b.id=u.building_id WHERE u.disabled=0 "
+            "ORDER BY b.name,CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name"
         ).fetchall()
-    elif user["role"] == "HRA":
+    else:
         sessions = (
             conn.execute(
                 "SELECT s.*,b.name building_name FROM draft_sessions s "
@@ -304,24 +294,13 @@ def dashboard():
             conn.execute(
                 "SELECT u.*,b.name building_name FROM users u "
                 "JOIN buildings b ON b.id=u.building_id "
-                "WHERE u.building_id=? AND u.disabled=0 ORDER BY u.name",
+                "WHERE u.building_id=? AND u.disabled=0 "
+                "ORDER BY CASE u.role WHEN 'RA' THEN 0 WHEN 'HRA' THEN 1 ELSE 2 END,u.name",
                 (user["building_id"],),
             ).fetchall()
-            if user["building_id"]
+            if user["role"] == "HRA" and user["building_id"]
             else []
         )
-    else:
-        sessions = (
-            conn.execute(
-                "SELECT s.*,b.name building_name FROM draft_sessions s "
-                "JOIN buildings b ON b.id=s.building_id WHERE s.building_id=? "
-                "ORDER BY CASE WHEN s.status='OPEN' THEN 0 ELSE 1 END, s.created_at DESC",
-                (user["building_id"],),
-            ).fetchall()
-            if user["building_id"]
-            else []
-        )
-        participants = []
 
     buildings = conn.execute("SELECT * FROM buildings ORDER BY name").fetchall()
     live_version = dashboard_state_version(user)
@@ -330,6 +309,7 @@ def dashboard():
 
     return render_template(
         "dashboard_v2.html",
+        me=user,
         sessions=sessions,
         buildings=buildings,
         participants=participants,

@@ -139,7 +139,104 @@ CREATE TABLE assignments (
 """
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS buildings (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT UNIQUE NOT NULL\n);\nCREATE TABLE IF NOT EXISTS users (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  google_sub TEXT UNIQUE NOT NULL,\n  email TEXT UNIQUE NOT NULL,\n  name TEXT NOT NULL,\n  role TEXT NOT NULL DEFAULT 'RA' CHECK(role IN ('RA','HRA','ADMIN')),\n  building_id INTEGER REFERENCES buildings(id),\n  disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)),\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\nCREATE TABLE IF NOT EXISTS draft_sessions (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  building_id INTEGER NOT NULL REFERENCES buildings(id),\n  start_date TEXT NOT NULL,\n  end_date TEXT NOT NULL,\n  shift_start TEXT NOT NULL DEFAULT '19:00',\n  shift_end TEXT NOT NULL DEFAULT '07:00',\n  capacity INTEGER NOT NULL DEFAULT 2,\n  date_order TEXT NOT NULL DEFAULT 'WEEKDAYS_FIRST'\n    CHECK(date_order IN ('WEEKDAYS_FIRST','CHRONOLOGICAL','WEEKENDS_FIRST')),\n  current_position INTEGER NOT NULL DEFAULT 1,\n  picking_paused INTEGER NOT NULL DEFAULT 0 CHECK(picking_paused IN (0,1)),\n  created_by INTEGER NOT NULL REFERENCES users(id),\n  status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\nCREATE TABLE IF NOT EXISTS session_order (\n  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,\n  user_id INTEGER NOT NULL REFERENCES users(id),\n  position INTEGER NOT NULL,\n  PRIMARY KEY(session_id, user_id),\n  UNIQUE(session_id, position)\n);\nCREATE TABLE IF NOT EXISTS assignments (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,\n  user_id INTEGER NOT NULL REFERENCES users(id),\n  duty_date TEXT NOT NULL,\n  created_by INTEGER NOT NULL REFERENCES users(id),\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  UNIQUE(session_id, user_id, duty_date)\n);\nCREATE TABLE IF NOT EXISTS session_deferrals (\n  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,\n  user_id INTEGER NOT NULL REFERENCES users(id),\n  deferred_by INTEGER NOT NULL REFERENCES users(id),\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY(session_id, user_id)\n);\nCREATE TABLE IF NOT EXISTS session_date_capacities (\n  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,\n  duty_date TEXT NOT NULL,\n  capacity INTEGER NOT NULL CHECK(capacity BETWEEN 1 AND 50),\n  updated_by INTEGER NOT NULL REFERENCES users(id),\n  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY(session_id, duty_date)\n);\nCREATE TABLE IF NOT EXISTS session_date_overrides (\n  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,\n  duty_date TEXT NOT NULL,\n  date_kind TEXT NOT NULL\n    CHECK(date_kind IN ('WEEKDAY','WEEKEND','NO_DUTY')),\n  updated_by INTEGER NOT NULL REFERENCES users(id),\n  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY(session_id, duty_date)\n);\nCREATE TABLE IF NOT EXISTS duty_swap_requests (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,\n  requester_user_id INTEGER NOT NULL REFERENCES users(id),\n  requester_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,\n  target_user_id INTEGER NOT NULL REFERENCES users(id),\n  target_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,\n  status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),\n  reviewed_by INTEGER REFERENCES users(id),\n  reviewed_at TEXT,\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\nCREATE TABLE IF NOT EXISTS audit_log (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  actor_user_id INTEGER REFERENCES users(id),\n  action TEXT NOT NULL,\n  target_type TEXT,\n  target_id INTEGER,\n  details TEXT,\n  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\nCREATE INDEX IF NOT EXISTS idx_assignments_session_date ON assignments(session_id, duty_date);\nCREATE INDEX IF NOT EXISTS idx_users_building ON users(building_id);\nCREATE INDEX IF NOT EXISTS idx_sessions_building ON draft_sessions(building_id);\nCREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id);\nCREATE INDEX IF NOT EXISTS idx_swaps_session_status ON duty_swap_requests(session_id, status);\n"""
+CREATE TABLE IF NOT EXISTS buildings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL
+);
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  google_sub TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'RA' CHECK(role IN ('RA','HRA','ADMIN')),
+  building_id INTEGER REFERENCES buildings(id),
+  disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS draft_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  building_id INTEGER NOT NULL REFERENCES buildings(id),
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  shift_start TEXT NOT NULL DEFAULT '19:00',
+  shift_end TEXT NOT NULL DEFAULT '07:00',
+  capacity INTEGER NOT NULL DEFAULT 2,
+  date_order TEXT NOT NULL DEFAULT 'WEEKDAYS_FIRST'
+    CHECK(date_order IN ('WEEKDAYS_FIRST','CHRONOLOGICAL','WEEKENDS_FIRST')),
+  current_position INTEGER NOT NULL DEFAULT 1,
+  picking_paused INTEGER NOT NULL DEFAULT 0 CHECK(picking_paused IN (0,1)),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS session_order (
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  position INTEGER NOT NULL,
+  PRIMARY KEY(session_id, user_id),
+  UNIQUE(session_id, position)
+);
+CREATE TABLE IF NOT EXISTS assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  duty_date TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(session_id, user_id, duty_date)
+);
+CREATE TABLE IF NOT EXISTS session_deferrals (
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  deferred_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(session_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS session_date_capacities (
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  duty_date TEXT NOT NULL,
+  capacity INTEGER NOT NULL CHECK(capacity BETWEEN 1 AND 50),
+  updated_by INTEGER NOT NULL REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(session_id, duty_date)
+);
+CREATE TABLE IF NOT EXISTS session_date_overrides (
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  duty_date TEXT NOT NULL,
+  date_kind TEXT NOT NULL
+    CHECK(date_kind IN ('WEEKDAY','WEEKEND','NO_DUTY')),
+  updated_by INTEGER NOT NULL REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(session_id, duty_date)
+);
+CREATE TABLE IF NOT EXISTS duty_swap_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
+  requester_user_id INTEGER NOT NULL REFERENCES users(id),
+  requester_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  target_user_id INTEGER NOT NULL REFERENCES users(id),
+  target_assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','APPROVED','REJECTED','CANCELLED')),
+  reviewed_by INTEGER REFERENCES users(id),
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_user_id INTEGER REFERENCES users(id),
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id INTEGER,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_assignments_session_date ON assignments(session_id, duty_date);
+CREATE INDEX IF NOT EXISTS idx_users_building ON users(building_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_building ON draft_sessions(building_id);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_swaps_session_status ON duty_swap_requests(session_id, status);
+"""
 
 
 def configure_connection(conn):
@@ -534,7 +631,7 @@ def time_label(value):
 @app.template_filter("date_order_label")
 def date_order_label(value):
     """Map date ordering mode constant to user-facing label."""
-    return DATE_ORDER_LABELS.get(str(value), DATE_ORDER_LABELS[DATE_ORDER_WEEKDAYS_FIRST])
+    return DATE_ORDER_LABELS.get(str(value), DATE_ORDER_WEEKDAYS_FIRST)
 
 
 def require_csrf():
@@ -935,12 +1032,12 @@ def selection_phase_label(row):
         return (
             "Weekdays only until all weekdays are filled"
             if has_primary_open
-            else "Weekdays filled \u2014 weekends are now open"
+            else "Weekdays filled — weekends are now open"
         )
     return (
         "Weekends only until all weekends are filled"
         if has_primary_open
-        else "Weekends filled \u2014 weekdays are now open"
+        else "Weekends filled — weekdays are now open"
     )
 
 

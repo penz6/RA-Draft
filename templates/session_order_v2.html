@@ -9,15 +9,15 @@
       <div class="draft-person-copy">
         <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
         {% if p.disabled %}
-        <span class="status-text disabled-user-status">Account disabled &middot; {{ p.assignment_count }} assigned</span>
+        <span class="status-text disabled-user-status">Account disabled · {{ p.assignment_count }} assigned</span>
         {% elif draft.status == 'CLOSED' and next and next.id == p.id %}
-        <span class="status-text">Next when reopened &middot; {{ p.assignment_count }} assigned</span>
+        <span class="status-text">Next when reopened · {{ p.assignment_count }} assigned</span>
         {% elif draft.picking_paused and next and next.id == p.id %}
-        <span class="status-text current">Turn frozen &middot; {{ p.assignment_count }} assigned</span>
+        <span class="status-text current">Turn frozen · {{ p.assignment_count }} assigned</span>
         {% elif next and next.id == p.id %}
-        <span class="status-text current">Picking now &middot; {{ p.assignment_count }} assigned</span>
+        <span class="status-text current">Picking now · {{ p.assignment_count }} assigned</span>
         {% else %}
-        <span class="status-text">{{ p.assignment_count }} assigned &middot; waiting</span>
+        <span class="status-text">{{ p.assignment_count }} assigned · waiting</span>
         {% endif %}
       </div>
       {% if can_manage and draft.status == 'OPEN' and not draft.picking_paused and not schedule_complete %}
@@ -35,11 +35,11 @@
     {% endfor %}
   </ol>
   {% if draft.status == 'CLOSED' and next %}
-  <div class="current-picker"><span>Next picker when reopened</span><strong>{{ next.name }} &middot; <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  <div class="current-picker"><span>Next picker when reopened</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
   {% elif draft.picking_paused and next %}
-  <div class="current-picker"><span>Current turn &middot; paused</span><strong>{{ next.name }} &middot; <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  <div class="current-picker"><span>Current turn · paused</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
   {% elif next %}
-  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} &middot; <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
   {% elif schedule_complete %}
   <div class="notice success">The calendar is complete.</div>
   {% else %}

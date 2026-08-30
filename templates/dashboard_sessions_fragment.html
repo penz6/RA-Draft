@@ -1,21 +1,34 @@
-<section class=\"card\" data-dashboard-sessions>
-  <div class=\"section-head\">
+<section class="card" data-dashboard-sessions>
+  <div class="section-head">
     <div><h2>Sessions</h2></div>
-    <span class=\"count-badge\">{{ sessions|length }}</span>
+    <span class="count-badge">{{ sessions|length }}</span>
   </div>
-  <div class=\"session-list\">
+  <div class="session-list">
     {% for s in sessions %}
-    <div class=\"session-item-row\">
-      <a class=\"session-card\" href=\"{{ url_for('view_session', session_id=s.id) }}\">
-        <div class=\"session-card-main\">
-          <div class=\"session-card-title\"><h3>{{ s.name }}</h3><span class=\"pill {{ s.status|lower }}\">{{ s.status }}</span></div>
+    <div class="session-item-row">
+      <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}">
+        <div class="session-card-main">
+          <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
           <p>{{ s.building_name }}</p>
         </div>
-        <dl class=\"session-meta\">
+        <dl class="session-meta">
           <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
           <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
           <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
         </dl>
-        <span class=\"session-arrow\" aria-hidden=\"true\">&rarr;</span>
+        <span class="session-arrow" aria-hidden="true">&rarr;</span>
       </a>
-      {% if me.role == 'ADMIN' %}\n      <div class=\"session-admin-actions\">\n        <form method=\"post\" action=\"{{ url_for('delete_session', session_id=s.id) }}\">\n          <input type=\"hidden\" name=\"csrf\" value=\"{{ csrf_token() }}\">\n          <button class=\"button danger small\" type=\"submit\" data-confirm=\"Permanently delete session '{{ s.name }}' and all its assignments? This cannot be undone.\">Delete</button>\n        </form>\n      </div>\n      {% endif %}\n    </div>\n    {% else %}\n    <div class=\"empty-state compact\"><h3>No sessions yet</h3><p>New duty sessions will appear here.</p></div>\n    {% endfor %}\n  </div>\n</section>\n
+      {% if me.role == 'ADMIN' %}
+      <div class="session-admin-actions">
+        <form method="post" action="{{ url_for('delete_session', session_id=s.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="button danger small" type="submit" data-confirm="Permanently delete session '{{ s.name }}' and all its assignments? This cannot be undone.">Delete</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state compact"><h3>No sessions yet</h3><p>New duty sessions will appear here.</p></div>
+    {% endfor %}
+  </div>
+</section>
