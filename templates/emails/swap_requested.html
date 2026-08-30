@@ -1,0 +1,32 @@
+{% extends 'emails/base.html' %}
+{% block title %}Duty swap request | RA Draft{% endblock %}
+{% block preheader %}{{ swap.requester.name }} requested a duty swap with you.{% endblock %}
+{% block content %}
+  <div style="font-size:13px;line-height:18px;font-weight:700;color:#5f6b82;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Action requested</div>
+  <h1 style="margin:0 0 14px;font-size:28px;line-height:35px;color:#172033;letter-spacing:-0.6px;">You have a duty swap request</h1>
+  <p style="margin:0 0 22px;font-size:16px;line-height:25px;color:#465066;">Hi {{ first_name }}, <strong>{{ swap.requester.name }}</strong> wants to trade duty dates with you for <strong>{{ swap.session_name }}</strong> in <strong>{{ swap.building_name }}</strong>.</p>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 24px;border:1px solid #e3e9f2;border-radius:12px;overflow:hidden;">
+    <tr style="background:#f8fafc;">
+      <td style="padding:11px 14px;font-size:12px;font-weight:800;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">{{ swap.requester.name }}</td>
+      <td style="padding:11px 8px;text-align:center;font-size:12px;font-weight:800;color:#667085;">Swap</td>
+      <td style="padding:11px 14px;font-size:12px;font-weight:800;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">You</td>
+    </tr>
+    {% for pair in swap.pairs %}
+    <tr>
+      <td style="padding:14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#172033;font-weight:700;">{{ pair.requester_date_label }}</td>
+      <td style="padding:14px 8px;border-top:1px solid #e8edf5;text-align:center;font-size:18px;color:#77839a;">↔</td>
+      <td style="padding:14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#172033;font-weight:700;">{{ pair.target_date_label }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td style="border-radius:10px;background:#2957d9;">
+        <a href="{{ review_url }}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-size:14px;line-height:18px;font-weight:800;">Review swap request</a>
+      </td>
+    </tr>
+  </table>
+  <p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#788399;">Nothing changes until you approve the request and your HRA gives final approval.</p>
+{% endblock %}
