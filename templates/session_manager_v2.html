@@ -1,0 +1,114 @@
+<section class="card session-manager-card" aria-labelledby="session-manager-heading">
+  <div class="session-manager-head">
+    <div>
+      <div class="eyebrow">Manager tools</div>
+      <h2 id="session-manager-heading">Session manager</h2>
+      <p>Use the common controls here. Less-frequent scheduling rules and date exceptions are grouped below.</p>
+    </div>
+    <span class="role-badge">{{ me.role }}</span>
+  </div>
+
+  <div class="manager-quick-grid">
+    <article class="manager-quick-card">
+      <div class="manager-quick-card-head">
+        <div>
+          <span class="manager-state-label">
+            <span class="manager-state-dot{% if draft.status == 'CLOSED' %} closed{% elif draft.picking_paused %} paused{% endif %}" aria-hidden="true"></span>
+            Picking
+          </span>
+          <h3>
+            {% if draft.status == 'CLOSED' %}Session closed
+            {% elif draft.picking_paused %}Picking paused
+            {% elif schedule_complete %}Calendar complete
+            {% else %}Picking active{% endif %}
+          </h3>
+        </div>
+        {% if draft.status == 'OPEN' and draft.picking_paused %}
+        <span class="pill small target_approved">Paused</span>
+        {% elif draft.status == 'OPEN' and not schedule_complete %}
+        <span class="pill small open">Active</span>
+        {% endif %}
+      </div>
+      <p>
+        {% if draft.status == 'CLOSED' %}
+          Reopen the session before changing the active turn.
+        {% elif draft.picking_paused %}
+          The current turn is frozen. Resume when everyone is ready.
+        {% elif schedule_complete %}
+          Every required duty slot is filled.
+        {% else %}
+          Temporarily pause picking without closing or changing the schedule.
+        {% endif %}
+      </p>
+      {% if draft.status == 'OPEN' and (draft.picking_paused or not schedule_complete) %}
+      <div class="manager-quick-actions">
+        <form method="post" action="{{ url_for('session_picking', session_id=draft.id) }}" data-live-action-form>
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="paused" value="{{ 0 if draft.picking_paused else 1 }}">
+          <button class="button {{ 'secondary' if not draft.picking_paused else '' }}" type="submit">
+            {{ 'Resume picking' if draft.picking_paused else 'Pause picking' }}
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </article>
+
+    <article class="manager-quick-card">
+      <div class="manager-quick-card-head">
+        <div>
+          <span class="manager-state-label">
+            <span class="manager-state-dot{% if draft.status == 'CLOSED' %} closed{% endif %}" aria-hidden="true"></span>
+            Session status
+          </span>
+          <h3>{{ 'Closed' if draft.status == 'CLOSED' else 'Open' }}</h3>
+        </div>
+        <span class="pill small {{ draft.status|lower }}">{{ draft.status }}</span>
+      </div>
+      <p>
+        {% if draft.status == 'OPEN' %}
+          Close the session when the schedule is final. This stops picking and enables duty swaps.
+        {% else %}
+          Reopening restores picking and temporarily disables the closed-session swap workflow.
+        {% endif %}
+      </p>
+      <div class="manager-quick-actions">
+        <form method="post" action="{{ url_for('session_status', session_id=draft.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="status" value="{{ 'CLOSED' if draft.status == 'OPEN' else 'OPEN' }}">
+          <button class="button {{ 'danger' if draft.status == 'OPEN' else 'secondary' }}" type="submit" data-confirm="{{ 'Close this duty session? Picking will stop and duty swaps will become available.' if draft.status == 'OPEN' else 'Reopen this duty session and resume picking?' }}">
+            {{ 'Close session' if draft.status == 'OPEN' else 'Reopen session' }}
+          </button>
+        </form>
+        {% if draft.status == 'CLOSED' %}
+        <a class="button secondary" href="{{ url_for('swap_page', session_id=draft.id) }}">Manage duty swaps</a>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+
+  <details class="manager-settings">
+    <summary>
+      <span class="manager-settings-summary">
+        <strong>Scheduling rules &amp; exceptions</strong>
+        <small>Picking order, special dates, and per-date staffing limits.</small>
+      </span>
+      <span class="manager-settings-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div class="manager-settings-content">
+      {% include 'session_hra_controls_v2.html' %}
+    </div>
+  </details>
+
+  {% if me.role == 'ADMIN' %}
+  <details class="manager-danger-settings">
+    <summary>Admin danger zone</summary>
+    <div class="manager-danger-content">
+      <p>Permanently deletes this session, its assignments, and its swap history. This cannot be undone.</p>
+      <form method="post" action="{{ url_for('delete_session', session_id=draft.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="button danger" type="submit" data-confirm="Permanently delete session '{{ draft.name }}' and all its assignments? This cannot be undone.">Delete session</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+</section>
