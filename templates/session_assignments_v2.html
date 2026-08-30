@@ -1,148 +1,118 @@
-<div class="section-head">
-  <div>
-    <p class="eyebrow">Roster & Swaps</p>
-    <h2>Assigned Shifts & Trades</h2>
+<section class="card" data-session-assignments>
+  <div class="section-head">
+    <div><h2>Assignments</h2><p>Each row is one person on one duty date.</p></div>
+    <div class="button-group">
+      <span class="count-badge">{{ assigned_count }}</span>
+      <a class="button secondary small" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
+      <a class="button secondary small" href="{{ url_for('my_session_calendar_ics', session_id=draft.id) }}">Export my dates</a>
+    </div>
   </div>
-  <div class="button-group">
-    {% if my_swaps or can_manage %}
-    <button type="button" class="button small secondary" data-open-swap-dialog>
-      Request Shift Swap
-    </button>
-    {% endif %}
-  </div>
-</div>
 
-{% if pending_swaps and can_manage %}
-<div class="pending-swaps-panel">
-  <div class="section-head compact">
-    <div>
-      <p class="eyebrow">Management Action Required</p>
-      <h3>Pending Duty Swap Requests</h3>
+  {% if pending_swaps and can_manage %}
+  <div class="pending-swaps-panel">
+    <h3>Pending Duty Swaps</h3>
+    <div class="swap-requests-list">
+      {% for swap in pending_swaps %}
+      <div class="swap-request-card">
+        <div class="swap-details">
+          <strong>{{ swap.requester_name }}</strong> ({{ swap.requester_date|date_label }})
+          <span class="swap-arrow">&harr;</span>
+          <strong>{{ swap.target_name }}</strong> ({{ swap.target_date|date_label }})
+        </div>
+        <div class="swap-actions">
+          <form method="post" action="{{ url_for('review_duty_swap', session_id=draft.id, swap_id=swap.id) }}" data-live-action-form>
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="APPROVE">
+            <button class="button small" type="submit">Approve swap</button>
+          </form>
+          <form method="post" action="{{ url_for('review_duty_swap', session_id=draft.id, swap_id=swap.id) }}" data-live-action-form>
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="REJECT">
+            <button class="button ghost small" type="submit">Reject</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
     </div>
-    <span class="count-badge">{{ pending_swaps|length }}</span>
   </div>
-  <div class="swap-requests-list">
-    {% for s in pending_swaps %}
-    <div class="swap-request-card">
-      <div class="swap-details">
-        <strong>{{ s.requester_name }}</strong> ({{ s.requester_date|date_label }})
-        <span class="swap-arrow">&harr;</span>
-        <strong>{{ s.target_name }}</strong> ({{ s.target_date|date_label }})
-      </div>
-      <div class="swap-actions">
-        <form method="POST" action="{{ url_for('review_duty_swap', session_id=draft.id, swap_id=s.id) }}">
+  {% endif %}
+
+  {% if my_swaps %}
+  <div class="my-swaps-panel">
+    {% for swap in my_swaps %}
+      {% if swap.status == 'PENDING' %}
+      <div class="notice">
+        <span>Swap pending: Trade your shift with <strong>{{ swap.target_name if swap.requester_user_id == me.id else swap.requester_name }}</strong>. Waiting for HRA approval.</span>
+        {% if swap.requester_user_id == me.id %}
+        <form method="post" action="{{ url_for('cancel_duty_swap', session_id=draft.id, swap_id=swap.id) }}" data-live-action-form class="inline-form">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="action" value="APPROVE">
-          <button type="submit" class="button small">Approve swap</button>
+          <button class="button danger small" type="submit">Cancel request</button>
         </form>
-        <form method="POST" action="{{ url_for('review_duty_swap', session_id=draft.id, swap_id=s.id) }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="action" value="REJECT">
-          <button type="submit" class="button small ghost">Reject</button>
-        </form>
+        {% endif %}
       </div>
-    </div>
+      {% endif %}
     {% endfor %}
   </div>
-</div>
-{% endif %}
+  {% endif %}
 
-<div class="table-wrap">
-  <table class="assignment-table">
-    <thead>
-      <tr>
-        <th>Duty Date</th>
-        <th>Assigned Resident Assistants</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for d in dates %}
-        {% set assigned = assignments_by_date.get(d, []) %}
-        {% set cap = capacities.get(d, 0) %}
-        {% set kind = date_kinds.get(d) %}
+  <div class="table-wrap">
+    <table class="assignment-table">
+      <thead><tr><th>Participant</th><th>Role</th><th>Duty date</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for a in picks %}
         <tr>
-          <td data-label="Duty Date">
-            <strong>{{ d|date_label }}</strong>
-            <span class="muted" style="font-size:0.75rem; display:block;">{{ date_kind_labels.get(kind, kind) }}</span>
-          </td>
-          <td data-label="Assigned RAs">
-            {% if assigned %}
-              <div class="tag-list">
-                {% for a in assigned %}
-                  <span class="tag">
-                    {{ a.name }}
-                    {% if a.user_id == me.id %}
-                      <a href="{{ google_calendar_url(draft.building_name, a.duty_date, draft.name) }}" target="_blank" rel="noopener noreferrer" class="text-link" style="margin-left:0.35rem; font-size:0.7rem;" title="Add to Google Calendar">+ GCal</a>
-                    {% endif %}
-                    {% if can_manage %}
-                      <form method="POST" action="{{ url_for('delete_assignment', session_id=draft.id, assignment_id=a.id) }}" style="display:inline; margin-left:0.25rem;">
-                        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-                        <button type="submit" class="nav-button muted" title="Remove assignment" style="font-size:0.8rem;">&times;</button>
-                      </form>
-                    {% endif %}
-                  </span>
-                {% endfor %}
-              </div>
-            {% else %}
-              {% if cap == 0 %}
-                <span class="muted">No duty coverage needed</span>
-              {% else %}
-                <span class="muted">No RAs assigned yet</span>
+          <td data-label="Participant"><strong>{{ a.name }}</strong></td>
+          <td data-label="Role"><span class="inline-role{% if a.role == 'ADMIN' %} admin-role{% endif %}">{{ a.role }}</span></td>
+          <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
+          <td data-label="Actions">
+            <div class="button-group">
+              {% if a.user_id == me.id %}
+              <a class="button secondary small gcal-btn" href="{{ google_calendar_url(draft.building_name, a.duty_date, draft.name) }}" target="_blank" rel="noopener" title="Add to Google Calendar">+ GCal</a>
+              <button class="button ghost small" type="button" data-swap-trigger data-assignment-id="{{ a.id }}" data-duty-date="{{ a.duty_date|date_label }}">Swap</button>
               {% endif %}
-            {% endif %}
-          </td>
-          <td data-label="Status">
-            {% if cap == 0 %}
-              <span class="pill closed small">Exempt</span>
-            {% elif assigned|length >= cap %}
-              <span class="pill open small">Full ({{ assigned|length }}/{{ cap }})</span>
-            {% else %}
-              <span class="pill small">{{ assigned|length }}/{{ cap }} Filled</span>
-            {% endif %}
+              {% if can_manage %}
+              <form method="post" action="{{ url_for('delete_assignment', session_id=draft.id, assignment_id=a.id) }}" data-live-action-form>
+                <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                <button class="button danger small" type="submit" data-confirm="Remove this assignment?">Remove</button>
+              </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+        {% else %}
+        <tr><td colspan="4">No assignments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
-<dialog id="swapRequestDialog" class="calendar-dialog">
-  <form method="POST" action="{{ url_for('request_duty_swap', session_id=draft.id) }}">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <div class="section-head compact">
-      <div>
-        <p class="eyebrow">Trade Shift</p>
-        <h3>Request Duty Shift Swap</h3>
+  <dialog class="calendar-dialog" data-swap-dialog>
+    <form method="post" action="{{ url_for('request_duty_swap', session_id=draft.id) }}" data-live-action-form>
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="my_assignment_id" data-swap-my-id>
+      <h3>Request Duty Swap</h3>
+      <p>Trade your shift on <strong data-swap-my-date></strong> with another RA in this session. The HRA will review and approve the request.</p>
+      <label class="field">Select colleague's shift:
+        <select name="target_assignment_id" required>
+          <option value="">-- Choose a shift --</option>
+          {% for pick in picks %}
+            {% if pick.user_id != me.id %}
+            <option value="{{ pick.id }}">{{ pick.duty_date|date_label }} &mdash; {{ pick.name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button class="button ghost" type="button" data-dialog-close>Cancel</button>
+        <button class="button" type="submit">Submit swap request</button>
       </div>
-      <button type="button" class="help-close" data-close-dialog aria-label="Close dialog">&times;</button>
-    </div>
+    </form>
+  </dialog>
 
-    <div class="field">
-      <label for="myAssignment">Select your shift to trade away:</label>
-      <select id="myAssignment" name="my_assignment_id" required>
-        {% for a in picks %}
-          {% if a.user_id == me.id %}
-            <option value="{{ a.id }}">{{ a.duty_date|date_label }}</option>
-          {% endif %}
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="field">
-      <label for="targetAssignment">Select desired shift to swap for:</label>
-      <select id="targetAssignment" name="target_assignment_id" required>
-        {% for a in picks %}
-          {% if a.user_id != me.id %}
-            <option value="{{ a.id }}">{{ a.name }} &mdash; {{ a.duty_date|date_label }}</option>
-          {% endif %}
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="dialog-actions">
-      <button type="button" class="button secondary" data-close-dialog>Cancel</button>
-      <button type="submit" class="button">Submit Trade Request</button>
-    </div>
-  </form>
-</dialog>
+  {% if can_manage %}
+  <details class="manager-panel">
+    <summary>Session controls</summary>
+    {% include 'session_hra_controls_v2.html' %}
+  </details>
+  {% endif %}
+</section>
