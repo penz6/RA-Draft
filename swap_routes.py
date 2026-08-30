@@ -32,7 +32,7 @@ def _swap_action_response(session_id, message, *, category="success", status=200
 
 
 def _swap_date_collision(conn, session_id, requester_user_id, target_user_id, validated_pairs):
-    """Return True if a proposed swap would give either person a date they already hold."""
+    """Return True if the final batch would leave either RA assigned twice on one date."""
     requester_dates = {
         row["duty_date"]
         for row in conn.execute(
@@ -48,16 +48,31 @@ def _swap_date_collision(conn, session_id, requester_user_id, target_user_id, va
         ).fetchall()
     }
 
+    requester_outgoing = set()
+    target_outgoing = set()
+    requester_incoming = []
+    target_incoming = []
+
     for requester_assignment, target_assignment in validated_pairs:
         requester_date = requester_assignment["duty_date"]
         target_date = target_assignment["duty_date"]
         if requester_date == target_date:
             return True
-        if target_date in requester_dates:
-            return True
-        if requester_date in target_dates:
-            return True
-    return False
+        requester_outgoing.add(requester_date)
+        target_outgoing.add(target_date)
+        requester_incoming.append(target_date)
+        target_incoming.append(requester_date)
+
+    projected_requester_dates = [
+        duty_date for duty_date in requester_dates if duty_date not in requester_outgoing
+    ] + requester_incoming
+    if len(projected_requester_dates) != len(set(projected_requester_dates)):
+        return True
+
+    projected_target_dates = [
+        duty_date for duty_date in target_dates if duty_date not in target_outgoing
+    ] + target_incoming
+    return len(projected_target_dates) != len(set(projected_target_dates))
 
 
 @app.route("/swaps")
@@ -316,7 +331,7 @@ def request_swap_batch(session_id):
         conn.rollback()
         return _swap_action_response(
             session_id,
-            "This swap would put one of you on a duty date you are already assigned to. Choose different dates.",
+            "This swap would leave one of you assigned twice on the same duty date. Choose a different combination of shifts.",
             category="error",
             status=400,
         )
@@ -514,9 +529,23 @@ def hra_review_swap(batch_id):
         conn.rollback()
         return _swap_action_response(
             session_id,
-            "The schedule changed and this swap would now create a duplicate duty date for one of the RAs.",
+            "The schedule changed and this swap would now leave one of the RAs assigned twice on the same duty date.",
             category="error",
             status=409,
+        )
+
+    # Temporarily move selected assignments onto unique holding dates so a
+    # multi-pair swap can exchange overlapping dates without tripping the
+    # immediate UNIQUE(session_id, user_id, duty_date) constraint mid-update.
+    held_dates = {}
+    for requester_assignment, target_assignment in resolved_pairs:
+        held_dates[requester_assignment["id"]] = requester_assignment["duty_date"]
+        held_dates[target_assignment["id"]] = target_assignment["duty_date"]
+
+    for assignment_id in held_dates:
+        conn.execute(
+            "UPDATE assignments SET duty_date=? WHERE id=?",
+            (f"__swap_hold__{batch_id}_{assignment_id}", assignment_id),
         )
 
     for row in rows:
@@ -527,6 +556,12 @@ def hra_review_swap(batch_id):
         conn.execute(
             "UPDATE assignments SET user_id=? WHERE id=?",
             (row["requester_user_id"], row["target_assignment_id"]),
+        )
+
+    for assignment_id, duty_date in held_dates.items():
+        conn.execute(
+            "UPDATE assignments SET duty_date=? WHERE id=?",
+            (duty_date, assignment_id),
         )
 
     conn.execute(
