@@ -119,7 +119,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         response = self.request("get", "/swaps")
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
-        self.assertIn("Available swap menus", page)
+        self.assertIn("Available sessions", page)
         self.assertIn("Fall Duty", page)
         self.assertIn(f"/swaps/session/{self.data['session_id']}", page)
 
@@ -132,12 +132,10 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
     def test_single_pair_cannot_leave_either_ra_with_duplicate_date(self):
         self.login_as(self.data["alice_id"])
 
-        # Alice cannot receive Bob's Sep 1 while keeping her own Sep 1 assignment.
         response = self._post_swap(self.data["alice_sep3"], self.data["bob_sep1"])
         self.assertEqual(response.status_code, 400)
         self.assertIn("assigned twice", response.get_json()["message"])
 
-        # Bob cannot receive Alice's Sep 1 while keeping his own Sep 1 assignment.
         response = self._post_swap(self.data["alice_sep1"], self.data["bob_sep4"])
         self.assertEqual(response.status_code, 400)
         self.assertIn("assigned twice", response.get_json()["message"])
