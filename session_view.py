@@ -27,6 +27,7 @@ from core import (
     session_complete,
     session_row,
     total_slots,
+    user_upcoming_shifts,
     db,
 )
 from live_updates import session_state_version
@@ -132,6 +133,21 @@ def _begin_session_snapshot(session_id):
         if conn.in_transaction:
             conn.rollback()
         raise
+
+
+@app.route("/my-duty-shifts")
+@login_required
+def upcoming_duty_shifts():
+    """Show the signed-in user's complete list of upcoming duty shifts."""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    shifts = user_upcoming_shifts(user["id"])
+    return render_template(
+        "upcoming_duty_shifts.html",
+        me=user,
+        upcoming_shifts=shifts,
+    )
 
 
 @app.route("/sessions/<int:session_id>")
