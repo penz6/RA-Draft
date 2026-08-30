@@ -21,6 +21,7 @@ class SessionSwapUIUsabilityTests(unittest.TestCase):
 
         self.assertNotIn("Session controls", assignments_template)
         self.assertNotIn("session_hra_controls_v2.html", assignments_template)
+        self.assertIn("closed-session-swap-notice", assignments_template)
         self.assertIn("Calendar exports", heading_template)
         self.assertNotIn("Delete session", heading_template)
 
@@ -45,6 +46,7 @@ class SessionSwapUIUsabilityTests(unittest.TestCase):
         self.assertIn(".session-manager-card", css)
         self.assertIn(".swap-builder-row", css)
         self.assertIn(".swap-attention-grid", css)
+        self.assertIn(".swap-attention-grid>.card:only-child", css)
 
 
 if __name__ == "__main__":
