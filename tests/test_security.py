@@ -157,6 +157,7 @@ class SecurityTestCase(unittest.TestCase):
             sub="ra-sub",
             email="ra@g.rwu.edu",
             name="RA",
+            role="RA",
             building_id=second,
         )
         with app.app_context():
@@ -201,13 +202,14 @@ class SecurityTestCase(unittest.TestCase):
             conn.commit()
             assignment_id = assignment.lastrowid
         self.login_as(user_id)
-        response = self.request("get", f"/calendar/{assignment_id}.ics")
+        response = self.request("get", f"/calendar/session/{session_id}.ics")
         body = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("\r\nX-EVIL: yes", body)
         self.assertNotIn("\r\nBEGIN:VALARM", body)
         self.assertIn("\\nX-EVIL: yes", body)
         self.assertIn("\\nBEGIN:VALARM", body)
+
 
     def test_google_callback_creates_user_from_verified_profile(self):
         info = {
