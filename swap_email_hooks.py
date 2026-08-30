@@ -53,6 +53,27 @@ def capture_swap_email_state():
         )
         return
 
+    if endpoint == "manager_manual_swap":
+        user = current_user()
+        session_id = view_args.get("session_id")
+        if not user or session_id is None:
+            return
+        row = db().execute(
+            "SELECT COALESCE(MAX(id), 0) AS max_id FROM duty_swap_requests WHERE session_id=?",
+            (session_id,),
+        ).fetchone()
+        setattr(
+            g,
+            _STATE_KEY,
+            {
+                "kind": "manager_manual",
+                "session_id": session_id,
+                "reviewer_user_id": user["id"],
+                "max_id": row["max_id"],
+            },
+        )
+        return
+
     if endpoint not in {"target_review_swap", "hra_review_swap"}:
         return
 
@@ -96,6 +117,22 @@ def dispatch_swap_email_notifications(response):
             ).fetchall()
             for row in new_batches:
                 send_swap_request_notification(row["batch_id"])
+
+        elif state["kind"] == "manager_manual":
+            new_batches = db().execute(
+                "SELECT DISTINCT batch_id FROM duty_swap_requests "
+                "WHERE session_id=? AND id>? AND status='APPROVED' "
+                "AND reviewed_by=? AND batch_id IS NOT NULL ORDER BY id",
+                (
+                    state["session_id"],
+                    state["max_id"],
+                    state["reviewer_user_id"],
+                ),
+            ).fetchall()
+            for row in new_batches:
+                send_swap_approved_notifications(
+                    row["batch_id"], state["reviewer_user_id"]
+                )
 
         elif state["kind"] == "target_review":
             if (
