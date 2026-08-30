@@ -1,17 +1,13 @@
 <section class="card" data-session-assignments>
   <div class="section-head">
-    <div><h2>Assignments</h2><p>Each row is one person on one duty date.</p></div>
-    <div class="button-group">
-      <span class="count-badge">{{ assigned_count }}</span>
-      <a class="button secondary small" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
-      <a class="button secondary small" href="{{ url_for('my_session_calendar_ics', session_id=draft.id) }}">Export my dates</a>
-    </div>
+    <div><h2>Assignments</h2><p>Review the current people assigned to each duty date.</p></div>
+    <span class="count-badge">{{ assigned_count }}</span>
   </div>
 
   {% if draft.status == 'CLOSED' %}
-  <div class="notice" style="display:flex; align-items:center; justify-content:space-between;">
-    <span>This session is closed. You can manage duty swaps on the dedicated swap page.</span>
-    <a class="button small" href="{{ url_for('swap_page', session_id=draft.id) }}">Manage duty swaps &rarr;</a>
+  <div class="notice closed-session-swap-notice">
+    <span>This session is closed. Duty swaps are managed on the dedicated swap page.</span>
+    <a class="button small" href="{{ url_for('swap_page', session_id=draft.id) }}">Open duty swaps &rarr;</a>
   </div>
   {% endif %}
 
@@ -41,11 +37,4 @@
       </tbody>
     </table>
   </div>
-
-  {% if can_manage %}
-  <details class="manager-panel">
-    <summary>Session controls</summary>
-    {% include 'session_hra_controls_v2.html' %}
-  </details>
-  {% endif %}
 </section>

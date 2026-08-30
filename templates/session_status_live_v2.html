@@ -6,4 +6,8 @@
   {% elif draft.status == 'OPEN' %}
   <div class="notice">{{ selection_phase }}</div>
   {% endif %}
+
+  {% if can_manage %}
+  {% include 'session_manager_v2.html' %}
+  {% endif %}
 </div>

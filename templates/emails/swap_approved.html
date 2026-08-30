@@ -1,0 +1,45 @@
+{% extends 'emails/base.html' %}
+{% block title %}Duty swap approved | RA Draft{% endblock %}
+{% block preheader %}The duty swap has been approved and the schedule is updated.{% endblock %}
+{% block content %}
+  <div style="font-size:13px;line-height:18px;font-weight:700;color:#26734d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Approved</div>
+  <h1 style="margin:0 0 14px;font-size:28px;line-height:35px;color:#172033;letter-spacing:-0.6px;">The duty swap is complete</h1>
+  <p style="margin:0 0 20px;font-size:16px;line-height:25px;color:#465066;">Hi {{ first_name }}, the swap between <strong>{{ swap.requester.name }}</strong> and <strong>{{ swap.target.name }}</strong> for <strong>{{ swap.session_name }}</strong> has received final approval. The RA Draft schedule is now updated.</p>
+
+  <div style="padding:14px 16px;margin-bottom:22px;border-radius:12px;background:#eaf8f1;border:1px solid #b8e3cc;color:#235f43;font-size:14px;line-height:21px;"><strong>Schedule updated.</strong> The assignments below are now the official duty dates in RA Draft.</div>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 24px;border:1px solid #e3e9f2;border-radius:12px;overflow:hidden;">
+    <tr style="background:#f8fafc;">
+      <td style="padding:11px 14px;font-size:12px;font-weight:800;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">Person</td>
+      <td style="padding:11px 14px;font-size:12px;font-weight:800;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">Previous date</td>
+      <td style="padding:11px 14px;font-size:12px;font-weight:800;color:#667085;text-transform:uppercase;letter-spacing:0.04em;">New date</td>
+    </tr>
+    {% for pair in swap.pairs %}
+    <tr>
+      <td style="padding:13px 14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#172033;font-weight:700;">{{ swap.requester.name }}</td>
+      <td style="padding:13px 14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#667085;">{{ pair.requester_date_label }}</td>
+      <td style="padding:13px 14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#172033;font-weight:800;">{{ pair.target_date_label }}</td>
+    </tr>
+    <tr>
+      <td style="padding:13px 14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#172033;font-weight:700;">{{ swap.target.name }}</td>
+      <td style="padding:13px 14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#667085;">{{ pair.target_date_label }}</td>
+      <td style="padding:13px 14px;border-top:1px solid #e8edf5;font-size:14px;line-height:20px;color:#172033;font-weight:800;">{{ pair.requester_date_label }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:14px;">
+    <tr>
+      <td style="border-radius:10px;background:#2957d9;">
+        <a href="{{ session_url }}" style="display:inline-block;padding:13px 20px;color:#ffffff;text-decoration:none;font-size:14px;line-height:18px;font-weight:800;">View updated schedule</a>
+      </td>
+      {% if show_calendar %}
+      <td style="width:10px;"></td>
+      <td style="border-radius:10px;background:#eef2f8;">
+        <a href="{{ calendar_url }}" style="display:inline-block;padding:13px 20px;color:#2f405f;text-decoration:none;font-size:14px;line-height:18px;font-weight:800;">Download my iCal</a>
+      </td>
+      {% endif %}
+    </tr>
+  </table>
+  <p style="margin:0;font-size:13px;line-height:20px;color:#788399;">You can also <a href="{{ swap_url }}" style="color:#2957d9;text-decoration:none;font-weight:700;">view the swap history</a> in RA Draft.</p>
+{% endblock %}

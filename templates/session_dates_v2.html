@@ -1,8 +1,8 @@
 <section class="card duty-calendar-card" data-duty-calendar data-self-user-id="{{ me.id }}" data-current-user-id="{{ next.id if next else '' }}" data-can-manage="{{ 'true' if can_manage else 'false' }}">
-  <div class="section-head">
+  <div class="section-head calendar-section-head">
     <div>
       <h2>Assignment calendar</h2>
-      <p>Click an available date when it is your turn. Names already assigned appear on each date.</p>
+      <p>Choose an available duty date when it is your turn. Only dates included in this session are shown.</p>
     </div>
   </div>
 
@@ -25,8 +25,12 @@
 
   <div class="calendar-months">
     {% for month in months %}
+    {% set month_state = namespace(first_rendered=false) %}
     <section class="calendar-month">
-      <h3>{{ month.label }}</h3>
+      <div class="calendar-month-head">
+        <h3>{{ month.label }}</h3>
+        <span>Session dates</span>
+      </div>
       <div class="calendar-scroll">
         <div class="calendar-weekdays" aria-hidden="true">
           <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
@@ -43,7 +47,7 @@
                 {% set kind_override = d in date_kind_overrides %}
                 {% set full = no_duty or filled >= capacity %}
                 {% set self_allowed = d in selectable_dates %}
-                <button class="calendar-day{% if date_kind == 'WEEKDAY' %} is-weekday{% elif date_kind == 'WEEKEND' %} is-weekend{% endif %}{% if full %} is-full{% endif %}{% if no_duty %} is-no-duty{% endif %}{% if self_allowed %} is-self-selectable{% endif %}" type="button" data-calendar-day data-date="{{ d }}" data-date-label="{{ d|date_label }}" data-full="{{ 'true' if full else 'false' }}" data-no-duty="{{ 'true' if no_duty else 'false' }}" data-self-selectable="{{ 'true' if self_allowed else 'false' }}" data-assigned-user-ids="{{ assignment_user_ids.get(d, '') }}" {% if draft.status != 'OPEN' or draft.picking_paused or full or (not can_manage and not self_allowed) %}disabled{% endif %} aria-label="{{ d|date_label }}: {% if no_duty %}no one needed{% else %}{{ filled }} of {{ capacity }} assigned{% if assigned %}; {{ assigned|map(attribute='name')|join(', ') }}{% endif %}{% endif %}">
+                <button class="calendar-day{% if not month_state.first_rendered %} calendar-start-{{ loop.index }}{% endif %}{% if date_kind == 'WEEKDAY' %} is-weekday{% elif date_kind == 'WEEKEND' %} is-weekend{% endif %}{% if full %} is-full{% endif %}{% if no_duty %} is-no-duty{% endif %}{% if self_allowed %} is-self-selectable{% endif %}" type="button" data-calendar-day data-date="{{ d }}" data-date-label="{{ d|date_label }}" data-full="{{ 'true' if full else 'false' }}" data-no-duty="{{ 'true' if no_duty else 'false' }}" data-self-selectable="{{ 'true' if self_allowed else 'false' }}" data-assigned-user-ids="{{ assignment_user_ids.get(d, '') }}" {% if draft.status != 'OPEN' or draft.picking_paused or full or (not can_manage and not self_allowed) %}disabled{% endif %} aria-label="{{ d|date_label }}: {% if no_duty %}no one needed{% else %}{{ filled }} of {{ capacity }} assigned{% if assigned %}; {{ assigned|map(attribute='name')|join(', ') }}{% endif %}{% endif %}">
                   <span class="calendar-day-head">
                     <strong>{{ d[8:10]|int }}</strong>
                     <small>{{ date_kind_labels[date_kind] }}{% if kind_override and not no_duty %} · override{% endif %}</small>
@@ -59,19 +63,18 @@
                       <span class="calendar-more">+{{ assigned|length - 2 }} more</span>
                       {% endif %}
                     {% else %}
-                    <span class="calendar-empty">No one assigned</span>
+                    <span class="calendar-empty">Open shift</span>
                     {% endif %}
                   </span>
                   <span class="calendar-capacity">
                     {% if no_duty %}
                     No staffing required
                     {% else %}
-                    {{ filled }}/{{ capacity }}{% if d in capacity_overrides %} · capacity override{% endif %}
+                    <strong>{{ filled }}/{{ capacity }}</strong> staffed{% if d in capacity_overrides %} · custom capacity{% endif %}
                     {% endif %}
                   </span>
                 </button>
-              {% else %}
-                <div class="calendar-blank" aria-hidden="true"></div>
+                {% set month_state.first_rendered = true %}
               {% endif %}
             {% endfor %}
           {% endfor %}

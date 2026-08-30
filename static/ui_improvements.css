@@ -1,0 +1,147 @@
+/* Session manager and duty swap usability improvements. */
+
+/* Session heading: keep exports available without crowding manager actions. */
+.session-export-menu{position:relative}
+.session-export-menu>summary{list-style:none}
+.session-export-menu>summary::-webkit-details-marker{display:none}
+.session-export-menu[open]>summary{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}
+.session-export-popover{position:absolute;top:calc(100% + .5rem);right:0;z-index:15;display:grid;min-width:230px;padding:.45rem;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-card);box-shadow:0 16px 40px rgba(0,0,0,.45)}
+.session-export-popover a{display:flex;flex-direction:column;gap:.15rem;padding:.7rem .75rem;border-radius:8px;color:var(--ink);text-decoration:none}
+.session-export-popover a:hover{background:var(--surface-2);color:#fff}
+.session-export-popover small{font-size:.72rem;font-weight:500}
+.closed-session-swap-notice{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+
+/* Manager dashboard. */
+.session-manager-card{border-color:rgba(59,130,246,.22);background:linear-gradient(180deg,rgba(59,130,246,.055),transparent 9rem),var(--surface-card)}
+.session-manager-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.session-manager-head p{max-width:720px;margin:0;color:var(--muted)}
+.manager-quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+.manager-quick-card{display:flex;min-width:0;flex-direction:column;gap:.7rem;padding:1rem;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.manager-quick-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem}
+.manager-quick-card h3{margin:0;font-size:1rem}
+.manager-quick-card p{margin:0;color:var(--muted);font-size:.84rem}
+.manager-quick-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:auto}
+.manager-quick-actions form{margin:0}
+.manager-state-label{display:inline-flex;align-items:center;gap:.4rem;color:var(--muted);font-size:.72rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}
+.manager-state-dot{width:.48rem;height:.48rem;border-radius:50%;background:var(--success)}
+.manager-state-dot.paused{background:var(--gold)}
+.manager-state-dot.closed{background:var(--muted)}
+.manager-settings{margin-top:.9rem;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.manager-settings>summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.9rem 1rem;cursor:pointer;list-style:none}
+.manager-settings>summary::-webkit-details-marker{display:none}
+.manager-settings>summary:hover{background:rgba(255,255,255,.025)}
+.manager-settings-summary{display:flex;min-width:0;flex-direction:column;gap:.1rem}
+.manager-settings-summary strong{color:#f8fafc}
+.manager-settings-summary small{font-size:.78rem;font-weight:500}
+.manager-settings-chevron{color:var(--muted);font-size:1.15rem;transition:transform 120ms ease}
+.manager-settings[open] .manager-settings-chevron{transform:rotate(180deg)}
+.manager-settings-content{padding:1rem;border-top:1px solid var(--line)}
+.manager-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+.manager-setting-card{min-width:0;padding:1rem;border:1px solid var(--line);border-radius:11px;background:var(--surface-2)}
+.manager-setting-card.full{grid-column:1 / -1}
+.manager-setting-head{margin-bottom:.8rem}
+.manager-setting-head h3{margin-bottom:.2rem}
+.manager-setting-head p{margin:0;color:var(--muted);font-size:.82rem}
+.manager-setting-card .manager-rule-form{margin:0}
+.manager-setting-card .override-list{margin-top:.8rem}
+.manager-setting-card .override-row{background:rgba(10,14,26,.28)}
+.manager-note{margin:.65rem 0 0;font-size:.78rem}
+.manager-danger-settings{margin-top:.9rem;border:1px solid rgba(239,68,68,.28);border-radius:12px;background:rgba(239,68,68,.055)}
+.manager-danger-settings>summary{padding:.8rem 1rem;cursor:pointer;list-style:none;color:#fca5a5;font-weight:800}
+.manager-danger-settings>summary::-webkit-details-marker{display:none}
+.manager-danger-content{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0 1rem 1rem}
+.manager-danger-content p{margin:0;color:var(--muted);font-size:.82rem}
+.manager-danger-content form{margin:0;flex:0 0 auto}
+
+/* Swap workflow overview. */
+.swap-workflow-card{padding:1rem 1.15rem}
+.swap-workflow-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:0;padding:0;list-style:none}
+.swap-workflow-step{display:grid;grid-template-columns:2rem minmax(0,1fr);gap:.65rem;align-items:start;padding:.7rem;border-radius:10px;background:var(--surface-2)}
+.swap-step-number{display:grid;width:2rem;height:2rem;place-items:center;border-radius:50%;color:#bfdbfe;background:var(--blue-soft);border:1px solid rgba(59,130,246,.25);font-size:.78rem;font-weight:900}
+.swap-workflow-step strong{display:block;font-size:.88rem}
+.swap-workflow-step small{display:block;margin-top:.1rem;font-size:.72rem;line-height:1.35}
+
+/* Review areas prioritize pending work. */
+.swap-attention-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-bottom:1.4rem}
+.swap-attention-grid>.card{margin-bottom:0}
+.swap-attention-grid>.card:only-child{grid-column:1 / -1}
+.swap-attention-card{border-color:rgba(212,167,44,.25);background:linear-gradient(180deg,rgba(212,167,44,.055),transparent 8rem),var(--surface-card)}
+.swap-review-list{display:grid;gap:.75rem}
+.swap-review-card{padding:1rem;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.swap-review-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;margin-bottom:.8rem}
+.swap-review-top h3{margin:.15rem 0 .2rem;font-size:1rem}
+.swap-review-top p{margin:0;color:var(--muted);font-size:.8rem}
+.swap-card-label{display:block;color:var(--gold);font-size:.68rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.swap-review-card .swap-pairs-list{margin-bottom:.9rem}
+.swap-review-card .swap-pair{padding:.65rem .75rem;background:rgba(10,14,26,.32)}
+.swap-review-card .swap-actions{padding-top:.75rem;border-top:1px solid var(--line)}
+
+/* Guided swap request builder. */
+.swap-builder-card{border-color:rgba(59,130,246,.22)}
+.swap-builder-steps{display:grid;gap:1rem}
+.swap-builder-step{display:grid;grid-template-columns:2.25rem minmax(0,1fr);gap:.8rem;align-items:start}
+.swap-builder-step-number{display:grid;width:2.25rem;height:2.25rem;place-items:center;border-radius:50%;color:#bfdbfe;background:var(--blue-soft);border:1px solid rgba(59,130,246,.3);font-size:.82rem;font-weight:900}
+.swap-builder-step-content{min-width:0}
+.swap-builder-step-head{margin-bottom:.65rem}
+.swap-builder-step-head h3{margin-bottom:.15rem}
+.swap-builder-step-head p{margin:0;color:var(--muted);font-size:.82rem}
+.swap-partner-field{max-width:520px}
+.swap-builder-list{display:grid;gap:.6rem}
+.swap-builder-row{display:grid;grid-template-columns:minmax(190px,.9fr) 2.25rem minmax(220px,1.1fr);gap:.7rem;align-items:center;padding:.75rem;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);transition:border-color 120ms ease,background 120ms ease,opacity 120ms ease}
+.swap-builder-row:not(.is-selected){opacity:.76}
+.swap-builder-row.is-selected{border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.08)}
+.swap-shift-toggle{display:flex;align-items:center;gap:.7rem;min-width:0;cursor:pointer}
+.swap-shift-toggle input{flex:0 0 auto;width:1.2rem;min-height:1.2rem}
+.swap-shift-copy{display:flex;min-width:0;flex-direction:column}
+.swap-shift-copy small{font-size:.68rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.swap-shift-copy strong{margin-top:.08rem;font-size:.9rem;color:#f8fafc}
+.swap-builder-arrow{display:grid;width:2.25rem;height:2.25rem;place-items:center;border-radius:50%;color:#93c5fd;background:rgba(59,130,246,.1);font-size:1.1rem;font-weight:900}
+.swap-target-field{font-size:.78rem}
+.swap-target-field select:disabled{opacity:.55;cursor:not-allowed}
+.swap-builder-summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1rem;padding:1rem;border:1px solid var(--line-strong);border-radius:12px;background:rgba(10,14,26,.35)}
+.swap-builder-summary-copy{display:flex;min-width:0;flex-direction:column;gap:.15rem}
+.swap-builder-summary-copy strong{color:#f8fafc;font-size:.9rem}
+.swap-builder-summary-copy span{color:var(--muted);font-size:.78rem}
+.swap-builder-summary .button{flex:0 0 auto}
+
+/* Outgoing requests and history. */
+.swap-status-list{display:grid;gap:.7rem}
+.swap-status-card{padding:.9rem 1rem;border:1px solid var(--line);border-radius:11px;background:var(--surface-2)}
+.swap-status-top{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:.65rem}
+.swap-status-top h3{margin:0;font-size:.95rem}
+.swap-status-top p{margin:.1rem 0 0;color:var(--muted);font-size:.75rem}
+.swap-status-card .swap-pairs-list{margin-bottom:.65rem}
+.swap-history-card{padding:0;overflow:hidden}
+.swap-history-summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.15rem 1.4rem;cursor:pointer;list-style:none}
+.swap-history-summary::-webkit-details-marker{display:none}
+.swap-history-summary h2{margin-bottom:.2rem}
+.swap-history-summary p{margin:0;color:var(--muted);font-size:.82rem}
+.swap-history-list{display:grid;gap:.65rem;padding:0 1.4rem 1.4rem;border-top:1px solid var(--line)}
+.swap-history-list .swap-status-card:first-child{margin-top:1rem}
+
+@media(max-width:900px){
+  .manager-settings-grid,.swap-attention-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:760px){
+  .session-export-menu{width:100%}
+  .session-export-menu>summary{width:100%}
+  .session-export-popover{position:static;margin-top:.4rem;min-width:0}
+  .session-manager-head,.manager-danger-content,.swap-review-top,.swap-builder-summary,.swap-status-top,.closed-session-swap-notice{align-items:stretch;flex-direction:column}
+  .manager-quick-grid{grid-template-columns:1fr}
+  .manager-settings>summary{align-items:flex-start}
+  .manager-setting-card.full{grid-column:auto}
+  .swap-workflow-steps{grid-template-columns:1fr}
+  .swap-builder-step{grid-template-columns:1fr}
+  .swap-builder-step-number{width:2rem;height:2rem}
+  .swap-builder-row{grid-template-columns:1fr;padding:.8rem}
+  .swap-builder-arrow{transform:rotate(90deg);justify-self:start;margin-left:.15rem}
+  .swap-builder-summary .button,.manager-danger-content .button,.closed-session-swap-notice .button{width:100%}
+}
+
+@media(max-width:520px){
+  .swap-actions{display:grid;grid-template-columns:1fr}
+  .swap-actions form,.swap-actions .button{width:100%}
+  .swap-pair{align-items:flex-start;flex-direction:column;gap:.25rem}
+  .swap-pair .swap-arrow{transform:rotate(90deg);align-self:center}
+}
