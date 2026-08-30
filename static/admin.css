@@ -3,7 +3,7 @@
   padding: 1rem;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fbfcfe;
+  background: var(--surface-card);
 }
 
 .admin-create-user .form-actions {
@@ -22,12 +22,12 @@
   padding: .75rem;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: #fbfcfe;
+  background: var(--surface-2);
 }
 
 .user-admin-entry.is-disabled {
-  background: #fff8f8;
-  border-color: #efcaca;
+  background: var(--danger-soft);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .building-admin-row {
@@ -87,7 +87,7 @@
 }
 
 .account-state.pending {
-  color: #795200;
+  color: var(--gold);
   background: var(--gold-soft);
 }
 
