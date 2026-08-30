@@ -1,6 +1,7 @@
 from flask import abort, redirect, request, url_for
 
 from core import app, audit, can_manage, current_user, db, require_csrf, roles, session_row
+from email_notifications import send_session_closed_notifications
 
 
 @app.route("/sessions/<int:session_id>/status", methods=["POST"])
@@ -25,6 +26,7 @@ def session_status(session_id):
         conn.rollback()
         return redirect(url_for("view_session", session_id=session_id))
 
+    notify_closed = row["status"] != "CLOSED" and status == "CLOSED"
     conn.execute(
         "UPDATE draft_sessions SET status=?,picking_paused=0 WHERE id=?",
         (status, session_id),
@@ -40,6 +42,10 @@ def session_status(session_id):
         },
     )
     conn.commit()
+
+    if notify_closed:
+        send_session_closed_notifications(session_id)
+
     return redirect(url_for("view_session", session_id=session_id))
 
 
