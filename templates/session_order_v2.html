@@ -1,54 +1,55 @@
-<div class="section-head">
-  <div>
-    <p class="eyebrow">Round Robin</p>
-    <h2>Turn Order</h2>
+<section class="card turn-order-card" data-turn-order data-self-user-id="{{ me.id }}" data-current-picker-id="{{ next.id if next else '' }}" data-picking-paused="{{ 'true' if draft.picking_paused else 'false' }}">
+  <div class="section-head">
+    <div><h2>Turn order</h2><p>The order repeats until the calendar is full.</p></div>
   </div>
-  {% if can_manage %}
-  <form method="POST" action="{{ url_for('session_picking', session_id=draft.id) }}">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    {% if draft.picking_paused %}
-      <input type="hidden" name="paused" value="0">
-      <button type="submit" class="button small">Resume Picking</button>
-    {% else %}
-      <input type="hidden" name="paused" value="1">
-      <button type="submit" class="button small secondary">Pause Picking</button>
-    {% endif %}
-  </form>
-  {% endif %}
-</div>
-
-{% if next and next.id == me.id and draft.status == 'OPEN' and not draft.picking_paused %}
-<div class="your-turn-alert">
-  <div class="your-turn-icon">!</div>
-  <div class="your-turn-copy">
-    <strong>It is your turn to pick!</strong>
-    <small>Select an available date below to claim your duty shift.</small>
-  </div>
-</div>
-{% endif %}
-
-<ol class="draft-list" style="margin-top:1rem;">
-  {% for p in people %}
-    {% set is_active_turn = (next and next.id == p.id and draft.status == 'OPEN' and not draft.picking_paused) %}
-    <li class="draft-person {% if is_active_turn %}is-current{% endif %}">
-      <span class="order-number compact">{{ p.position }}</span>
+  <ol class="draft-list">
+    {% for p in people %}
+    <li class="draft-person{% if draft.status == 'OPEN' and next and next.id == p.id %} is-current{% endif %}">
+      <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
-        <strong>{{ p.name }}</strong>
-        {% if is_active_turn %}
-          <span class="status-text current">Picking now...</span>
+        <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
+        {% if p.disabled %}
+        <span class="status-text disabled-user-status">Account disabled &middot; {{ p.assignment_count }} assigned</span>
+        {% elif draft.status == 'CLOSED' and next and next.id == p.id %}
+        <span class="status-text">Next when reopened &middot; {{ p.assignment_count }} assigned</span>
+        {% elif draft.picking_paused and next and next.id == p.id %}
+        <span class="status-text current">Turn frozen &middot; {{ p.assignment_count }} assigned</span>
+        {% elif next and next.id == p.id %}
+        <span class="status-text current">Picking now &middot; {{ p.assignment_count }} assigned</span>
         {% else %}
-          <span class="status-text">{{ p.assignment_count }} shift{{ 's' if p.assignment_count != 1 else '' }} selected</span>
+        <span class="status-text">{{ p.assignment_count }} assigned &middot; waiting</span>
         {% endif %}
       </div>
-      {% if is_active_turn and (p.id == me.id or can_manage) %}
+      {% if can_manage and draft.status == 'OPEN' and not draft.picking_paused and not schedule_complete %}
       <div class="turn-actions">
-        <form method="POST" action="{{ url_for('pass_turn', session_id=draft.id) }}">
+        <button class="button small" type="button" data-manager-pick data-user-id="{{ p.id }}" data-user-name="{{ p.name }}">Pick for them</button>
+        {% if next and next.id == p.id %}
+        <form method="post" action="{{ url_for('skip_participant_turn', session_id=draft.id, user_id=p.id) }}" data-live-action-form>
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="user_id" value="{{ p.id }}">
-          <button type="submit" class="button small ghost">Pass Turn</button>
+          <button class="button small secondary" type="submit">Skip once</button>
         </form>
+        {% endif %}
       </div>
       {% endif %}
     </li>
-  {% endfor %}
-</ol>
+    {% endfor %}
+  </ol>
+  {% if draft.status == 'CLOSED' and next %}
+  <div class="current-picker"><span>Next picker when reopened</span><strong>{{ next.name }} &middot; <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  {% elif draft.picking_paused and next %}
+  <div class="current-picker"><span>Current turn &middot; paused</span><strong>{{ next.name }} &middot; <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  {% elif next %}
+  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} &middot; <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  {% elif schedule_complete %}
+  <div class="notice success">The calendar is complete.</div>
+  {% else %}
+  <div class="notice">No enabled participant can currently pick. A manager can assign an open date manually.</div>
+  {% endif %}
+
+  {% if draft.status == 'OPEN' and not draft.picking_paused and next and next.id == me.id %}
+  <div class="your-turn-alert" data-your-turn-alert role="alert" aria-live="assertive">
+    <span class="your-turn-icon" aria-hidden="true">!</span>
+    <span class="your-turn-copy"><strong>Your turn</strong><small>Choose a highlighted date in the assignment calendar.</small></span>
+  </div>
+  {% endif %}
+</section>
