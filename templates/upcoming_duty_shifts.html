@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}My upcoming duty shifts | RA Duty Picking{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Duty sessions</a>
+    <div class="eyebrow">Personal Schedule</div>
+    <h1>My upcoming duty shifts</h1>
+  </div>
+  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
+</div>
+
+<section class="card upcoming-shifts-card">
+  <div class="section-head">
+    <div><h2>Upcoming shifts</h2></div>
+    <span class="count-badge">{{ upcoming_shifts|length }}</span>
+  </div>
+
+  {% if upcoming_shifts %}
+  <div class="upcoming-shifts-grid">
+    {% for shift in upcoming_shifts %}
+    <div class="shift-card">
+      <div class="shift-card-head">
+        <span class="shift-date">{{ shift.duty_date|date_label }}</span>
+        <span class="pill small time-pill">7:00 PM &ndash; 8:00 AM</span>
+      </div>
+      <div class="shift-card-body">
+        <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
+        <span class="shift-partners">
+          {% if shift.partner_names %}
+            On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>
+          {% else %}
+            Solo duty
+          {% endif %}
+        </span>
+      </div>
+      <div class="shift-card-actions">
+        <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">View Session &rarr;</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state compact"><h3>No upcoming duty shifts</h3></div>
+  {% endif %}
+</section>
+{% endblock %}
