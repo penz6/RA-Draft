@@ -1,21 +1,39 @@
-<div data-session-live-heading>
+<div class="session-heading" data-session-live-heading>
   <div>
-    <div class="eyebrow">{{ draft.building_name }}</div>
+    <p class="eyebrow">{{ draft.building_name }} &bull; {{ draft.start_date|date_label }} &ndash; {{ draft.end_date|date_label }}</p>
     <h1>{{ draft.name }}</h1>
-    <p>Created by {{ draft.creator_name }}</p>
+    <div class="button-group" style="align-items:center;">
+      <span class="pill large {{ draft.status|lower }}">{{ draft.status }}</span>
+      <span class="pill large time-pill">7:00 PM &ndash; 8:00 AM</span>
+      {% if draft.picking_paused %}
+        <span class="pill large closed">Draft Paused</span>
+      {% endif %}
+    </div>
   </div>
   <div class="session-head-actions">
-    {% if can_manage and draft.status == 'OPEN' and (draft.picking_paused or not schedule_complete) %}
-    <form method="post" action="{{ url_for('session_picking', session_id=draft.id) }}">
-      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="paused" value="{{ 0 if draft.picking_paused else 1 }}">
-      <button class="button {{ 'secondary' if not draft.picking_paused else '' }}" type="submit">{{ 'Resume picking' if draft.picking_paused else 'Pause picking' }}</button>
-    </form>
+    <a href="{{ url_for('session_calendar_ics', session_id=draft.id) }}" class="button secondary small">
+      Export Full Session (.ics)
+    </a>
+    <a href="{{ url_for('my_session_calendar_ics', session_id=draft.id) }}" class="button secondary small">
+      Export My Shifts (.ics)
+    </a>
+    {% if can_manage %}
+      <form method="POST" action="{{ url_for('update_session_status', session_id=draft.id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        {% if draft.status == 'OPEN' %}
+          <input type="hidden" name="status" value="CLOSED">
+          <button type="submit" class="button secondary small">Close Draft</button>
+        {% else %}
+          <input type="hidden" name="status" value="OPEN">
+          <button type="submit" class="button secondary small">Reopen Draft</button>
+        {% endif %}
+      </form>
     {% endif %}
-    <a class="button secondary" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
-    {% if draft.status == 'OPEN' and draft.picking_paused %}
-    <span class="pill large closed">PICKING PAUSED</span>
+    {% if me.role == 'ADMIN' %}
+      <form method="POST" action="{{ url_for('delete_session', session_id=draft.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete this session and all its picks?');">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="button danger small">Delete session</button>
+      </form>
     {% endif %}
-    <span class="pill large {{ draft.status|lower }}">{{ draft.status }}</span>
   </div>
 </div>
