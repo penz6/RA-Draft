@@ -119,6 +119,18 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             headers={"X-RA-Draft-Async": "1"},
         )
 
+    def _post_manager_swap(self, first_assignment, second_assignment):
+        return self.request(
+            "post",
+            f"/swaps/session/{self.data['session_id']}/manager-swap",
+            data={
+                "csrf": "swap-validation-csrf",
+                "first_assignment_id": str(first_assignment),
+                "second_assignment_id": str(second_assignment),
+            },
+            headers={"X-RA-Draft-Async": "1"},
+        )
+
     def test_duty_swap_tab_has_dedicated_menu_route(self):
         self.login_as(self.data["alice_id"])
         response = self.request("get", "/swaps")
@@ -127,6 +139,75 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         self.assertIn("Available sessions", page)
         self.assertIn("Fall Duty", page)
         self.assertIn(f"/swaps/session/{self.data['session_id']}", page)
+
+    def test_manager_manual_swap_controls_are_manager_only(self):
+        self.login_as(self.data["hra_id"])
+        response = self.request("get", f"/swaps/session/{self.data['session_id']}")
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn("Manual duty swap", page)
+        self.assertIn("manager-swap", page)
+
+        self.login_as(self.data["alice_id"])
+        response = self.request("get", f"/swaps/session/{self.data['session_id']}")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Manual duty swap", response.get_data(as_text=True))
+
+    def test_hra_can_manually_swap_two_participants(self):
+        self.login_as(self.data["hra_id"])
+        response = self._post_manager_swap(self.data["alice_sep3"], self.data["bob_sep4"])
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+
+        with app.app_context():
+            first = db().execute(
+                "SELECT user_id,duty_date FROM assignments WHERE id=?",
+                (self.data["alice_sep3"],),
+            ).fetchone()
+            second = db().execute(
+                "SELECT user_id,duty_date FROM assignments WHERE id=?",
+                (self.data["bob_sep4"],),
+            ).fetchone()
+            swap = db().execute(
+                "SELECT status,reviewed_by FROM duty_swap_requests WHERE session_id=?",
+                (self.data["session_id"],),
+            ).fetchone()
+            audit_row = db().execute(
+                "SELECT action FROM audit_log WHERE action='swap.manager_manual' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+
+        self.assertEqual((first["user_id"], first["duty_date"]), (self.data["bob_id"], "2026-09-03"))
+        self.assertEqual((second["user_id"], second["duty_date"]), (self.data["alice_id"], "2026-09-04"))
+        self.assertEqual(swap["status"], "APPROVED")
+        self.assertEqual(swap["reviewed_by"], self.data["hra_id"])
+        self.assertIsNotNone(audit_row)
+
+    def test_admin_can_manually_swap_without_building_assignment(self):
+        self.login_as(self.data["admin_id"])
+        response = self._post_manager_swap(self.data["alice_sep3"], self.data["bob_sep4"])
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+        with app.app_context():
+            reviewer = db().execute(
+                "SELECT reviewed_by FROM duty_swap_requests WHERE session_id=?",
+                (self.data["session_id"],),
+            ).fetchone()["reviewed_by"]
+        self.assertEqual(reviewer, self.data["admin_id"])
+
+    def test_ra_cannot_use_manager_manual_swap_endpoint(self):
+        self.login_as(self.data["alice_id"])
+        response = self._post_manager_swap(self.data["alice_sep3"], self.data["bob_sep4"])
+        self.assertEqual(response.status_code, 403)
+
+    def test_manager_manual_swap_rejects_same_date_and_duplicate_results(self):
+        self.login_as(self.data["hra_id"])
+        response = self._post_manager_swap(self.data["alice_sep1"], self.data["bob_sep1"])
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("same duty date", response.get_json()["message"])
+
+        response = self._post_manager_swap(self.data["alice_sep3"], self.data["bob_sep1"])
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("assigned twice", response.get_json()["message"])
 
     def test_same_date_pair_is_rejected(self):
         self.login_as(self.data["alice_id"])
@@ -171,7 +252,6 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        # Admin has no building assignment, but inherits HRA management rights globally.
         self.login_as(self.data["admin_id"])
         response = self.request(
             "post",
