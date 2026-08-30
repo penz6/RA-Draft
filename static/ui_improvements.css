@@ -9,6 +9,7 @@
 .session-export-popover a{display:flex;flex-direction:column;gap:.15rem;padding:.7rem .75rem;border-radius:8px;color:var(--ink);text-decoration:none}
 .session-export-popover a:hover{background:var(--surface-2);color:#fff}
 .session-export-popover small{font-size:.72rem;font-weight:500}
+.closed-session-swap-notice{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 
 /* Manager dashboard. */
 .session-manager-card{border-color:rgba(59,130,246,.22);background:linear-gradient(180deg,rgba(59,130,246,.055),transparent 9rem),var(--surface-card)}
@@ -63,6 +64,7 @@
 /* Review areas prioritize pending work. */
 .swap-attention-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-bottom:1.4rem}
 .swap-attention-grid>.card{margin-bottom:0}
+.swap-attention-grid>.card:only-child{grid-column:1 / -1}
 .swap-attention-card{border-color:rgba(212,167,44,.25);background:linear-gradient(180deg,rgba(212,167,44,.055),transparent 8rem),var(--surface-card)}
 .swap-review-list{display:grid;gap:.75rem}
 .swap-review-card{padding:1rem;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
@@ -125,7 +127,7 @@
   .session-export-menu{width:100%}
   .session-export-menu>summary{width:100%}
   .session-export-popover{position:static;margin-top:.4rem;min-width:0}
-  .session-manager-head,.manager-danger-content,.swap-review-top,.swap-builder-summary,.swap-status-top{align-items:stretch;flex-direction:column}
+  .session-manager-head,.manager-danger-content,.swap-review-top,.swap-builder-summary,.swap-status-top,.closed-session-swap-notice{align-items:stretch;flex-direction:column}
   .manager-quick-grid{grid-template-columns:1fr}
   .manager-settings>summary{align-items:flex-start}
   .manager-setting-card.full{grid-column:auto}
@@ -134,7 +136,7 @@
   .swap-builder-step-number{width:2rem;height:2rem}
   .swap-builder-row{grid-template-columns:1fr;padding:.8rem}
   .swap-builder-arrow{transform:rotate(90deg);justify-self:start;margin-left:.15rem}
-  .swap-builder-summary .button,.manager-danger-content .button{width:100%}
+  .swap-builder-summary .button,.manager-danger-content .button,.closed-session-swap-notice .button{width:100%}
 }
 
 @media(max-width:520px){
