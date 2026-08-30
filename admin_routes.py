@@ -196,7 +196,7 @@ def delete_building(building_id):
         abort(404)
 
     session_count = conn.execute(
-        "SELECT COUNT(*) n FROM draft_sessions WHERE building_id=? ",
+        "SELECT COUNT(*) n FROM draft_sessions WHERE building_id=?",
         (building_id,),
     ).fetchone()["n"]
     if session_count:
@@ -457,7 +457,7 @@ def delete_user(user_id):
         return redirect(url_for("admin"))
 
     conn.execute(
-        "UPDATE audit_log SET actor_user_id=NULL WHERE actor_user_id=?",
+        "UPDATE audit_log SET actor_user_id=NULL WHERE actor_user_id=? ",
         (user_id,),
     )
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
