@@ -13,7 +13,6 @@
   </div>
 </div>
 
-{# ─── Incoming Swap Requests (I'm the target) ─── #}
 {% if incoming %}
 <section class="card">
   <div class="section-head">
@@ -55,7 +54,6 @@
 </section>
 {% endif %}
 
-{# ─── HRA Review Panel ─── #}
 {% if can_manage and hra_review %}
 <section class="card">
   <div class="section-head">
@@ -98,7 +96,6 @@
 </section>
 {% endif %}
 
-{# ─── Request a Swap ─── #}
 {% if my_picks %}
 <section class="card">
   <div class="section-head">
@@ -119,9 +116,20 @@
       </select>
     </label>
 
-    <div class="swap-date-picker" style="margin-top:1rem;">
-      <h3 style="margin-bottom:0.5rem;">Select date pairs</h3>
-      <p class="muted" style="margin-bottom:1rem;">For each of your dates, choose which date from the partner you'd like to swap it with.</p>
+    <div id="swap-partner-data" hidden aria-hidden="true">
+      {% for pick in other_picks %}
+      <span
+        data-swap-partner-pick
+        data-assignment-id="{{ pick.id }}"
+        data-user-id="{{ pick.user_id }}"
+        data-date-label="{{ pick.duty_date|date_label }}"
+        data-raw-date="{{ pick.duty_date }}"></span>
+      {% endfor %}
+    </div>
+
+    <div class="swap-date-picker">
+      <h3>Select date pairs</h3>
+      <p class="muted">For each of your dates, choose which date from the partner you'd like to swap it with.</p>
 
       <div class="table-wrap">
         <table class="assignment-table" id="swap-pairs-table">
@@ -145,14 +153,13 @@
       </div>
     </div>
 
-    <div class="form-actions" style="margin-top:1rem;">
+    <div class="form-actions">
       <button class="button" type="submit" id="swap-submit-btn" disabled>Submit swap request</button>
     </div>
   </form>
 </section>
 {% endif %}
 
-{# ─── My Outgoing Requests ─── #}
 {% if outgoing %}
 <section class="card">
   <div class="section-head">
@@ -198,7 +205,6 @@
 </section>
 {% endif %}
 
-{# ─── Swap History ─── #}
 {% if history %}
 <section class="card">
   <div class="section-head">
@@ -208,7 +214,7 @@
     </div>
   </div>
   {% for batch in history %}
-  <div class="swap-batch-card" style="opacity: 0.7;">
+  <div class="swap-batch-card">
     <div class="swap-batch-header">
       <strong>{{ batch.requester_name }}</strong> &harr; <strong>{{ batch.target_name }}</strong>
       <span class="pill small {{ batch.status|lower }}">{{ batch.status }}</span>
@@ -225,110 +231,5 @@
 </section>
 {% endif %}
 
-<script>
-(function() {
-  "use strict";
-
-  // Data for other picks, grouped by user
-  const otherPicks = {
-    {% for pick in other_picks %}
-    "{{ pick.id }}": { userId: "{{ pick.user_id }}", date: "{{ pick.duty_date|date_label }}", rawDate: "{{ pick.duty_date }}" },
-    {% endfor %}
-  };
-
-  // Group picks by user_id
-  const picksByUser = {};
-  for (const [assignmentId, info] of Object.entries(otherPicks)) {
-    if (!picksByUser[info.userId]) picksByUser[info.userId] = [];
-    picksByUser[info.userId].push({ id: assignmentId, date: info.date, rawDate: info.rawDate });
-  }
-
-  const partnerSelect = document.getElementById("swap-partner-select");
-  const form = document.getElementById("swap-request-form");
-  const submitBtn = document.getElementById("swap-submit-btn");
-  if (!partnerSelect || !form) return;
-
-  function updateTargetSelects() {
-    const partnerId = partnerSelect.value;
-    const available = picksByUser[partnerId] || [];
-
-    document.querySelectorAll("[data-swap-row]").forEach(function(row) {
-      const check = row.querySelector(".swap-include-check");
-      const select = row.querySelector(".swap-target-select");
-      select.innerHTML = '<option value="">-- Select --</option>';
-      available.forEach(function(pick) {
-        const opt = document.createElement("option");
-        opt.value = pick.id;
-        opt.textContent = pick.date;
-        select.appendChild(opt);
-      });
-      select.disabled = !check.checked || !partnerId;
-    });
-    updateSubmitState();
-  }
-
-  function updateSubmitState() {
-    const partnerId = partnerSelect.value;
-    let anyChecked = false;
-    let allValid = true;
-
-    document.querySelectorAll("[data-swap-row]").forEach(function(row) {
-      const check = row.querySelector(".swap-include-check");
-      const select = row.querySelector(".swap-target-select");
-      if (check.checked) {
-        anyChecked = true;
-        if (!select.value) allValid = false;
-      }
-    });
-
-    submitBtn.disabled = !partnerId || !anyChecked || !allValid;
-  }
-
-  partnerSelect.addEventListener("change", updateTargetSelects);
-
-  document.addEventListener("change", function(e) {
-    if (e.target.matches(".swap-include-check")) {
-      const row = e.target.closest("[data-swap-row]");
-      const select = row.querySelector(".swap-target-select");
-      select.disabled = !e.target.checked || !partnerSelect.value;
-      if (!e.target.checked) select.value = "";
-      updateSubmitState();
-    }
-    if (e.target.matches(".swap-target-select")) {
-      updateSubmitState();
-    }
-  });
-
-  form.addEventListener("submit", function(e) {
-    // Build hidden inputs for selected pairs
-    const existing = form.querySelectorAll("input[name='my_assignment_ids'], input[name='target_assignment_ids']");
-    existing.forEach(function(el) { el.remove(); });
-
-    let count = 0;
-    document.querySelectorAll("[data-swap-row]").forEach(function(row) {
-      const check = row.querySelector(".swap-include-check");
-      const select = row.querySelector(".swap-target-select");
-      if (check.checked && select.value) {
-        const myInput = document.createElement("input");
-        myInput.type = "hidden";
-        myInput.name = "my_assignment_ids";
-        myInput.value = check.dataset.myAssignmentId;
-        form.appendChild(myInput);
-
-        const targetInput = document.createElement("input");
-        targetInput.type = "hidden";
-        targetInput.name = "target_assignment_ids";
-        targetInput.value = select.value;
-        form.appendChild(targetInput);
-        count++;
-      }
-    });
-
-    if (count === 0) {
-      e.preventDefault();
-      window.alert("Select at least one date pair to swap.");
-    }
-  });
-})();
-</script>
+<script src="{{ url_for('static', filename='swap_page.js') }}" defer></script>
 {% endblock %}
