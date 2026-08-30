@@ -1,42 +1,37 @@
-version: '3.8'
-
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ra-draft:latest
-    container_name: ra-draft
+  ra-draft:
+    image: ghcr.io/penz6/ra-draft:latest
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET in .env}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      PROXY_HOPS: ${PROXY_HOPS:-1}
+      DATABASE_PATH: /data/ra_draft.db
+      WEB_THREADS: ${WEB_THREADS:-32}
+      AUDIT_LOG_MAX_ROWS: ${AUDIT_LOG_MAX_ROWS:-5000}
+    volumes:
+      - ra-draft-data:/data
+    expose:
+      - "8000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     cap_drop:
       - ALL
-    read_only: false
-    tmpfs:
-      - /tmp:size=32M,mode=1777
-      - /dev/shm:size=64M,mode=1777
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 1024M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-    environment:
-      - FLASK_ENV=production
-      - DATABASE_PATH=/app/data/ra_draft.db
-      - SECRET_KEY=${SECRET_KEY}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - ADMIN_EMAILS=${ADMIN_EMAILS}
-      - BASE_URL=${BASE_URL:-https://ra-draft.example.com}
-    volumes:
-      - ra_draft_data:/app/data
-    ports:
-      - "127.0.0.1:8000:8000"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - pangolin
 
 volumes:
-  ra_draft_data:
-    name: ra_draft_data
+  ra-draft-data:
+
+networks:
+  pangolin:
+    external: true
+    name: ${PANGOLIN_NETWORK:-pangolin}

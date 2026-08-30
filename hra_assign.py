@@ -56,7 +56,7 @@ def manual_assign(session_id):
             category="error",
             status=409,
         )
-    if row["picking_paused"]:\
+    if row["picking_paused"]:
         conn.rollback()
         return session_action_response(
             session_id,
@@ -73,7 +73,7 @@ def manual_assign(session_id):
 
     current = next_picker(session_id)
     duplicate = conn.execute(
-        "SELECT 1 FROM assignments WHERE session_id=? AND user_id=? AND duty_date=?",
+        "SELECT 1 FROM assignments WHERE session_id=? AND user_id=? AND duty_date=? ",
         (session_id, user_id, duty_date),
     ).fetchone()
     if duplicate:
@@ -175,7 +175,7 @@ def delete_assignment(session_id, assignment_id):
         abort(403)
 
     assignment = conn.execute(
-        "SELECT * FROM assignments WHERE id=? AND session_id=? ",
+        "SELECT * FROM assignments WHERE id=? AND session_id=?",
         (assignment_id, session_id),
     ).fetchone()
     if not assignment:

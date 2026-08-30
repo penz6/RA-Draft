@@ -162,6 +162,8 @@ def _publish_committed_change(response):
     connection = g.get("db")
     if connection is not None:
         connection.set_trace_callback(None)
+    # The COMMIT is the source of truth. If response construction fails after
+    # the commit, clients still need to hear that the database changed.
     if getattr(g, "live_commits", 0):
         publish_live_topics(_topics_for_committed_request())
     return response
