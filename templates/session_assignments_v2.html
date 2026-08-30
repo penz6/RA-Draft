@@ -5,7 +5,7 @@
   </div>
 
   {% if draft.status == 'CLOSED' %}
-  <div class="notice" style="display:flex; align-items:center; justify-content:space-between;">
+  <div class="notice closed-session-swap-notice">
     <span>This session is closed. Duty swaps are managed on the dedicated swap page.</span>
     <a class="button small" href="{{ url_for('swap_page', session_id=draft.id) }}">Open duty swaps &rarr;</a>
   </div>
