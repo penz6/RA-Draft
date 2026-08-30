@@ -2,6 +2,7 @@ from flask import abort, redirect, request, url_for
 
 from core import app, audit, can_manage, current_user, db, require_csrf, roles, session_row
 from email_notifications import send_session_closed_notifications
+import swap_email_hooks  # noqa: F401
 
 
 @app.route("/sessions/<int:session_id>/status", methods=["POST"])
