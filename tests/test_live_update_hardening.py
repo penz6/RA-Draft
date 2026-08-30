@@ -275,6 +275,7 @@ class LiveUpdateHardeningTestCase(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         server = (root / "live_updates.py").read_text(encoding="utf-8")
         client = (root / "static" / "live_stream.js").read_text(encoding="utf-8")
+        app_client = (root / "static" / "app.js").read_text(encoding="utf-8")
         base = (root / "templates" / "base.html").read_text(encoding="utf-8")
         dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
 
@@ -287,9 +288,10 @@ class LiveUpdateHardeningTestCase(unittest.TestCase):
         self.assertIn("formSnapshots", client)
         self.assertIn("dirtyForms", client)
         self.assertIn("live-update-notice", client)
+        self.assertIn("window.RADraftLiveSession", client)
         self.assertIn("disconnectStream();", client)
         self.assertIn('document.addEventListener("visibilitychange"', client)
-        self.assertIn('removeAttribute("data-live-refresh")', client)
+        self.assertNotIn("new window.EventSource", app_client)
         self.assertLess(base.index("live_stream.js"), base.index("app.js"))
         self.assertIn("--timeout 60", dockerfile)
         self.assertIn("--graceful-timeout 30", dockerfile)
