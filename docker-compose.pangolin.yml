@@ -12,6 +12,11 @@ services:
       DATABASE_PATH: /data/ra_draft.db
       WEB_THREADS: ${WEB_THREADS:-32}
       AUDIT_LOG_MAX_ROWS: ${AUDIT_LOG_MAX_ROWS:-5000}
+      MAIL_ENABLED: ${MAIL_ENABLED:-0}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_APP_PASSWORD: ${MAIL_APP_PASSWORD:-}
     volumes:
       - ra-draft-data:/data
     expose:
@@ -29,7 +34,7 @@ services:
       - pangolin
 
 volumes:
-  ra-draft-data:
+  ra-draft-data:/data
 
 networks:
   pangolin:
