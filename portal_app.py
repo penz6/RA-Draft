@@ -71,75 +71,82 @@ def auth_callback():
     try:
         token = oauth.google.authorize_access_token()
         info = token.get("userinfo")
-        if not info:
-            info = oauth.google.userinfo(token=token)
-    except (OAuthError, RequestException, ValueError):
-        return oauth_failure("Google login failed. Try again.")
+        if not isinstance(info, dict):
+            raise ValueError("Google did not return a valid OpenID profile.")
+    except (OAuthError, RequestException, TypeError, ValueError, KeyError):
+        return oauth_failure(
+            "Google sign-in could not be completed. Return to the portal and try again."
+        )
+
+    email = (info.get("email") or "").strip().lower()
+    google_sub = str(info.get("sub") or "").strip()
+    display_name = safe_display_name(info.get("name"), email)
 
     if not google_identity_allowed(info):
         return oauth_failure(
-            "Please sign in with a verified RWU Google account (@g.rwu.edu or @rwu.edu)."
+            "Sign in with a verified @g.rwu.edu or @rwu.edu Google Workspace account."
         )
-
-    google_sub = str(info["sub"])
-    email = info["email"].lower()
-    display_name = safe_display_name(
-        info.get("name"),
-        fallback=info.get("given_name", email),
-    )
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-
-    account = conn.execute(
-        "SELECT id,disabled FROM users WHERE google_sub=?",
+    user = conn.execute(
+        "SELECT * FROM users WHERE google_sub=?",
         (google_sub,),
     ).fetchone()
-    is_new = False
+    is_new = user is None
     claimed_precreated_user = False
 
-    if account:
-        if account["disabled"]:
+    if user:
+        if user["disabled"]:
             return disabled_account_failure(conn)
-        uid = account["id"]
+        email_owner = conn.execute(
+            "SELECT id FROM users WHERE email=? COLLATE NOCASE AND id<>?",
+            (email, user["id"]),
+        ).fetchone()
+        if email_owner:
+            conn.rollback()
+            return oauth_failure(
+                "This RWU email is already linked to another account. Ask an admin to resolve it."
+            )
         conn.execute(
-            "UPDATE users SET email=?,name=? WHERE id=?",
-            (email, display_name, uid),
+            "UPDATE users SET email=?, name=? WHERE id=?",
+            (email, display_name, user["id"]),
         )
+        uid = user["id"]
     else:
-        precreated = conn.execute(
-            "SELECT id,disabled,role,building_id FROM users "
-            "WHERE email=? COLLATE NOCASE AND google_sub LIKE 'manual:%'",
+        email_owner = conn.execute(
+            "SELECT * FROM users WHERE email=? COLLATE NOCASE",
             (email,),
         ).fetchone()
-        if precreated:
-            if precreated["disabled"]:
+        if email_owner:
+            if email_owner["disabled"]:
                 return disabled_account_failure(conn)
-            uid = precreated["id"]
-            claimed_precreated_user = True
-            conn.execute(
-                "UPDATE users SET google_sub=?,name=? WHERE id=?",
-                (google_sub, display_name, uid),
+            if not str(email_owner["google_sub"]).startswith("manual:"):
+                conn.rollback()
+                return oauth_failure(
+                    "This RWU email is already linked to another account. Ask an admin to resolve it."
+                )
+            linked = conn.execute(
+                "UPDATE users SET google_sub=?,email=?,name=? "
+                "WHERE id=? AND google_sub LIKE 'manual:%' AND disabled=0",
+                (google_sub, email, display_name, email_owner["id"]),
             )
+            if linked.rowcount != 1:
+                conn.rollback()
+                return oauth_failure(
+                    "This pre-created account could not be linked. Ask an admin to resolve it."
+                )
+            uid = email_owner["id"]
+            is_new = False
+            claimed_precreated_user = True
             audit(
-                "auth.google_link",
+                "auth.user_claimed",
                 "user",
                 uid,
-                {"previous_role": precreated["role"]},
+                {"email": email},
                 actor_user_id=uid,
             )
         else:
-            is_new = True
-            existing_email = conn.execute(
-                "SELECT id FROM users WHERE email=? COLLATE NOCASE",
-                (email,),
-            ).fetchone()
-            if existing_email:
-                conn.rollback()
-                return oauth_failure(
-                    "That email belongs to another registered account. Contact an administrator."
-                )
-
             role = "ADMIN" if email in ADMIN_EMAILS else "RA"
             cur = conn.execute(
                 "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
