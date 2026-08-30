@@ -16,10 +16,13 @@
       <div class="eyebrow">Personal Schedule</div>
       <h2>My upcoming duty shifts</h2>
     </div>
-    <span class="count-badge">{{ upcoming_shifts|length }}</span>
+    <div class="session-head-actions">
+      <span class="count-badge">{{ upcoming_shifts|length }}</span>
+      <a class="button small ghost" href="{{ url_for('upcoming_duty_shifts') }}">View all</a>
+    </div>
   </div>
   <div class="upcoming-shifts-grid">
-    {% for shift in upcoming_shifts %}
+    {% for shift in upcoming_shifts[:3] %}
     <div class="shift-card">
       <div class="shift-card-head">
         <span class="shift-date">{{ shift.duty_date|date_label }}</span>
