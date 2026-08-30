@@ -37,7 +37,7 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn(">Duty Swaps</a>", base)
         self.assertIn("url_for('swap_home')", base)
         self.assertNotIn("dashboard') }}#duty-swaps", base)
-        self.assertIn("Available swap menus", swap_home)
+        self.assertIn("Available sessions", swap_home)
         self.assertIn("url_for('swap_page', session_id=s.id)", swap_home)
 
 
