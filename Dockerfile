@@ -1,34 +1,45 @@
-FROM python:3.14-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4
-
-LABEL org.opencontainers.image.source="https://github.com/penz6/RA-Draft"
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    DATABASE_PATH=/data/ra_draft.db \
-    PORT=8000 \
-    WEB_THREADS=64
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-COPY requirements.txt ./
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DATABASE_PATH=/app/data/ra_draft.db
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /data \
-    && chown -R appuser:appuser /app /data
+COPY . .
 
-COPY --chown=appuser:appuser . .
+RUN mkdir -p /app/data \
+    && useradd -u 10001 -d /app -s /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
 
-VOLUME ["/data"]
 USER appuser
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/healthz',headers={'Host':os.environ['PUBLIC_HOST']}); urllib.request.urlopen(r,timeout=3)" || exit 1
+    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
 
-# Each visible browser tab holds one lightweight Server-Sent Events connection.
-# A single process is required by the in-memory event broker; the thread pool
-# leaves capacity for streams and ordinary application requests. Introduce a
-# shared broker such as Redis before scaling to multiple app processes.
-# Request access logging is intentionally disabled; error logs remain on stderr.
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 1 --threads ${WEB_THREADS:-64} --timeout 60 --graceful-timeout 30 --error-logfile - main:app"]
+CMD ["gunicorn", \
+     "--workers=1", \
+     "--threads=8", \
+     "--worker-class=gthread", \
+     "--worker-tmp-dir=/dev/shm", \
+     "--bind=0.0.0.0:8000", \
+     "--access-logfile=-", \
+     "--error-logfile=-", \
+     "--capture-output", \
+     "--enable-stdio-inheritance", \
+     "--timeout=30", \
+     "--graceful-timeout=15", \
+     "--keep-alive=2", \
+     "portal_app:app"]

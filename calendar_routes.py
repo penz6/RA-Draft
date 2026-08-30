@@ -1,10 +1,11 @@
-from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
+"""Routes and generators for RFC 5545 iCalendar (.ics) exports."""
+
+from datetime import date, datetime, timedelta
+import secrets
 
 from flask import Response, abort
 
 from core import (
-    PUBLIC_HOST,
     app,
     can_view_session,
     current_user,
@@ -14,168 +15,206 @@ from core import (
 )
 
 
-def ics_escape(text):
-    normalized = str(text).replace("\r\n", "\n").replace("\r", "\n")
+def _ics_escape(text):
+    """Escape text for iCalendar properties."""
     return (
-        normalized.replace("\\", "\\\\")
-        .replace("\n", "\\n")
-        .replace(",", "\\,")
+        str(text or "")
+        .replace("\\", "\\\\")
         .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
     )
 
 
-def fold_ical_line(line):
-    """Fold an iCalendar content line to RFC 5545's 75-octet limit."""
+def _generate_session_ics(session_id):
+    """Generate RFC 5545 iCalendar content for an entire draft session (aggregate)."""
+    row = session_row(session_id)
+    if not row:
+        return None
 
-    text = str(line)
-    if not text:
-        return [""]
-    parts = []
-    current = ""
-    first = True
-    for character in text:
-        # Continuation lines begin with one space, leaving 74 octets for data.
-        limit = 75 if first else 74
-        if current and len((current + character).encode("utf-8")) > limit:
-            parts.append(current if first else f" {current}")
-            current = character
-            first = False
-        else:
-            current += character
-    parts.append(current if first else f" {current}")
-    return parts
+    assignments = (
+        db()
+        .execute(
+            "SELECT a.duty_date, u.name, u.email FROM assignments a "
+            "JOIN users u ON u.id=a.user_id "
+            "WHERE a.session_id=? ORDER BY a.duty_date, u.name",
+            (session_id,),
+        )
+        .fetchall()
+    )
 
+    by_date = {}
+    for a in assignments:
+        by_date.setdefault(a["duty_date"], []).append(a)
 
-def first_name(value):
-    cleaned = " ".join(str(value or "").split())
-    return cleaned.split(" ", 1)[0] if cleaned else "Unassigned"
-
-
-def format_names(names):
-    cleaned = [first_name(name) for name in names if str(name).strip()]
-    if not cleaned:
-        return "Unassigned"
-    if len(cleaned) == 1:
-        return cleaned[0]
-    if len(cleaned) == 2:
-        return f"{cleaned[0]} & {cleaned[1]}"
-    return f"{', '.join(cleaned[:-1])} & {cleaned[-1]}"
-
-
-def calendar_summary(building_name, names):
-    building = str(building_name).strip()
-    prefix = building if building.endswith("*") else f"{building}*"
-    return f"{prefix} {format_names(names)}"
-
-
-def assignment_row(assignment_id):
-    return db().execute(
-        "SELECT a.*,s.name session_name,b.name building_name,u.name user_name "
-        "FROM assignments a JOIN draft_sessions s ON s.id=a.session_id "
-        "JOIN buildings b ON b.id=s.building_id "
-        "JOIN users u ON u.id=a.user_id WHERE a.id=?",
-        (assignment_id,),
-    ).fetchone()
-
-
-def event_lines(*, uid, duty_date, summary, location, generated_at, description=None):
-    start = date.fromisoformat(duty_date)
-    end = start + timedelta(days=1)
     lines = [
-        "BEGIN:VEVENT",
-        f"UID:{ics_escape(uid)}",
-        f"DTSTAMP:{generated_at}",
-        f"DTSTART;VALUE=DATE:{start.strftime('%Y%m%d')}",
-        f"DTEND;VALUE=DATE:{end.strftime('%Y%m%d')}",
-        f"SUMMARY:{ics_escape(summary)}",
-        f"LOCATION:{ics_escape(location)}",
-    ]
-    if description:
-        lines.append(f"DESCRIPTION:{ics_escape(description)}")
-    lines.extend(["STATUS:CONFIRMED", "TRANSP:TRANSPARENT", "END:VEVENT"])
-    return lines
-
-
-def calendar_response(events, filename):
-    raw_lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
+        "PRODID:-//RA Duty Picking//Duty Calendar//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        "PRODID:-//RA Draft//Duty Scheduler//EN",
-        *events,
-        "END:VCALENDAR",
+        f"X-WR-CALNAME:{_ics_escape(row['name'])} - Duty Schedule",
+        f"X-WR-CALDESC:Duty assignments for {_ics_escape(row['building_name'])}",
     ]
-    folded_lines = [
-        folded
-        for line in raw_lines
-        for folded in fold_ical_line(line)
-    ]
-    body = "\r\n".join([*folded_lines, ""])
-    return Response(
-        body,
-        content_type="text/calendar; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+
+    now_stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+
+    for duty_date_str, ras in by_date.items():
+        dt = date.fromisoformat(duty_date_str)
+        next_day = dt + timedelta(days=1)
+        dtstart = dt.strftime("%Y%m%d")
+        dtend = next_day.strftime("%Y%m%d")
+        ra_names = ", ".join(ra["name"] for ra in ras)
+        uid = f"session-{session_id}-{dtstart}@raduty"
+
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART;VALUE=DATE:{dtstart}",
+                f"DTEND;VALUE=DATE:{dtend}",
+                f"SUMMARY:{_ics_escape(row['building_name'])} RA Duty: {_ics_escape(ra_names)}",
+                f"DESCRIPTION:Assigned RAs:\\n"
+                + "\\n".join(f"- {_ics_escape(ra['name'])} ({_ics_escape(ra['email'])})" for ra in ras),
+                f"LOCATION:{_ics_escape(row['building_name'])}",
+                "STATUS:CONFIRMED",
+                "TRANSP:OPAQUE",
+                "END:VEVENT",
+            ]
+        )
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
 
 
-@app.route("/calendar/<int:assignment_id>.ics")
-@login_required
-def calendar_ics(assignment_id):
-    row = assignment_row(assignment_id)
+def _generate_user_ics(session_id, user_id):
+    """Generate RFC 5545 iCalendar content for a specific user's assigned duty shifts (7pm to 8am next day)."""
+    row = session_row(session_id)
     if not row:
-        abort(404)
-    user = current_user()
-    if user["role"] != "ADMIN" and row["user_id"] != user["id"]:
-        abort(403)
+        return None
 
-    generated_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    events = event_lines(
-        uid=f"ra-draft-{assignment_id}@{PUBLIC_HOST}",
-        duty_date=row["duty_date"],
-        summary=calendar_summary(row["building_name"], [row["user_name"]]),
-        location=row["building_name"],
-        generated_at=generated_at,
-        description=row["session_name"],
+    target_user = (
+        db()
+        .execute("SELECT * FROM users WHERE id=?", (user_id,))
+        .fetchone()
     )
-    return calendar_response(events, f"duty-{row['duty_date']}.ics")
+    if not target_user:
+        return None
+
+    assignments = (
+        db()
+        .execute(
+            "SELECT a.id, a.duty_date FROM assignments a "
+            "WHERE a.session_id=? AND a.user_id=? ORDER BY a.duty_date",
+            (session_id, user_id),
+        )
+        .fetchall()
+    )
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//RA Duty Picking//My Duty Shifts//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{_ics_escape(target_user['name'])} - {_ics_escape(row['name'])} Duty",
+        f"X-WR-CALDESC:Personal duty shifts for {_ics_escape(target_user['name'])} in {_ics_escape(row['building_name'])}",
+    ]
+
+    now_stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+
+    for a in assignments:
+        duty_date_str = a["duty_date"]
+        start_date = date.fromisoformat(duty_date_str)
+        end_date = start_date + timedelta(days=1)
+        dtstart = f"{start_date.strftime('%Y%m%d')}T190000"
+        dtend = f"{end_date.strftime('%Y%m%d')}T080000"
+        uid = f"shift-{session_id}-{a['id']}-{start_date.strftime('%Y%m%d')}@raduty"
+
+        co_workers = (
+            db()
+            .execute(
+                "SELECT u.name, u.email FROM assignments a2 "
+                "JOIN users u ON u.id=a2.user_id "
+                "WHERE a2.session_id=? AND a2.duty_date=? AND a2.user_id!=? "
+                "ORDER BY u.name",
+                (session_id, duty_date_str, user_id),
+            )
+            .fetchall()
+        )
+        if co_workers:
+            partner_desc = "\\nCo-duty partners:\\n" + "\\n".join(
+                f"- {_ics_escape(cw['name'])} ({_ics_escape(cw['email'])})" for cw in co_workers
+            )
+        else:
+            partner_desc = "\\nSole RA on duty"
+
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_stamp}",
+                f"DTSTART:{dtstart}",
+                f"DTEND:{dtend}",
+                f"SUMMARY:{_ics_escape(row['building_name'])} RA Duty",
+                f"DESCRIPTION:RA Duty Shift for {_ics_escape(target_user['name'])} (7:00 PM - 8:00 AM).{partner_desc}",
+                f"LOCATION:{_ics_escape(row['building_name'])}",
+                "STATUS:CONFIRMED",
+                "TRANSP:OPAQUE",
+                "END:VEVENT",
+            ]
+        )
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
 
 
 @app.route("/calendar/session/<int:session_id>.ics")
 @login_required
 def session_calendar_ics(session_id):
+    """Serve full-session calendar export in .ics format."""
+    user = current_user()
     row = session_row(session_id)
     if not row:
         abort(404)
-    user = current_user()
     if not can_view_session(user, row):
         abort(403)
 
-    assignments = db().execute(
-        "SELECT a.duty_date,u.name,o.position FROM assignments a "
-        "JOIN users u ON u.id=a.user_id "
-        "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
-        "WHERE a.session_id=? ORDER BY a.duty_date,o.position,a.id",
-        (session_id,),
-    ).fetchall()
-    names_by_date = defaultdict(list)
-    for assignment in assignments:
-        names_by_date[assignment["duty_date"]].append(assignment["name"])
+    ics_content = _generate_session_ics(session_id)
+    if not ics_content:
+        abort(404)
 
-    generated_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    events = []
-    for duty_date in sorted(names_by_date):
-        events.extend(
-            event_lines(
-                uid=f"ra-draft-session-{session_id}-{duty_date}@{PUBLIC_HOST}",
-                duty_date=duty_date,
-                summary=calendar_summary(
-                    row["building_name"],
-                    names_by_date[duty_date],
-                ),
-                location=row["building_name"],
-                generated_at=generated_at,
-            )
-        )
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in row["name"])
+    filename = f"{safe_name}_duty_schedule.ics"
 
-    return calendar_response(events, f"duty-session-{session_id}.ics")
+    return Response(
+        ics_content,
+        mimetype="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route("/calendar/session/<int:session_id>/my-calendar.ics")
+@login_required
+def my_session_calendar_ics(session_id):
+    """Serve personal 7pm-8am timed shifts export for authenticated user."""
+    user = current_user()
+    row = session_row(session_id)
+    if not row:
+        abort(404)
+    if not can_view_session(user, row):
+        abort(403)
+
+    ics_content = _generate_user_ics(session_id, user["id"])
+    if not ics_content:
+        abort(404)
+
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in row["name"])
+    filename = f"my_{safe_name}_shifts.ics"
+
+    return Response(
+        ics_content,
+        mimetype="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
