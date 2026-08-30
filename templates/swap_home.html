@@ -5,7 +5,6 @@
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty Swaps</h1>
-    <p>Choose a closed duty session to request, review, or approve shift trades.</p>
   </div>
   <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
 </div>
@@ -13,8 +12,7 @@
 <section class="card">
   <div class="section-head">
     <div>
-      <h2>Available swap menus</h2>
-      <p>Duty swaps become available after a session is closed.</p>
+      <h2>Available sessions</h2>
     </div>
     <span class="count-badge">{{ closed_sessions|length }}</span>
   </div>
@@ -31,14 +29,12 @@
       </div>
       <dl class="session-meta">
         <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
-        <div><dt>Swap menu</dt><dd>Request &amp; review trades</dd></div>
       </dl>
       <span class="session-arrow" aria-hidden="true">&rarr;</span>
     </a>
     {% else %}
     <div class="empty-state compact">
       <h3>No closed sessions yet</h3>
-      <p>Once a duty session is closed, its swap menu will appear here.</p>
     </div>
     {% endfor %}
   </div>
