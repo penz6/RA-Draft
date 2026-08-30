@@ -5,23 +5,21 @@
     <p>Created by {{ draft.creator_name }}</p>
   </div>
   <div class="session-head-actions">
-    {% if can_manage and draft.status == 'OPEN' and (draft.picking_paused or not schedule_complete) %}
-    <form method="post" action="{{ url_for('session_picking', session_id=draft.id) }}" data-live-action-form>
-      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="paused" value="{{ 0 if draft.picking_paused else 1 }}">
-      <button class="button {{ 'secondary' if not draft.picking_paused else '' }}" type="submit">{{ 'Resume picking' if draft.picking_paused else 'Pause picking' }}</button>
-    </form>
-    {% endif %}
-    <a class="button secondary" href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">Download session iCal</a>
-    <a class="button secondary" href="{{ url_for('my_session_calendar_ics', session_id=draft.id) }}">Export my dates</a>
-    {% if me.role == 'ADMIN' %}
-    <form method="post" action="{{ url_for('delete_session', session_id=draft.id) }}">
-      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <button class="button danger" type="submit" data-confirm="Permanently delete session '{{ draft.name }}' and all its assignments? This cannot be undone.">Delete session</button>
-    </form>
-    {% endif %}
+    <details class="session-export-menu">
+      <summary class="button secondary">Calendar exports</summary>
+      <div class="session-export-popover">
+        <a href="{{ url_for('my_session_calendar_ics', session_id=draft.id) }}">
+          <strong>My duty dates</strong>
+          <small>Download only your assigned shifts.</small>
+        </a>
+        <a href="{{ url_for('session_calendar_ics', session_id=draft.id) }}">
+          <strong>Full session calendar</strong>
+          <small>Download every assignment in this session.</small>
+        </a>
+      </div>
+    </details>
     {% if draft.status == 'OPEN' and draft.picking_paused %}
-    <span class="pill large closed">PICKING PAUSED</span>
+    <span class="pill large target_approved">PICKING PAUSED</span>
     {% endif %}
     <span class="pill large {{ draft.status|lower }}">{{ draft.status }}</span>
   </div>
