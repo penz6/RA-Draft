@@ -208,7 +208,7 @@ def delete_building(building_id):
         return redirect(url_for("admin"))
 
     user_count = conn.execute(
-        "SELECT COUNT(*) n FROM users WHERE building_id=?",
+        "SELECT COUNT(*) n FROM users WHERE building_id=? ",
         (building_id,),
     ).fetchone()["n"]
     conn.execute(
