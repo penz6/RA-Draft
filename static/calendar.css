@@ -85,7 +85,7 @@
   .turn-actions{justify-content:flex-start}
   .calendar-month{padding:.72rem}
   .calendar-scroll{overflow-x:auto;margin-inline:-.15rem;padding-inline:.15rem;padding-bottom:.35rem;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch}
-  .calendar-weekdays,.calendar-grid{grid-template-columns:repeat(7,minmax(64px,1fr));min-width:448px;gap:.28rem}
+  .calendar-weekdays,.calendar-grid{grid-template-columns:repeat(7,minmax(72px,1fr));min-width:504px;gap:.28rem}
   .calendar-weekdays span{padding:.28rem .08rem;font-size:.56rem}
   .calendar-day{min-height:84px;gap:.18rem;padding:.3rem .28rem;border-radius:8px}
   .calendar-day-head{align-items:flex-start;flex-direction:column;gap:.08rem}
