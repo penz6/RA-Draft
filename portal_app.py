@@ -1,3 +1,11 @@
+"""Main Flask application entrypoint, authentication flows, and dashboard views."""
+
+import secrets
+
+from authlib.integrations.base_client.errors import OAuthError
+from flask import abort, flash, redirect, render_template, request, session, url_for
+from requests.exceptions import RequestException
+
 # Install the additive account-status migration and current_user enforcement
 # before importing current_user into this module or any route modules.
 import core  # noqa: F401
@@ -15,11 +23,6 @@ from core import (
     safe_display_name,
     user_upcoming_shifts,
 )
-import secrets
-
-from authlib.integrations.base_client.errors import OAuthError
-from flask import abort, flash, redirect, render_template, request, session, url_for
-from requests.exceptions import RequestException
 
 
 @app.route("/")
