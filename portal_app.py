@@ -392,3 +392,4 @@ import session_create  # noqa: E402,F401
 import session_status  # noqa: E402,F401
 import session_view  # noqa: E402,F401
 import session_routes  # noqa: E402,F401
+import swap_routes  # noqa: E402,F401
