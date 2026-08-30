@@ -27,7 +27,7 @@
       {% if me %}
       <nav class="primary-nav" aria-label="Primary navigation">
         <a class="nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">Sessions</a>
-        <a class="nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('dashboard') }}#duty-swaps">Duty Swaps</a>
+        <a class="nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">Duty Swaps</a>
         {% if me.role == 'ADMIN' %}
         <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
         {% endif %}

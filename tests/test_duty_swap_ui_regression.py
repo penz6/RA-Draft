@@ -14,21 +14,27 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn("data-swap-partner-pick", template)
         self.assertIn('data-user-id="{{ pick.user_id }}"', template)
         self.assertIn('data-assignment-id="{{ pick.id }}"', template)
+        self.assertIn('data-my-raw-date="{{ pick.duty_date }}"', template)
         self.assertNotIn("(function() {", template)
 
         self.assertIn("item.dataset.userId", script)
         self.assertIn("item.dataset.assignmentId", script)
         self.assertIn("picksByUser[partnerId]", script)
+        self.assertIn("validPartnerPicksForRow", script)
+        self.assertIn("partnerAlreadyOnMyDate", script)
+        self.assertIn("!myDates.has(pick.rawDate)", script)
+        self.assertIn("No valid different-date shifts", script)
         self.assertIn("select.appendChild(opt)", script)
 
-    def test_home_navigation_exposes_duty_swaps_tab(self):
+    def test_home_navigation_opens_dedicated_duty_swap_menu(self):
         base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
-        dashboard = (ROOT / "templates" / "dashboard_v2.html").read_text(encoding="utf-8")
+        swap_home = (ROOT / "templates" / "swap_home.html").read_text(encoding="utf-8")
 
         self.assertIn(">Duty Swaps</a>", base)
-        self.assertIn("#duty-swaps", base)
-        self.assertIn('id="duty-swaps"', dashboard)
-        self.assertIn(">Duty Swaps</a>", dashboard)
+        self.assertIn("url_for('swap_home')", base)
+        self.assertNotIn("dashboard') }}#duty-swaps", base)
+        self.assertIn("Available swap menus", swap_home)
+        self.assertIn("url_for('swap_page', session_id=s.id)", swap_home)
 
 
 if __name__ == "__main__":

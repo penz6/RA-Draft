@@ -11,6 +11,9 @@
   if (!partnerSelect || !form || !submitBtn || !dataContainer) return;
 
   const rows = Array.from(document.querySelectorAll("[data-swap-row]"));
+  const myDates = new Set(
+    rows.map(function (row) { return row.dataset.myRawDate; }).filter(Boolean)
+  );
   const picksByUser = {};
 
   dataContainer.querySelectorAll("[data-swap-partner-pick]").forEach(function (item) {
@@ -35,7 +38,24 @@
     return option && partnerSelect.value ? option.textContent.trim() : "";
   }
 
-  function updateSummary(partnerId, checkedCount, validCount, allValid) {
+  function validPartnerPicksForRow(row, available) {
+    const myRawDate = row.dataset.myRawDate || "";
+    if (!myRawDate) return [];
+
+    // If the partner is already assigned to the shift I would give them,
+    // the swap would create a duplicate assignment for that person.
+    const partnerAlreadyOnMyDate = available.some(function (pick) {
+      return pick.rawDate === myRawDate;
+    });
+    if (partnerAlreadyOnMyDate) return [];
+
+    // I also cannot receive a date that I am already assigned to.
+    return available.filter(function (pick) {
+      return pick.rawDate && pick.rawDate !== myRawDate && !myDates.has(pick.rawDate);
+    });
+  }
+
+  function updateSummary(partnerId, checkedCount, validCount, allValid, blockedCount) {
     if (!summaryTitle || !summaryCopy) return;
 
     const available = picksByUser[partnerId] || [];
@@ -59,6 +79,12 @@
       return;
     }
 
+    if (blockedCount > 0) {
+      summaryTitle.textContent = "That shift cannot be traded with " + name;
+      summaryCopy.textContent = "One of you is already assigned to the date the other person would receive. Choose a different shift or partner.";
+      return;
+    }
+
     if (!allValid) {
       summaryTitle.textContent = checkedCount + " shift" + (checkedCount === 1 ? "" : "s") + " selected";
       summaryCopy.textContent = "Choose a " + name + " shift for every selected row before sending.";
@@ -73,6 +99,7 @@
     const partnerId = partnerSelect.value;
     let checkedCount = 0;
     let validCount = 0;
+    let blockedCount = 0;
     let allValid = true;
 
     rows.forEach(function (row) {
@@ -84,7 +111,10 @@
 
       if (!selected) return;
       checkedCount += 1;
-      if (select && select.value) {
+      if (row.dataset.swapBlocked === "true") {
+        blockedCount += 1;
+        allValid = false;
+      } else if (select && select.value) {
         validCount += 1;
       } else {
         allValid = false;
@@ -93,7 +123,7 @@
 
     const ready = Boolean(partnerId) && checkedCount > 0 && allValid;
     submitBtn.disabled = !ready;
-    updateSummary(partnerId, checkedCount, validCount, allValid);
+    updateSummary(partnerId, checkedCount, validCount, allValid, blockedCount);
   }
 
   function updateTargetSelects() {
@@ -105,6 +135,10 @@
       const select = row.querySelector(".swap-target-select");
       if (!check || !select) return;
 
+      const eligible = validPartnerPicksForRow(row, available);
+      row.dataset.swapBlocked = partnerId && available.length > 0 && eligible.length === 0
+        ? "true"
+        : "false";
       select.replaceChildren();
 
       const placeholder = document.createElement("option");
@@ -113,19 +147,21 @@
         placeholder.textContent = "Choose a partner first";
       } else if (available.length === 0) {
         placeholder.textContent = "No shifts available";
+      } else if (eligible.length === 0) {
+        placeholder.textContent = "No valid different-date shifts";
       } else {
         placeholder.textContent = "Choose their shift";
       }
       select.appendChild(placeholder);
 
-      available.forEach(function (pick) {
+      eligible.forEach(function (pick) {
         const opt = document.createElement("option");
         opt.value = pick.id;
         opt.textContent = pick.date;
         select.appendChild(opt);
       });
 
-      select.disabled = !check.checked || !partnerId || available.length === 0;
+      select.disabled = !check.checked || !partnerId || eligible.length === 0;
     });
 
     updateSubmitState();
@@ -139,9 +175,10 @@
       const select = row ? row.querySelector(".swap-target-select") : null;
       const partnerId = partnerSelect.value;
       const available = picksByUser[partnerId] || [];
+      const eligible = row ? validPartnerPicksForRow(row, available) : [];
 
       if (select) {
-        select.disabled = !event.target.checked || !partnerId || available.length === 0;
+        select.disabled = !event.target.checked || !partnerId || eligible.length === 0;
         if (!event.target.checked) select.value = "";
       }
       updateSubmitState();
