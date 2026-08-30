@@ -131,6 +131,10 @@
 </div>
 {% endif %}
 
+{% if can_manage %}
+{% include 'manager_manual_swap.html' %}
+{% endif %}
+
 {% if my_picks %}
 <section class="card swap-builder-card">
   <div class="section-head">
