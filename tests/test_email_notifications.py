@@ -119,12 +119,14 @@ class EmailNotificationTestCase(unittest.TestCase):
         alice_message = next(
             message for message in messages if "alice@g.rwu.edu" in message["To"]
         )
-        self.assertEqual(alice_message["From"], "RA Draft <ra.draft@gmail.com>")
+        self.assertEqual(alice_message["From"], "Duty Shifts <ra.draft@gmail.com>")
         self.assertIn("Maple Hall duty schedule", alice_message["Subject"])
         html = alice_message.get_body(preferencelist=("html",)).get_content()
         self.assertIn("September 1, 2026", html)
         self.assertIn("/calendar/session/", html)
         self.assertIn("/my-calendar.ics", html)
+        self.assertIn("Duty Swaps", html)
+        self.assertIn(f"/swaps/session/{data['session_id']}", html)
 
     def test_closing_session_queues_final_schedule_notification_after_commit(self):
         data = self.create_session(status="OPEN")
