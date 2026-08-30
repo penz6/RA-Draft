@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Duty Swaps | RA Duty Picking{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
+    <h1>Duty Swaps</h1>
+    <p>Choose a closed duty session to request, review, or approve shift trades.</p>
+  </div>
+  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
+</div>
+
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Available swap menus</h2>
+      <p>Duty swaps become available after a session is closed.</p>
+    </div>
+    <span class="count-badge">{{ closed_sessions|length }}</span>
+  </div>
+
+  <div class="session-list">
+    {% for s in closed_sessions %}
+    <a class="session-card" href="{{ url_for('swap_page', session_id=s.id) }}">
+      <div class="session-card-main">
+        <div class="session-card-title">
+          <h3>{{ s.name }}</h3>
+          <span class="pill closed">CLOSED</span>
+        </div>
+        <p>{{ s.building_name }}</p>
+      </div>
+      <dl class="session-meta">
+        <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
+        <div><dt>Swap menu</dt><dd>Request &amp; review trades</dd></div>
+      </dl>
+      <span class="session-arrow" aria-hidden="true">&rarr;</span>
+    </a>
+    {% else %}
+    <div class="empty-state compact">
+      <h3>No closed sessions yet</h3>
+      <p>Once a duty session is closed, its swap menu will appear here.</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
