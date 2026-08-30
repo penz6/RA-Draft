@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head swap-page-head">
   <div>
-    <a class="back-link" href="{{ url_for('view_session', session_id=draft.id) }}">&larr; Back to session</a>
+    <a class="back-link" href="{{ url_for('swap_home') }}">&larr; All duty swaps</a>
     <div class="eyebrow">{{ draft.building_name }}</div>
     <h1>Duty Swaps</h1>
     <p>{{ draft.name }}</p>
@@ -179,11 +179,11 @@
         <div class="swap-builder-step-content">
           <div class="swap-builder-step-head">
             <h3>Choose the shift pairs</h3>
-            <p>Turn on a row to include your shift, then choose which of your partner's shifts you want in return.</p>
+            <p>Turn on a row to include your shift, then choose which of your partner's shifts you want in return. A trade is unavailable if either of you is already assigned to the date you would receive.</p>
           </div>
           <div class="swap-builder-list" id="swap-pairs-list">
             {% for pick in my_picks %}
-            <div class="swap-builder-row" data-swap-row>
+            <div class="swap-builder-row" data-swap-row data-my-raw-date="{{ pick.duty_date }}">
               <label class="swap-shift-toggle">
                 <input type="checkbox" class="swap-include-check" data-my-assignment-id="{{ pick.id }}" aria-label="Include your {{ pick.duty_date|date_label }} shift">
                 <span class="swap-shift-copy">
