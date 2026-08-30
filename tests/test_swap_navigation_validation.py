@@ -90,6 +90,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             conn.commit()
             return {
                 "session_id": session_id,
+                "hra_id": hra_id,
                 "alice_id": alice_id,
                 "bob_id": bob_id,
                 "alice_sep1": alice_sep1,
@@ -99,13 +100,16 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             }
 
     def _post_swap(self, my_assignment, target_assignment):
+        return self._post_swap_batch([my_assignment], [target_assignment])
+
+    def _post_swap_batch(self, my_assignments, target_assignments):
         return self.request(
             "post",
             f"/swaps/session/{self.data['session_id']}/request",
             data={
                 "csrf": "swap-validation-csrf",
-                "my_assignment_ids": [str(my_assignment)],
-                "target_assignment_ids": [str(target_assignment)],
+                "my_assignment_ids": [str(item) for item in my_assignments],
+                "target_assignment_ids": [str(item) for item in target_assignments],
             },
             headers={"X-RA-Draft-Async": "1"},
         )
@@ -125,24 +129,77 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("same duty date", response.get_json()["message"])
 
-    def test_swap_cannot_give_either_ra_a_date_they_already_have(self):
+    def test_single_pair_cannot_leave_either_ra_with_duplicate_date(self):
         self.login_as(self.data["alice_id"])
 
-        # Alice cannot receive Bob's Sep 1 because Alice is already on Sep 1.
+        # Alice cannot receive Bob's Sep 1 while keeping her own Sep 1 assignment.
         response = self._post_swap(self.data["alice_sep3"], self.data["bob_sep1"])
         self.assertEqual(response.status_code, 400)
-        self.assertIn("already assigned", response.get_json()["message"])
+        self.assertIn("assigned twice", response.get_json()["message"])
 
-        # Bob cannot receive Alice's Sep 1 because Bob is already on Sep 1.
+        # Bob cannot receive Alice's Sep 1 while keeping his own Sep 1 assignment.
         response = self._post_swap(self.data["alice_sep1"], self.data["bob_sep4"])
         self.assertEqual(response.status_code, 400)
-        self.assertIn("already assigned", response.get_json()["message"])
+        self.assertIn("assigned twice", response.get_json()["message"])
 
     def test_different_dates_remain_swappable(self):
         self.login_as(self.data["alice_id"])
         response = self._post_swap(self.data["alice_sep3"], self.data["bob_sep4"])
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["ok"])
+
+    def test_multi_pair_batch_may_free_dates_that_would_be_duplicates_individually(self):
+        self.login_as(self.data["alice_id"])
+        response = self._post_swap_batch(
+            [self.data["alice_sep1"], self.data["alice_sep3"]],
+            [self.data["bob_sep4"], self.data["bob_sep1"]],
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+
+        with app.app_context():
+            batch_id = db().execute(
+                "SELECT batch_id FROM duty_swap_requests WHERE session_id=? LIMIT 1",
+                (self.data["session_id"],),
+            ).fetchone()["batch_id"]
+
+        self.login_as(self.data["bob_id"])
+        response = self.request(
+            "post",
+            f"/swaps/batch/{batch_id}/target-review",
+            data={"csrf": "swap-validation-csrf", "action": "APPROVE"},
+            headers={"X-RA-Draft-Async": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.login_as(self.data["hra_id"])
+        response = self.request(
+            "post",
+            f"/swaps/batch/{batch_id}/hra-review",
+            data={"csrf": "swap-validation-csrf", "action": "APPROVE"},
+            headers={"X-RA-Draft-Async": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["ok"])
+
+        with app.app_context():
+            alice_dates = {
+                row["duty_date"]
+                for row in db().execute(
+                    "SELECT duty_date FROM assignments WHERE session_id=? AND user_id=?",
+                    (self.data["session_id"], self.data["alice_id"]),
+                ).fetchall()
+            }
+            bob_dates = {
+                row["duty_date"]
+                for row in db().execute(
+                    "SELECT duty_date FROM assignments WHERE session_id=? AND user_id=?",
+                    (self.data["session_id"], self.data["bob_id"]),
+                ).fetchall()
+            }
+
+        self.assertEqual(alice_dates, {"2026-09-01", "2026-09-04"})
+        self.assertEqual(bob_dates, {"2026-09-01", "2026-09-03"})
 
 
 if __name__ == "__main__":
