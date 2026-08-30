@@ -3,55 +3,61 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="RWU residence-life duty scheduling portal">
   <title>{% block title %}RA Duty Picking{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='role_help.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='calendar.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='date_exceptions.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='live_stream.css') }}">
-  <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
-  <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="{{ url_for('dashboard') if me else url_for('index') }}" class="brand">
+      <a class="brand" href="{{ url_for('dashboard') if me else url_for('index') }}">
         <span class="brand-mark" aria-hidden="true">RA</span>
-        <span>Duty Picking</span>
+        <span>RA Duty Picking</span>
       </a>
-      {% if me %}
-      <nav class="primary-nav" aria-label="Primary navigation">
-        <a class="nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">Sessions</a>
-        {% if me.role == 'ADMIN' %}
-        <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
+      <nav class="primary-nav" aria-label="Main navigation">
+        {% if me %}
+          <span class="user-chip">
+            <span class="user-avatar" aria-hidden="true">{{ (me.name[:1] if me.name else 'U')|upper }}</span>
+            <span class="user-copy">
+              <strong>{{ me.name }}</strong>
+              <small>{{ me.building_name or 'Unassigned building' }}</small>
+            </span>
+          </span>
+          {% if me.role == 'ADMIN' %}
+            <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
+          {% endif %}
+          <a class="nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">Sessions</a>
+          <button class="nav-link nav-button" type="button" data-help-open>Help</button>
+          <form method="post" action="{{ url_for('logout') }}" class="nav-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <button class="button ghost small" type="submit">Sign out</button>
+          </form>
+        {% else %}
+          <a class="button small" href="{{ url_for('login') }}">Sign in with Google</a>
         {% endif %}
-        <button class="nav-link nav-button" type="button" data-help-open>How it works</button>
-        <span class="user-chip" title="{{ me.email }}">
-          <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
-          <span class="user-copy"><strong>{{ me.name }}</strong><small><span class="inline-role{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
-        </span>
-        <form class="nav-form" method="post" action="{{ url_for('logout') }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <button class="button ghost small" type="submit">Sign out</button>
-        </form>
       </nav>
-      {% endif %}
     </div>
   </header>
 
-  <main id="main-content" class="container">
+  <main class="container" id="main-content">
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-      <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
-      {% endfor %}
+      {% if messages %}
+        <div class="flash-stack" role="status" aria-live="polite">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
 
-  {% if me %}{% include 'role_help.html' %}{% endif %}
+  <footer class="site-footer">
+    <p>Roger Williams University &middot; Residence Life</p>
+    <p>Signed in as {{ me.email if me else 'Guest' }}</p>
+  </footer>
+
+  {% include 'role_help_modal.html' %}
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </body>
 </html>

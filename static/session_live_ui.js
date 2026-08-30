@@ -5,10 +5,6 @@
 
   const activeCalendar = () => document.querySelector("[data-duty-calendar]");
 
-  const inPatchedRegion = (element) => Boolean(
-    element?.closest?.('[data-live-patched="true"]')
-  );
-
   const showDialog = (dialog) => {
     if (!dialog) return;
     if (typeof dialog.showModal === "function") dialog.showModal();
@@ -30,14 +26,6 @@
     if (banner) banner.hidden = true;
   };
 
-  const refreshAuthoritativeState = async () => {
-    const live = window.RADraftLiveSession;
-    if (!live?.supportsPartial || typeof live.refreshNow !== "function") return false;
-    const refreshed = await live.refreshNow();
-    if (!refreshed) live.reload?.();
-    return refreshed;
-  };
-
   const parseActionPayload = async (response) => {
     const contentType = response.headers.get("Content-Type") || "";
     if (!contentType.includes("application/json")) return null;
@@ -52,14 +40,16 @@
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (!target) return;
 
-    // app.js attaches confirmation handlers to the initial page. This delegated
-    // fallback covers controls inserted later by a live fragment patch.
-    const confirmButton = target.closest("[data-confirm]");
-    if (confirmButton && inPatchedRegion(confirmButton)) {
-      if (!window.confirm(confirmButton.dataset.confirm || "Continue?")) {
-        event.preventDefault();
-        return;
-      }
+    const swapTrigger = target.closest("[data-swap-trigger]");
+    if (swapTrigger) {
+      const dialog = document.querySelector("[data-swap-dialog]");
+      if (!dialog) return;
+      const myIdInput = dialog.querySelector("[data-swap-my-id]");
+      const myDateLabel = dialog.querySelector("[data-swap-my-date]");
+      if (myIdInput) myIdInput.value = swapTrigger.dataset.assignmentId;
+      if (myDateLabel) myDateLabel.textContent = swapTrigger.dataset.dutyDate;
+      showDialog(dialog);
+      return;
     }
 
     const managerPick = target.closest("[data-manager-pick]");
@@ -144,12 +134,10 @@
 
   document.addEventListener("submit", async (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
-    if (!form?.matches("[data-live-pick-form]")) return;
+    if (!form?.matches("[data-live-pick-form],[data-live-action-form]")) return;
 
     const live = window.RADraftLiveSession;
     if (!live?.supportsPartial || typeof window.fetch !== "function") {
-      // Progressive enhancement: without the live client, the real form keeps
-      // the existing server-side POST/redirect behavior.
       return;
     }
 
@@ -168,52 +156,25 @@
     try {
       const response = await window.fetch(form.action, {
         method: "POST",
-        body: new window.FormData(form),
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "X-RA-Draft-Async": "1",
-        },
+        body: new FormData(form),
+        headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
       });
-
-      if (response.redirected || response.status === 401 || response.status === 403) {
-        live.reload?.();
-        return;
+      const data = await parseActionPayload(response);
+      if (dialog) closeDialog(dialog);
+      if (data?.ok) {
+        stopManagerMode();
+        live.refreshNow?.();
+      } else {
+        window.alert(data?.message || "Action failed. Please try again.");
       }
-
-      const payload = await parseActionPayload(response);
-      closeDialog(dialog);
-      stopManagerMode();
-
-      if (!response.ok || !payload?.ok) {
-        await refreshAuthoritativeState();
-        window.alert(payload?.message || "That pick could not be completed. The schedule was refreshed.");
-        return;
-      }
-
-      // Do not wait for our own SSE event. Pull the authoritative post-commit
-      // fragments immediately so the picker sees the same update as observers.
-      await refreshAuthoritativeState();
-    } catch (_error) {
-      closeDialog(dialog);
-      stopManagerMode();
-      const refreshed = await refreshAuthoritativeState();
-      if (refreshed) {
-        window.alert(
-          "The connection was interrupted. The schedule was refreshed before another pick can be attempted."
-        );
-      }
+    } catch (_err) {
+      window.alert("Network error. Please try again.");
     } finally {
-      delete form.dataset.submitting;
-      if (submitButton?.isConnected) {
+      form.dataset.submitting = "false";
+      if (submitButton) {
         submitButton.disabled = false;
         submitButton.textContent = originalLabel;
       }
     }
-  }, true);
-
-  window.RADraftSessionUI = {
-    resetAfterLivePatch: stopManagerMode,
-  };
+  });
 })();

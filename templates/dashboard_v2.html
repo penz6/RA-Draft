@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Duty sessions | RA Duty Picking{% endblock %}
 {% block content %}
-<div class="page-head" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
+<div class="page-head" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-partial-url="{{ url_for('dashboard_live_fragments') }}" data-live-version="{{ live_version }}">
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty sessions</h1>
@@ -94,28 +94,43 @@
 </section>
 {% endif %}
 
-<section class="card">
+{% if upcoming_shifts %}
+<section class="card upcoming-shifts-card">
   <div class="section-head">
-    <div><h2>Sessions</h2></div>
-    <span class="count-badge">{{ sessions|length }}</span>
+    <div>
+      <h2>My upcoming duty shifts</h2>
+      <p>Your confirmed shifts with fellow RAs on duty (7:00 PM - 8:00 AM).</p>
+    </div>
+    <span class="count-badge">{{ upcoming_shifts|length }}</span>
   </div>
-  <div class="session-list">
-    {% for s in sessions %}
-    <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}">
-      <div class="session-card-main">
-        <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
-        <p>{{ s.building_name }}</p>
+  <div class="upcoming-shifts-grid">
+    {% for s in upcoming_shifts %}
+    <div class="shift-card">
+      <div class="shift-card-head">
+        <strong class="shift-date">{{ s.duty_date|date_label }}</strong>
+        <span class="pill small time-pill">7:00 PM - 8:00 AM</span>
       </div>
-      <dl class="session-meta">
-        <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
-        <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
-        <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
-      </dl>
-      <span class="session-arrow" aria-hidden="true">&rarr;</span>
-    </a>
-    {% else %}
-    <div class="empty-state compact"><h3>No sessions yet</h3><p>New duty sessions will appear here.</p></div>
+      <div class="shift-card-body">
+        <div class="shift-location"><strong>{{ s.building_name }}</strong> · {{ s.session_name }}</div>
+        <div class="shift-partners">
+          {% if s.partner_names %}
+          <span>Duty partner{% if s.partner_names|length > 1 %}s{% endif %}: <strong>{{ s.partner_names|join(', ') }}</strong></span>
+          {% else %}
+          <span class="muted">Solo RA shift</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="shift-card-actions">
+        <a class="button secondary small gcal-btn" href="{{ s.google_url }}" target="_blank" rel="noopener" title="Add to Google Calendar">
+          + Add to Google Calendar
+        </a>
+        <a class="button ghost small" href="{{ url_for('view_session', session_id=s.session_id) }}">View session</a>
+      </div>
+    </div>
     {% endfor %}
   </div>
 </section>
+{% endif %}
+
+{% include 'dashboard_sessions_fragment.html' %}
 {% endblock %}
