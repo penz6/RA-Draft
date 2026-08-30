@@ -34,7 +34,7 @@ services:
       - pangolin
 
 volumes:
-  ra-draft-data:/data
+  ra-draft-data:
 
 networks:
   pangolin:
