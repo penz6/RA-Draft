@@ -45,7 +45,10 @@ def session_status(session_id):
     conn.commit()
 
     if notify_closed:
-        send_session_closed_notifications(session_id)
+        try:
+            send_session_closed_notifications(session_id)
+        except Exception:  # Email must never change an already-committed session result.
+            app.logger.exception("Could not prepare or dispatch RA Draft schedule emails.")
 
     return redirect(url_for("view_session", session_id=session_id))
 
