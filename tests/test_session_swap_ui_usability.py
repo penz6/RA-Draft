@@ -25,6 +25,21 @@ class SessionSwapUIUsabilityTests(unittest.TestCase):
         self.assertIn("Calendar exports", heading_template)
         self.assertNotIn("Delete session", heading_template)
 
+    def test_calendar_hides_out_of_session_cells_and_preserves_weekday_alignment(self):
+        template = (ROOT / "templates" / "session_dates_v2.html").read_text(encoding="utf-8")
+        css = (ROOT / "static" / "calendar.css").read_text(encoding="utf-8")
+
+        self.assertNotIn("calendar-blank", template)
+        self.assertIn("namespace(first_rendered=false)", template)
+        self.assertIn("calendar-start-{{ loop.index }}", template)
+        self.assertIn("Only dates included in this session are shown", template)
+        self.assertIn("Open shift", template)
+
+        for column in range(1, 8):
+            self.assertIn(f".calendar-start-{column}", css)
+        self.assertIn(".calendar-month{", css)
+        self.assertIn("min-height:104px", css)
+
     def test_swap_request_ui_is_guided_and_has_live_readiness_summary(self):
         template = (ROOT / "templates" / "swap_page.html").read_text(encoding="utf-8")
         script = (ROOT / "static" / "swap_page.js").read_text(encoding="utf-8")
