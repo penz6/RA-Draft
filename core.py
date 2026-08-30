@@ -631,7 +631,7 @@ def time_label(value):
 @app.template_filter("date_order_label")
 def date_order_label(value):
     """Map date ordering mode constant to user-facing label."""
-    return DATE_ORDER_LABELS.get(str(value), DATE_ORDER_WEEKDAYS_FIRST)
+    return DATE_ORDER_LABELS.get(str(value), DATE_ORDER_LABELS[DATE_ORDER_WEEKDAYS_FIRST])
 
 
 def require_csrf():
@@ -771,30 +771,28 @@ def can_manage(user, row):
 
 
 def ordered_people(session_id):
-    """List session participants ordered by active drafting rotation sequence."""
+    """Retrieve ordered list of participants and their current assignment counts."""
     return db().execute(
-        "SELECT users.*, session_order.position, "
-        "(SELECT COUNT(*) FROM assignments "
-        " WHERE assignments.session_id=session_order.session_id "
-        " AND assignments.user_id=users.id) AS assignment_count, "
-        "CASE WHEN EXISTS("
-        " SELECT 1 FROM session_deferrals "
-        " WHERE session_deferrals.session_id=session_order.session_id "
-        " AND session_deferrals.user_id=users.id"
-        ") THEN 1 ELSE 0 END AS deferred "
-        "FROM session_order JOIN users ON users.id=session_order.user_id "
-        "WHERE session_order.session_id=? ORDER BY session_order.position",
+        "SELECT u.id,u.name,u.email,u.role,u.disabled,o.position,"
+        "(SELECT COUNT(*) FROM assignments a "
+        " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) AS assignment_count,"
+        "0 AS deferred "
+        "FROM session_order o JOIN users u ON u.id=o.user_id "
+        "WHERE o.session_id=? ORDER BY o.position",
         (session_id,),
     ).fetchall()
 
 
-def active_picker_pool(session_id):
-    """List active, non-disabled participants eligible for round-robin drafting."""
-    return [person for person in ordered_people(session_id) if not person["disabled"]]
+def participant_count(session_id):
+    """Count the number of participants registered in a draft session."""
+    return db().execute(
+        "SELECT COUNT(*) AS n FROM session_order WHERE session_id=?",
+        (session_id,),
+    ).fetchone()["n"]
 
 
 def is_participant(session_id, user_id):
-    """Check if a given user ID is enrolled in the session participant pool."""
+    """Check if a specific user is registered in the session turn order."""
     return bool(
         db().execute(
             "SELECT 1 FROM session_order WHERE session_id=? AND user_id=?",
@@ -803,119 +801,155 @@ def is_participant(session_id, user_id):
     )
 
 
-def participant_count(session_id):
-    """Count total enrolled participants for a given draft session."""
-    return db().execute(
-        "SELECT COUNT(*) AS n FROM session_order WHERE session_id=?",
-        (session_id,),
-    ).fetchone()["n"]
-
-
 def calendar_dates(row):
-    """Generate chronological list of ISO date strings for the session date span."""
+    """Generate list of ISO date strings for the inclusive date span of a session."""
     start = date.fromisoformat(row["start_date"])
     end = date.fromisoformat(row["end_date"])
-    days = (end - start).days
-    return [(start + timedelta(days=offset)).isoformat() for offset in range(days + 1)]
+    result = []
+    day = start
+    while day <= end:
+        result.append(day.isoformat())
+        day += timedelta(days=1)
+    return result
 
 
-def effective_date_kind(row, duty_date):
-    """Determine whether a date is treated as WEEKDAY, WEEKEND, or NO_DUTY."""
-    override = db().execute(
-        "SELECT date_kind FROM session_date_overrides WHERE session_id=? AND duty_date=?",
-        (row["id"], duty_date),
-    ).fetchone()
-    if override:
-        return override["date_kind"]
-    return (
-        DATE_KIND_WEEKEND
-        if date.fromisoformat(duty_date).weekday() in (4, 5)
-        else DATE_KIND_WEEKDAY
-    )
+def calendar_months(row):
+    """Generate structured monthly calendar grid weeks for template rendering."""
+    start = date.fromisoformat(row["start_date"])
+    end = date.fromisoformat(row["end_date"])
+    calendar = calendar_module.Calendar(firstweekday=0)
+    months = []
+    cursor = start.replace(day=1)
+    while cursor <= end:
+        weeks = []
+        for week in calendar.monthdatescalendar(cursor.year, cursor.month):
+            rendered_week = []
+            for day in week:
+                if day.month != cursor.month or day < start or day > end:
+                    rendered_week.append(None)
+                else:
+                    rendered_week.append(day.isoformat())
+            weeks.append(rendered_week)
+        months.append(
+            {
+                "label": f"{calendar_module.month_name[cursor.month]} {cursor.year}",
+                "weeks": weeks,
+            }
+        )
+        cursor = (
+            date(cursor.year + 1, 1, 1)
+            if cursor.month == 12
+            else date(cursor.year, cursor.month + 1, 1)
+        )
+    return months
 
 
-def is_weekend(row, duty_date):
-    """Determine if a date functions as weekend duty in selection phases."""
-    return effective_date_kind(row, duty_date) == DATE_KIND_WEEKEND
+def natural_date_kind(date_string):
+    """Determine default calendar kind (WEEKDAY or WEEKEND) based on day of week."""
+    try:
+        parsed = date.fromisoformat(str(date_string))
+    except ValueError:
+        return DATE_KIND_WEEKDAY
+    return DATE_KIND_WEEKEND if parsed.weekday() in (4, 5) else DATE_KIND_WEEKDAY
 
 
-def is_weekday(row, duty_date):
-    """Determine if a date functions as weekday duty in selection phases."""
-    return effective_date_kind(row, duty_date) == DATE_KIND_WEEKDAY
+def date_kind_overrides(session_id):
+    """Retrieve explicit weekday/weekend/no-duty overrides for a session."""
+    rows = db().execute(
+        "SELECT duty_date, date_kind FROM session_date_overrides WHERE session_id=?",
+        (session_id,),
+    ).fetchall()
+    return {row["duty_date"]: row["date_kind"] for row in rows}
 
 
-def is_no_duty(row, duty_date):
-    """Check if a date is configured with zero duty requirement."""
-    return effective_date_kind(row, duty_date) == DATE_KIND_NO_DUTY
+def effective_date_kind(row, duty_date, overrides=None):
+    """Calculate effective date kind taking explicit overrides and natural weekday into account."""
+    if overrides is None:
+        session_id = _session_id(row)
+        overrides = date_kind_overrides(session_id) if session_id is not None else {}
+    override = overrides.get(duty_date)
+    if override in DATE_KIND_OVERRIDE_CHOICES:
+        return override
+    return natural_date_kind(duty_date)
 
 
 def date_kinds_for(row):
-    """Map every date in the session span to its effective duty date kind."""
+    """Map each date in session to its effective date kind."""
     return {
         duty_date: effective_date_kind(row, duty_date)
         for duty_date in calendar_dates(row)
     }
 
 
-def date_kind_overrides(session_id):
-    """Fetch custom date kind overrides explicitly set for a session."""
+def dates_for(row):
+    """Return selectable dates sorted according to the session date ordering rules."""
+    kinds = date_kinds_for(row)
+    days = [date.fromisoformat(v) for v in calendar_dates(row) if kinds[v] != DATE_KIND_NO_DUTY]
+    try:
+        order = normalize_date_order(row["date_order"])
+    except (IndexError, KeyError, TypeError, ValueError):
+        order = DATE_ORDER_WEEKDAYS_FIRST
+
+    if order == DATE_ORDER_WEEKDAYS_FIRST:
+        days.sort(key=lambda item: (kinds[item.isoformat()] != DATE_KIND_WEEKDAY, item))
+    elif order == DATE_ORDER_WEEKENDS_FIRST:
+        days.sort(key=lambda item: (kinds[item.isoformat()] != DATE_KIND_WEEKEND, item))
+    return [item.isoformat() for item in days]
+
+
+def capacity_overrides(session_id):
+    """Retrieve explicit per-date staffing capacity overrides for a session."""
     return {
-        item["duty_date"]: item["date_kind"]
-        for item in db().execute(
-            "SELECT duty_date, date_kind FROM session_date_overrides WHERE session_id=?",
+        row["duty_date"]: row["capacity"]
+        for row in db().execute(
+            "SELECT duty_date,capacity FROM session_date_capacities "
+            "WHERE session_id=? ORDER BY duty_date",
             (session_id,),
         ).fetchall()
     }
 
 
-def effective_capacity(row, duty_date):
-    """Return maximum RA capacity for a specific date considering overrides."""
-    if is_no_duty(row, duty_date):
-        return 0
-    override = db().execute(
-        "SELECT capacity FROM session_date_capacities WHERE session_id=? AND duty_date=?",
-        (row["id"], duty_date),
-    ).fetchone()
-    return override["capacity"] if override else row["capacity"]
-
-
 def capacities_for(row):
-    """Map every date in the session span to its effective staffing capacity."""
-    return {
-        duty_date: effective_capacity(row, duty_date)
-        for duty_date in calendar_dates(row)
-    }
+    """Compute effective staffing capacity for every date in a draft session."""
+    session_id = _session_id(row)
+    overrides = capacity_overrides(session_id) if session_id is not None else {}
+    kinds = date_kinds_for(row)
+    base_capacity = int(row["capacity"])
+    capacities = {}
+    for duty_date in calendar_dates(row):
+        if kinds[duty_date] == DATE_KIND_NO_DUTY:
+            capacities[duty_date] = 0
+        elif duty_date in overrides:
+            capacities[duty_date] = overrides[duty_date]
+        else:
+            capacities[duty_date] = base_capacity
+    return capacities
 
 
-def capacity_overrides(session_id):
-    """Fetch all explicit per-date capacity override integers for a session."""
+def effective_capacity(row, duty_date):
+    """Get staffing capacity for a specific date in a draft session."""
+    return capacities_for(row).get(duty_date, int(row["capacity"]))
+
+
+def assignment_counts(session_id):
+    """Count existing assignments grouped by duty date for a session."""
     return {
-        item["duty_date"]: item["capacity"]
-        for item in db().execute(
-            "SELECT duty_date, capacity FROM session_date_capacities WHERE session_id=?",
+        row["duty_date"]: row["n"]
+        for row in db().execute(
+            "SELECT duty_date,COUNT(*) AS n FROM assignments "
+            "WHERE session_id=? GROUP BY duty_date",
             (session_id,),
         ).fetchall()
     }
 
 
 def total_slots(row):
-    """Sum the total required RA assignments across all dates in the session."""
+    """Calculate the total number of duty slots required across the session."""
     return sum(capacities_for(row).values())
 
 
-def assignment_counts(session_id):
-    """Count existing confirmed duty assignments per date string for a session."""
-    counts = defaultdict(int)
-    for item in db().execute(
-        "SELECT duty_date, COUNT(*) AS n FROM assignments WHERE session_id=? GROUP BY duty_date",
-        (session_id,),
-    ).fetchall():
-        counts[item["duty_date"]] = item["n"]
-    return counts
-
-
 def filled_slots(session_id):
-    """Calculate the total count of assignments committed for a session."""
+    """Count total filled duty slots in a session."""
     return db().execute(
         "SELECT COUNT(*) AS n FROM assignments WHERE session_id=?",
         (session_id,),
@@ -923,277 +957,253 @@ def filled_slots(session_id):
 
 
 def session_complete(row):
-    """Check if all calendar dates meet or exceed their configured duty capacities."""
-    counts = assignment_counts(row["id"])
-    return all(
-        counts.get(duty_date, 0) >= capacity
-        for duty_date, capacity in capacities_for(row).items()
-    )
+    """Check if all required slots on all active duty dates have been filled."""
+    session_id = _session_id(row)
+    if session_id is None:
+        return True
+    counts = assignment_counts(session_id)
+    capacities = capacities_for(row)
+    return all(counts.get(duty_date, 0) >= capacity for duty_date, capacity in capacities.items())
 
 
-def dates_for(row):
-    """Return calendar dates sorted according to the session date selection rule."""
-    all_dates = calendar_dates(row)
-    mode = row["date_order"] if "date_order" in row.keys() else DATE_ORDER_WEEKDAYS_FIRST
-    if mode == DATE_ORDER_CHRONOLOGICAL:
-        return all_dates
-
-    kinds = date_kinds_for(row)
-    primary_kind = (
-        DATE_KIND_WEEKDAY
-        if mode == DATE_ORDER_WEEKDAYS_FIRST
-        else DATE_KIND_WEEKEND
-    )
-    secondary_kind = (
-        DATE_KIND_WEEKEND
-        if mode == DATE_ORDER_WEEKDAYS_FIRST
-        else DATE_KIND_WEEKDAY
-    )
-
-    primary_dates = [
-        item for item in all_dates if kinds.get(item) == primary_kind
-    ]
-    secondary_dates = [
-        item for item in all_dates if kinds.get(item) == secondary_kind
-    ]
-    no_duty_dates = [
-        item for item in all_dates if kinds.get(item) == DATE_KIND_NO_DUTY
-    ]
-    return primary_dates + secondary_dates + no_duty_dates
-
-
-def selectable_dates(row, user_id):
-    """Return available dates that the specified user can select on their turn."""
-    if row["status"] != "OPEN" or row["picking_paused"]:
-        return []
-
-    assigned = {
-        item["duty_date"]
-        for item in db().execute(
+def user_assignment_dates(session_id, user_id):
+    """Get the set of duty dates already assigned to a specific user in a session."""
+    return {
+        row["duty_date"]
+        for row in db().execute(
             "SELECT duty_date FROM assignments WHERE session_id=? AND user_id=?",
-            (row["id"], user_id),
+            (session_id, user_id),
         ).fetchall()
     }
-    counts = assignment_counts(row["id"])
+
+
+def _precompute_session_selection_context(row):
+    """Precompute session dates, capacities, and assignment state to avoid N+1 queries."""
+    session_id = _session_id(row)
+    if session_id is None:
+        return None
+    counts = assignment_counts(session_id)
     capacities = capacities_for(row)
+    kinds = date_kinds_for(row)
+
+    rows = db().execute(
+        "SELECT user_id, duty_date FROM assignments WHERE session_id=?",
+        (session_id,),
+    ).fetchall()
+    user_assignments = defaultdict(set)
+    for r in rows:
+        user_assignments[r["user_id"]].add(r["duty_date"])
+
+    globally_open = [
+        duty_date
+        for duty_date in dates_for(row)
+        if capacities[duty_date] > 0
+        and counts.get(duty_date, 0) < capacities[duty_date]
+    ]
+
+    order = normalize_date_order(row["date_order"])
+    if order == DATE_ORDER_WEEKDAYS_FIRST:
+        weekday_phase = [
+            duty_date
+            for duty_date in globally_open
+            if kinds[duty_date] == DATE_KIND_WEEKDAY
+        ]
+        if weekday_phase:
+            globally_open = weekday_phase
+    elif order == DATE_ORDER_WEEKENDS_FIRST:
+        weekend_phase = [
+            duty_date
+            for duty_date in globally_open
+            if kinds[duty_date] == DATE_KIND_WEEKEND
+        ]
+        if weekend_phase:
+            globally_open = weekend_phase
+
+    is_complete = all(
+        counts.get(duty_date, 0) >= capacity
+        for duty_date, capacity in capacities.items()
+    )
+
+    return {
+        "counts": counts,
+        "capacities": capacities,
+        "kinds": kinds,
+        "user_assignments": user_assignments,
+        "globally_open": globally_open,
+        "is_complete": is_complete,
+    }
+
+
+def selectable_dates(row, user_id, *, _precomputed=None):
+    """Return dates open and eligible for selection by a specific participant."""
+    session_id = _session_id(row)
+    if session_id is None:
+        return []
+
+    if _precomputed is not None:
+        globally_open = _precomputed["globally_open"]
+        user_assignments = _precomputed["user_assignments"].get(user_id, set())
+    else:
+        counts = assignment_counts(session_id)
+        capacities = capacities_for(row)
+        kinds = date_kinds_for(row)
+        user_assignments = user_assignment_dates(session_id, user_id)
+
+        globally_open = [
+            duty_date
+            for duty_date in dates_for(row)
+            if capacities[duty_date] > 0
+            and counts.get(duty_date, 0) < capacities[duty_date]
+        ]
+
+        order = normalize_date_order(row["date_order"])
+        if order == DATE_ORDER_WEEKDAYS_FIRST:
+            weekday_phase = [
+                duty_date
+                for duty_date in globally_open
+                if kinds[duty_date] == DATE_KIND_WEEKDAY
+            ]
+            if weekday_phase:
+                globally_open = weekday_phase
+        elif order == DATE_ORDER_WEEKENDS_FIRST:
+            weekend_phase = [
+                duty_date
+                for duty_date in globally_open
+                if kinds[duty_date] == DATE_KIND_WEEKEND
+            ]
+            if weekend_phase:
+                globally_open = weekend_phase
+
+    return [
+        duty_date
+        for duty_date in globally_open
+        if duty_date not in user_assignments
+    ]
+
+
+def selection_phase_label(row):
+    """Generate status description string explaining which dates are currently open."""
+    session_id = _session_id(row)
+    if session_id is None:
+        return ""
+    counts = assignment_counts(session_id)
+    capacities = capacities_for(row)
+    kinds = date_kinds_for(row)
     open_dates = [
         duty_date
         for duty_date in calendar_dates(row)
         if capacities[duty_date] > 0
         and counts.get(duty_date, 0) < capacities[duty_date]
-        and duty_date not in assigned
     ]
-    if not open_dates:
-        return []
-
-    mode = row["date_order"] if "date_order" in row.keys() else DATE_ORDER_WEEKDAYS_FIRST
-    if mode == DATE_ORDER_CHRONOLOGICAL:
-        return open_dates
-
-    kinds = date_kinds_for(row)
-    primary_kind = (
-        DATE_KIND_WEEKDAY
-        if mode == DATE_ORDER_WEEKDAYS_FIRST
-        else DATE_KIND_WEEKEND
-    )
-    primary_open = [
-        duty_date
-        for duty_date in calendar_dates(row)
-        if kinds.get(duty_date) == primary_kind
-        and counts.get(duty_date, 0) < capacities[duty_date]
-        and capacities[duty_date] > 0
-    ]
-    if primary_open:
-        return [item for item in open_dates if kinds.get(item) == primary_kind]
-    return open_dates
-
-
-def selection_phase_label(row):
-    """Generate user-facing text indicating current draft phase constraints."""
-    mode = row["date_order"] if "date_order" in row.keys() else DATE_ORDER_WEEKDAYS_FIRST
-    if mode == DATE_ORDER_CHRONOLOGICAL:
-        return "Any open date can be picked"
-
-    counts = assignment_counts(row["id"])
-    capacities = capacities_for(row)
-    kinds = date_kinds_for(row)
-    primary_kind = (
-        DATE_KIND_WEEKDAY
-        if mode == DATE_ORDER_WEEKDAYS_FIRST
-        else DATE_KIND_WEEKEND
-    )
-    has_primary_open = any(
-        kinds.get(duty_date) == primary_kind
-        and counts.get(duty_date, 0) < capacities[duty_date]
-        and capacities[duty_date] > 0
-        for duty_date in calendar_dates(row)
-    )
-    if mode == DATE_ORDER_WEEKDAYS_FIRST:
-        return (
-            "Weekdays only until all weekdays are filled"
-            if has_primary_open
-            else "Weekdays filled — weekends are now open"
-        )
-    return (
-        "Weekends only until all weekends are filled"
-        if has_primary_open
-        else "Weekends filled — weekdays are now open"
-    )
+    order = normalize_date_order(row["date_order"])
+    if order == DATE_ORDER_WEEKDAYS_FIRST:
+        if any(kinds[value] == DATE_KIND_WEEKDAY for value in open_dates):
+            return "Weekday dates are open; weekends unlock after weekday slots fill."
+        if open_dates:
+            return "Weekend dates are now open."
+    elif order == DATE_ORDER_WEEKENDS_FIRST:
+        if any(kinds[value] == DATE_KIND_WEEKEND for value in open_dates):
+            return "Weekend dates are open; weekdays unlock after weekend slots fill."
+        if open_dates:
+            return "Weekday dates are now open."
+    elif open_dates:
+        return "Any required date with an open slot can be selected."
+    return "Every required duty slot is filled."
 
 
 def next_picker(session_id):
-    """Determine which active participant currently holds the drafting turn."""
+    """Identify the participant whose turn it is to pick a shift in the round robin."""
     row = session_row(session_id)
-    if not row or row["status"] != "OPEN":
+    if not row:
         return None
 
-    people = active_picker_pool(session_id)
-    if not people or session_complete(row):
+    precomputed = _precompute_session_selection_context(row)
+    if not precomputed or precomputed["is_complete"] or not precomputed["globally_open"]:
         return None
 
-    people_by_position = {person["position"]: person for person in people}
-    max_position = max(people_by_position)
-    position = row["current_position"]
+    active = db().execute(
+        "SELECT u.*,o.position FROM session_order o "
+        "JOIN users u ON u.id=o.user_id "
+        "WHERE o.session_id=? AND u.disabled=0 ORDER BY o.position",
+        (session_id,),
+    ).fetchall()
+    if not active:
+        return None
 
-    for _ in range(max_position):
-        candidate = people_by_position.get(position)
-        if candidate:
-            available = selectable_dates(row, candidate["id"])
-            if available:
-                return candidate
-        position = (position % max_position) + 1
-
+    start_position = row["current_position"] or 1
+    rotated = [item for item in active if item["position"] >= start_position]
+    rotated.extend(item for item in active if item["position"] < start_position)
+    for participant in rotated:
+        if selectable_dates(row, participant["id"]):
+            return participant
     return None
 
 
-def advance_turn(session_id, current_user_id):
-    """Advance the current turn pointer to the next participant in order."""
-    row = db().execute(
-        "SELECT current_position FROM draft_sessions WHERE id=?",
-        (session_id,),
+def advance_turn(session_id, after_user_id):
+    """Advance session current turn position pointer to the next active participant."""
+    current = db().execute(
+        "SELECT position FROM session_order WHERE session_id=? AND user_id=?",
+        (session_id, after_user_id),
     ).fetchone()
-    people = ordered_people(session_id)
-    if not row or not people:
+    if not current:
+        raise ValueError("User is not in the session order.")
+
+    active = db().execute(
+        "SELECT o.position FROM session_order o "
+        "JOIN users u ON u.id=o.user_id "
+        "WHERE o.session_id=? AND u.disabled=0 ORDER BY o.position",
+        (session_id,),
+    ).fetchall()
+    if not active:
         return
-    max_position = max(person["position"] for person in people)
-    user_position = next(
-        (person["position"] for person in people if person["id"] == current_user_id),
-        row["current_position"],
+
+    next_position = next(
+        (
+            item["position"]
+            for item in active
+            if item["position"] > current["position"]
+        ),
+        active[0]["position"],
     )
-    next_position = (user_position % max_position) + 1
     db().execute(
         "UPDATE draft_sessions SET current_position=? WHERE id=?",
         (next_position, session_id),
     )
 
 
-def calendar_months(row):
-    """Assemble structured month grids containing day metadata for UI rendering."""
-    dates = calendar_dates(row)
-    capacities = capacities_for(row)
-    kinds = date_kinds_for(row)
-    counts = assignment_counts(row["id"])
-
-    assignments_by_date = defaultdict(list)
-    assignment_user_ids = defaultdict(list)
-    for assignment in db().execute(
-        "SELECT a.*, u.name, u.role, o.position FROM assignments a "
-        "JOIN users u ON u.id=a.user_id "
-        "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
-        "WHERE a.session_id=? ORDER BY o.position, a.id",
-        (row["id"],),
-    ).fetchall():
-        assignments_by_date[assignment["duty_date"]].append(assignment)
-        assignment_user_ids[assignment["duty_date"]].append(str(assignment["user_id"]))
-
-    cal = calendar_module.Calendar(firstweekday=6)  # Sunday first
-    months = []
-    seen = set()
-
-    for duty_date_str in dates:
-        dt = date.fromisoformat(duty_date_str)
-        month_key = (dt.year, dt.month)
-        if month_key in seen:
-            continue
-        seen.add(month_key)
-
-        year, month = month_key
-        month_days = []
-        for week in cal.monthdatescalendar(year, month):
-            for day in week:
-                iso = day.isoformat()
-                is_current_month = day.month == month
-                in_session = iso in capacities
-                capacity = capacities.get(iso, 0)
-                assigned_list = assignments_by_date.get(iso, [])
-                assigned_count = len(assigned_list)
-                is_full = capacity > 0 and assigned_count >= capacity
-                kind = kinds.get(iso, DATE_KIND_AUTO)
-                is_no_duty_date = kind == DATE_KIND_NO_DUTY
-
-                month_days.append({
-                    "date": iso,
-                    "day_number": day.day,
-                    "is_current_month": is_current_month,
-                    "in_session": in_session,
-                    "capacity": capacity,
-                    "assigned_count": assigned_count,
-                    "assigned_list": assigned_list,
-                    "assigned_user_ids": ",".join(assignment_user_ids.get(iso, [])),
-                    "is_full": is_full,
-                    "kind": kind,
-                    "is_no_duty": is_no_duty_date,
-                    "date_label": f"{day.strftime('%a, %b')} {day.day}, {day.year}",
-                })
-
-        months.append({
-            "name": dt.strftime("%B %Y"),
-            "year": year,
-            "month": month,
-            "days": month_days,
-        })
-
-    return months
-
-
-def google_calendar_url(building_name, duty_date_str, session_name="Duty"):
-    """Generate a 1-click Google Calendar add-event template URL (7:00 PM to 8:00 AM next day)."""
-    try:
-        start_d = date.fromisoformat(duty_date_str)
-        end_d = start_d + timedelta(days=1)
-        # RWU is US Eastern Time (America/New_York)
-        start_ts = f"{start_d.strftime('%Y%m%d')}T190000"
-        end_ts = f"{end_d.strftime('%Y%m%d')}T080000"
-        title = f"RA Duty - {building_name}"
-        details = f"RA Duty Shift for {building_name} ({session_name}). Hours: 7:00 PM to 8:00 AM next morning."
-        location = f"{building_name}, Roger Williams University"
-        params = {
-            "action": "TEMPLATE",
-            "text": title,
-            "dates": f"{start_ts}/{end_ts}",
-            "details": details,
-            "location": location,
-            "ctz": "America/New_York",
-        }
-        return f"https://calendar.google.com/calendar/render?{urllib.parse.urlencode(params)}"
-    except Exception:
-        return "#"
+def google_calendar_url(building_name, duty_date, session_name="RA Duty"):
+    """Generate a 1-click Google Calendar web intent URL for a 7:00 PM to 8:00 AM shift."""
+    start = date.fromisoformat(duty_date)
+    end = start + timedelta(days=1)
+    start_str = f"{start.strftime('%Y%m%d')}T190000"
+    end_str = f"{end.strftime('%Y%m%d')}T080000"
+    title = f"{building_name} RA Duty"
+    details = f"Resident Assistant Duty Shift for {session_name}."
+    params = {
+        "action": "TEMPLATE",
+        "text": title,
+        "dates": f"{start_str}/{end_str}",
+        "details": details,
+        "location": building_name,
+    }
+    return f"https://calendar.google.com/calendar/render?{urllib.parse.urlencode(params)}"
 
 
 app.jinja_env.globals["google_calendar_url"] = google_calendar_url
 
 
 def user_upcoming_shifts(user_id):
-    """Retrieve upcoming active duty shifts for a specific participant with partner information."""
-    today_iso = date.today().isoformat()
+    """Retrieve upcoming or active assigned duty shifts for a user across all sessions."""
+    today_str = date.today().isoformat()
     rows = db().execute(
-        "SELECT a.id, a.duty_date, a.session_id, s.name session_name, b.name building_name "
+        "SELECT a.id AS assignment_id, a.duty_date, s.id AS session_id, s.name AS session_name, "
+        "s.status AS session_status, b.name AS building_name "
         "FROM assignments a "
         "JOIN draft_sessions s ON s.id=a.session_id "
         "JOIN buildings b ON b.id=s.building_id "
         "WHERE a.user_id=? AND a.duty_date >= ? "
-        "ORDER BY a.duty_date ASC LIMIT 10",
-        (user_id, today_iso),
+        "ORDER BY a.duty_date ASC, s.id ASC",
+        (user_id, today_str),
     ).fetchall()
 
     shifts = []
@@ -1201,32 +1211,37 @@ def user_upcoming_shifts(user_id):
         partners = db().execute(
             "SELECT u.name FROM assignments a "
             "JOIN users u ON u.id=a.user_id "
-            "WHERE a.session_id=? AND a.duty_date=? AND a.user_id<>?",
+            "WHERE a.session_id=? AND a.duty_date=? AND a.user_id<>? "
+            "ORDER BY a.id",
             (r["session_id"], r["duty_date"], user_id),
         ).fetchall()
-        partner_names = [p["name"] for p in partners]
         shifts.append({
-            "id": r["id"],
+            "assignment_id": r["assignment_id"],
             "duty_date": r["duty_date"],
             "session_id": r["session_id"],
             "session_name": r["session_name"],
+            "session_status": r["session_status"],
             "building_name": r["building_name"],
-            "partner_names": partner_names,
+            "partner_names": [p["name"] for p in partners],
             "google_url": google_calendar_url(r["building_name"], r["duty_date"], r["session_name"]),
         })
     return shifts
 
 
 def session_swap_requests(session_id):
-    """Fetch all swap requests recorded for a draft session."""
+    """Retrieve all swap requests for a session with requester and target participant details."""
     return db().execute(
-        "SELECT sw.*, u1.name requester_name, u2.name target_name, "
-        "a1.duty_date requester_date, a2.duty_date target_date "
-        "FROM duty_swap_requests sw "
-        "JOIN users u1 ON u1.id=sw.requester_user_id "
-        "JOIN users u2 ON u2.id=sw.target_user_id "
-        "JOIN assignments a1 ON a1.id=sw.requester_assignment_id "
-        "JOIN assignments a2 ON a2.id=sw.target_assignment_id "
-        "WHERE sw.session_id=? ORDER BY sw.id DESC",
+        "SELECT sr.*, "
+        "u1.name AS requester_name, a1.duty_date AS requester_date, "
+        "u2.name AS target_name, a2.duty_date AS target_date, "
+        "ur.name AS reviewer_name "
+        "FROM duty_swap_requests sr "
+        "JOIN users u1 ON u1.id=sr.requester_user_id "
+        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
+        "JOIN users u2 ON u2.id=sr.target_user_id "
+        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
+        "LEFT JOIN users ur ON ur.id=sr.reviewed_by "
+        "WHERE sr.session_id=? "
+        "ORDER BY CASE sr.status WHEN 'PENDING' THEN 0 ELSE 1 END, sr.created_at DESC",
         (session_id,),
     ).fetchall()
