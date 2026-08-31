@@ -65,7 +65,7 @@ class OnboardingHelpTestCase(unittest.TestCase):
         response = self.request("get", "/")
         page = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("RA Duty Picking", page)
+        self.assertIn("Duty Shift", page)
         self.assertIn("Continue with Google", page)
         self.assertNotIn("spreadsheet scramble", page)
         self.assertNotIn("feature-grid", page)

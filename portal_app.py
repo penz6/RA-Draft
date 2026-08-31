@@ -61,7 +61,7 @@ def disabled_account_failure(conn):
     """Roll back transaction and notify user that their account is disabled."""
     conn.rollback()
     return oauth_failure(
-        "This Duty Picking account is disabled. Contact an administrator if access should be restored."
+        "This Duty Shift account is disabled. Contact an administrator if access should be restored."
     )
 
 
