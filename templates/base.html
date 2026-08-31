@@ -18,6 +18,20 @@
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
+  {% if impersonator %}
+  <div class="impersonation-bar" role="region" aria-label="Impersonation notice">
+    <div class="impersonation-bar-inner">
+      <div class="impersonation-message">
+        <span class="impersonation-icon" aria-hidden="true">&#9888;</span>
+        <span>Viewing as <strong>{{ me.name }}</strong> ({{ me.role }}{% if me.building_name %} · {{ me.building_name }}{% endif %}) &mdash; Signed in as <strong>{{ impersonator.name }}</strong> (Admin)</span>
+      </div>
+      <form method="post" action="{{ url_for('stop_impersonation') }}" class="impersonation-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="button small secondary">Exit Impersonation</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
   <header class="topbar">
     <div class="topbar-inner">
       <a href="{{ url_for('dashboard') if me else url_for('index') }}" class="brand">
