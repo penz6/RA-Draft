@@ -38,14 +38,6 @@
     return option && partnerSelect.value ? option.textContent.trim() : "";
   }
 
-  function differentDatePartnerPicks(row, available) {
-    const myRawDate = row.dataset.myRawDate || "";
-    if (!myRawDate) return [];
-    return available.filter(function (pick) {
-      return pick.rawDate && pick.rawDate !== myRawDate;
-    });
-  }
-
   function pickById(available, assignmentId) {
     return available.find(function (pick) {
       return String(pick.id) === String(assignmentId);
@@ -54,6 +46,71 @@
 
   function hasDuplicateDates(dates) {
     return new Set(dates).size !== dates.length;
+  }
+
+  function selectedOutgoingDates() {
+    const dates = new Set();
+    rows.forEach(function (row) {
+      const check = row.querySelector(".swap-include-check");
+      if (check && check.checked && row.dataset.myRawDate) {
+        dates.add(row.dataset.myRawDate);
+      }
+    });
+    return dates;
+  }
+
+  function selectedTargetIds(excludeRow) {
+    const ids = new Set();
+    rows.forEach(function (row) {
+      if (row === excludeRow) return;
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      if (check && check.checked && select && select.value) {
+        ids.add(String(select.value));
+      }
+    });
+    return ids;
+  }
+
+  function selectedPartnerOutgoingDates(partnerId, excludeRow) {
+    const available = picksByUser[partnerId] || [];
+    const dates = new Set();
+    rows.forEach(function (row) {
+      if (row === excludeRow) return;
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      if (!check || !check.checked || !select || !select.value) return;
+      const pick = pickById(available, select.value);
+      if (pick && pick.rawDate) dates.add(pick.rawDate);
+    });
+    return dates;
+  }
+
+  function eligiblePartnerPicksForRow(row, partnerId, available) {
+    const myRawDate = row.dataset.myRawDate || "";
+    if (!myRawDate) return [];
+
+    const outgoingDates = selectedOutgoingDates();
+    const remainingMyDates = new Set();
+    myDates.forEach(function (date) {
+      if (!outgoingDates.has(date)) remainingMyDates.add(date);
+    });
+
+    const usedTargetIds = selectedTargetIds(row);
+    const partnerOutgoingDates = selectedPartnerOutgoingDates(partnerId, row);
+    const partnerAlreadyWorksMyDate = available.some(function (pick) {
+      return pick.rawDate === myRawDate;
+    });
+
+    return available.filter(function (pick) {
+      if (!pick.rawDate || pick.rawDate === myRawDate) return false;
+      if (remainingMyDates.has(pick.rawDate)) return false;
+      if (usedTargetIds.has(String(pick.id))) return false;
+      if (partnerAlreadyWorksMyDate && !partnerOutgoingDates.has(myRawDate)) {
+        return false;
+      }
+      return true;
+    });
   }
 
   function projectedBatchIssue(partnerId, selectedPairs) {
@@ -97,6 +154,14 @@
     return null;
   }
 
+  function selectedRowWithoutEligibleChoice() {
+    return rows.some(function (row) {
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      return Boolean(check && check.checked && select && select.options.length <= 1);
+    });
+  }
+
   function updateSummary(partnerId, checkedCount, validCount, allComplete, issue) {
     if (!summaryTitle || !summaryCopy) return;
 
@@ -122,32 +187,19 @@
     }
 
     if (!allComplete) {
-      summaryTitle.textContent = checkedCount + " shift" + (checkedCount === 1 ? "" : "s") + " selected";
-      summaryCopy.textContent = "Choose a " + name + " shift for every selected row before sending.";
+      if (selectedRowWithoutEligibleChoice()) {
+        summaryTitle.textContent = "No eligible return shift for one selected date";
+        summaryCopy.textContent = "Try another shift, or include the conflicting shift in the same request.";
+      } else {
+        summaryTitle.textContent = checkedCount + " shift" + (checkedCount === 1 ? "" : "s") + " selected";
+        summaryCopy.textContent = "Choose a " + name + " shift for every selected row before sending.";
+      }
       return;
     }
 
-    if (issue === "duplicate-target") {
-      summaryTitle.textContent = "Use each " + name + " shift only once";
-      summaryCopy.textContent = "Choose a different return shift for one of the selected rows.";
-      return;
-    }
-
-    if (issue === "same-date") {
-      summaryTitle.textContent = "Those shifts are already on the same date";
-      summaryCopy.textContent = "Choose two different duty dates to make a meaningful trade.";
-      return;
-    }
-
-    if (issue === "requester-duplicate") {
-      summaryTitle.textContent = "That combination would duplicate one of your duty dates";
-      summaryCopy.textContent = "You can include another shift in the same request if that shift is being traded away, or choose a different return date.";
-      return;
-    }
-
-    if (issue === "partner-duplicate") {
-      summaryTitle.textContent = "That combination would duplicate one of " + name + "'s duty dates";
-      summaryCopy.textContent = "Choose a different shift combination so neither RA ends up assigned twice on one date.";
+    if (issue) {
+      summaryTitle.textContent = "Choose another available shift";
+      summaryCopy.textContent = "The selected combination cannot produce a duplicate-free schedule.";
       return;
     }
 
@@ -192,63 +244,80 @@
     updateSummary(partnerId, checkedCount, validCount, allComplete, issue);
   }
 
-  function updateTargetSelects() {
+  function rebuildTargetSelect(row, partnerId, available) {
+    const check = row.querySelector(".swap-include-check");
+    const select = row.querySelector(".swap-target-select");
+    if (!check || !select) return false;
+
+    const previousValue = select.value;
+    const eligible = eligiblePartnerPicksForRow(row, partnerId, available);
+    select.replaceChildren();
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    if (!partnerId) {
+      placeholder.textContent = "Choose a partner first";
+    } else if (available.length === 0) {
+      placeholder.textContent = "No shifts available";
+    } else if (eligible.length === 0) {
+      placeholder.textContent = "No eligible shifts";
+    } else {
+      placeholder.textContent = "Choose their shift";
+    }
+    select.appendChild(placeholder);
+
+    eligible.forEach(function (pick) {
+      const opt = document.createElement("option");
+      opt.value = pick.id;
+      opt.textContent = pick.date;
+      select.appendChild(opt);
+    });
+
+    if (previousValue && eligible.some(function (pick) {
+      return String(pick.id) === String(previousValue);
+    })) {
+      select.value = previousValue;
+    }
+
+    select.disabled = !check.checked || !partnerId || eligible.length === 0;
+    return Boolean(previousValue && !select.value);
+  }
+
+  function refreshTargetSelects() {
     const partnerId = partnerSelect.value;
     const available = picksByUser[partnerId] || [];
 
-    rows.forEach(function (row) {
-      const check = row.querySelector(".swap-include-check");
-      const select = row.querySelector(".swap-target-select");
-      if (!check || !select) return;
-
-      const eligible = differentDatePartnerPicks(row, available);
-      select.replaceChildren();
-
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      if (!partnerId) {
-        placeholder.textContent = "Choose a partner first";
-      } else if (available.length === 0) {
-        placeholder.textContent = "No shifts available";
-      } else if (eligible.length === 0) {
-        placeholder.textContent = "No different-date shifts";
-      } else {
-        placeholder.textContent = "Choose their shift";
-      }
-      select.appendChild(placeholder);
-
-      eligible.forEach(function (pick) {
-        const opt = document.createElement("option");
-        opt.value = pick.id;
-        opt.textContent = pick.date;
-        select.appendChild(opt);
+    for (let pass = 0; pass <= rows.length; pass += 1) {
+      let clearedChoice = false;
+      rows.forEach(function (row) {
+        if (rebuildTargetSelect(row, partnerId, available)) {
+          clearedChoice = true;
+        }
       });
-
-      select.disabled = !check.checked || !partnerId || eligible.length === 0;
-    });
+      if (!clearedChoice) break;
+    }
 
     updateSubmitState();
   }
 
-  partnerSelect.addEventListener("change", updateTargetSelects);
+  partnerSelect.addEventListener("change", function () {
+    rows.forEach(function (row) {
+      const select = row.querySelector(".swap-target-select");
+      if (select) select.value = "";
+    });
+    refreshTargetSelects();
+  });
 
   document.addEventListener("change", function (event) {
     if (event.target.matches(".swap-include-check")) {
       const row = event.target.closest("[data-swap-row]");
       const select = row ? row.querySelector(".swap-target-select") : null;
-      const partnerId = partnerSelect.value;
-      const available = picksByUser[partnerId] || [];
-      const eligible = row ? differentDatePartnerPicks(row, available) : [];
-
-      if (select) {
-        select.disabled = !event.target.checked || !partnerId || eligible.length === 0;
-        if (!event.target.checked) select.value = "";
-      }
-      updateSubmitState();
+      if (select && !event.target.checked) select.value = "";
+      refreshTargetSelects();
     }
 
     if (event.target.matches(".swap-target-select")) {
-      updateSubmitState();
+      refreshTargetSelects();
     }
   });
 
@@ -287,5 +356,5 @@
     }
   });
 
-  updateTargetSelects();
+  refreshTargetSelects();
 })();
