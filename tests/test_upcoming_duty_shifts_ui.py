@@ -11,6 +11,9 @@ class UpcomingDutyShiftsUITestCase(unittest.TestCase):
         self.assertIn("{% for shift in upcoming_shifts[:3] %}", template)
         self.assertIn("url_for('upcoming_duty_shifts')", template)
         self.assertIn(">View all</a>", template)
+        self.assertIn("shift.shift_start|time_label", template)
+        self.assertIn("shift.shift_end|time_label", template)
+        self.assertNotIn("7:00 PM &ndash; 8:00 AM", template)
 
     def test_full_upcoming_shift_page_uses_complete_list(self):
         route = (ROOT / "session_view.py").read_text(encoding="utf-8")
@@ -22,6 +25,9 @@ class UpcomingDutyShiftsUITestCase(unittest.TestCase):
         self.assertIn("{% for shift in upcoming_shifts %}", template)
         self.assertNotIn("upcoming_shifts[:3]", template)
         self.assertIn("url_for('dashboard')", template)
+        self.assertIn("shift.shift_start|time_label", template)
+        self.assertIn("shift.shift_end|time_label", template)
+        self.assertNotIn("7:00 PM &ndash; 8:00 AM", template)
 
 
 if __name__ == "__main__":
