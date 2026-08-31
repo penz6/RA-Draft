@@ -1,5 +1,5 @@
 {% extends 'emails/base.html' %}
-{% block title %}Your duty schedule is ready | RA Draft{% endblock %}
+{% block title %}Your duty schedule is ready | Duty Shift{% endblock %}
 {% block preheader %}Your {{ session.building_name }} duty schedule is ready.{% endblock %}
 {% block content %}
   <div style="font-size:13px;line-height:18px;font-weight:700;color:#5f6b82;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Final schedule</div>
@@ -34,5 +34,5 @@
       </td>
     </tr>
   </table>
-  <p style="margin:0;font-size:13px;line-height:20px;color:#788399;">These links require you to sign in to RA Draft. You can also <a href="{{ session_url }}" style="color:#2957d9;text-decoration:none;font-weight:700;">view the full session</a>.</p>
+  <p style="margin:0;font-size:13px;line-height:20px;color:#788399;">These links require you to sign in to Duty Shift. You can also <a href="{{ session_url }}" style="color:#2957d9;text-decoration:none;font-weight:700;">view the full session</a>.</p>
 {% endblock %}
