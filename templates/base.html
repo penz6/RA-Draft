@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="RWU residence-life duty scheduling portal">
-  <title>{% filter replace('RA Duty Picking', 'Duty Shift') %}{% block title %}Duty Shift{% endblock %}{% endfilter %}</title>
+  <title>{% block title %}Duty Shift{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='role_help.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='calendar.css') }}">
