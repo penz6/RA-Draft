@@ -1,6 +1,32 @@
 (function () {
   "use strict";
 
+  function schoolTodayIso() {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const values = {};
+    parts.forEach(function (part) {
+      if (part.type !== "literal") values[part.type] = part.value;
+    });
+    return values.year + "-" + values.month + "-" + values.day;
+  }
+
+  const today = schoolTodayIso();
+  const isPast = function (rawDate) {
+    return Boolean(rawDate && rawDate < today);
+  };
+
+  // Manager dropdowns use the same school-date rule as the server. Removing
+  // these choices is only a convenience; the backend independently rejects
+  // any forged request involving an elapsed duty date.
+  document.querySelectorAll(".manager-swap-card option[data-duty-date]").forEach(function (option) {
+    if (isPast(option.dataset.dutyDate)) option.remove();
+  });
+
   const partnerSelect = document.getElementById("swap-partner-select");
   const form = document.getElementById("swap-request-form");
   const submitBtn = document.getElementById("swap-submit-btn");
@@ -10,7 +36,25 @@
 
   if (!partnerSelect || !form || !submitBtn || !dataContainer) return;
 
-  const rows = Array.from(document.querySelectorAll("[data-swap-row]"));
+  const allRows = Array.from(document.querySelectorAll("[data-swap-row]"));
+  const rows = allRows.filter(function (row) {
+    const past = isPast(row.dataset.myRawDate || "");
+    if (past) {
+      row.hidden = true;
+      const check = row.querySelector(".swap-include-check");
+      const select = row.querySelector(".swap-target-select");
+      if (check) {
+        check.checked = false;
+        check.disabled = true;
+      }
+      if (select) {
+        select.value = "";
+        select.disabled = true;
+      }
+    }
+    return !past;
+  });
+
   const myDates = new Set(
     rows.map(function (row) { return row.dataset.myRawDate; }).filter(Boolean)
   );
@@ -18,12 +62,13 @@
 
   dataContainer.querySelectorAll("[data-swap-partner-pick]").forEach(function (item) {
     const userId = item.dataset.userId;
-    if (!userId) return;
+    const rawDate = item.dataset.rawDate || "";
+    if (!userId || !rawDate || isPast(rawDate)) return;
     if (!picksByUser[userId]) picksByUser[userId] = [];
     picksByUser[userId].push({
       id: item.dataset.assignmentId,
       date: item.dataset.dateLabel,
-      rawDate: item.dataset.rawDate,
+      rawDate: rawDate,
     });
   });
 
@@ -72,43 +117,32 @@
     return ids;
   }
 
-  function selectedPartnerOutgoingDates(partnerId, excludeRow) {
-    const available = picksByUser[partnerId] || [];
-    const dates = new Set();
-    rows.forEach(function (row) {
-      if (row === excludeRow) return;
-      const check = row.querySelector(".swap-include-check");
-      const select = row.querySelector(".swap-target-select");
-      if (!check || !check.checked || !select || !select.value) return;
-      const pick = pickById(available, select.value);
-      if (pick && pick.rawDate) dates.add(pick.rawDate);
+  function partnerAlreadyWorksDate(available, rawDate) {
+    return available.some(function (pick) {
+      return pick.rawDate === rawDate;
     });
-    return dates;
+  }
+
+  function rowBlockedByPartner(row, available) {
+    const rawDate = row.dataset.myRawDate || "";
+    return Boolean(rawDate && partnerAlreadyWorksDate(available, rawDate));
   }
 
   function eligiblePartnerPicksForRow(row, partnerId, available) {
     const myRawDate = row.dataset.myRawDate || "";
-    if (!myRawDate) return [];
+    if (!myRawDate || rowBlockedByPartner(row, available)) return [];
 
     const outgoingDates = selectedOutgoingDates();
     const remainingMyDates = new Set();
-    myDates.forEach(function (date) {
-      if (!outgoingDates.has(date)) remainingMyDates.add(date);
+    myDates.forEach(function (dutyDate) {
+      if (!outgoingDates.has(dutyDate)) remainingMyDates.add(dutyDate);
     });
 
     const usedTargetIds = selectedTargetIds(row);
-    const partnerOutgoingDates = selectedPartnerOutgoingDates(partnerId, row);
-    const partnerAlreadyWorksMyDate = available.some(function (pick) {
-      return pick.rawDate === myRawDate;
-    });
-
     return available.filter(function (pick) {
       if (!pick.rawDate || pick.rawDate === myRawDate) return false;
       if (remainingMyDates.has(pick.rawDate)) return false;
       if (usedTargetIds.has(String(pick.id))) return false;
-      if (partnerAlreadyWorksMyDate && !partnerOutgoingDates.has(myRawDate)) {
-        return false;
-      }
       return true;
     });
   }
@@ -128,8 +162,8 @@
       if (!pair.targetPick) return "incomplete";
       if (usedTargetIds.has(String(pair.targetPick.id))) return "duplicate-target";
       usedTargetIds.add(String(pair.targetPick.id));
-
       if (pair.myRawDate === pair.targetPick.rawDate) return "same-date";
+      if (partnerDates.has(pair.myRawDate)) return "partner-already-on-date";
 
       myOutgoingDates.add(pair.myRawDate);
       partnerOutgoingDates.add(pair.targetPick.rawDate);
@@ -138,15 +172,15 @@
     }
 
     const projectedMyDates = [];
-    myDates.forEach(function (date) {
-      if (!myOutgoingDates.has(date)) projectedMyDates.push(date);
+    myDates.forEach(function (dutyDate) {
+      if (!myOutgoingDates.has(dutyDate)) projectedMyDates.push(dutyDate);
     });
     projectedMyDates.push.apply(projectedMyDates, myIncomingDates);
     if (hasDuplicateDates(projectedMyDates)) return "requester-duplicate";
 
     const projectedPartnerDates = [];
-    partnerDates.forEach(function (date) {
-      if (!partnerOutgoingDates.has(date)) projectedPartnerDates.push(date);
+    partnerDates.forEach(function (dutyDate) {
+      if (!partnerOutgoingDates.has(dutyDate)) projectedPartnerDates.push(dutyDate);
     });
     projectedPartnerDates.push.apply(projectedPartnerDates, partnerIncomingDates);
     if (hasDuplicateDates(projectedPartnerDates)) return "partner-duplicate";
@@ -168,28 +202,34 @@
     const available = picksByUser[partnerId] || [];
     const name = partnerName();
 
+    if (rows.length === 0) {
+      summaryTitle.textContent = "No future duty shifts to swap";
+      summaryCopy.textContent = "Past duty shifts cannot be traded.";
+      return;
+    }
+
     if (!partnerId) {
       summaryTitle.textContent = "Choose a swap partner to begin";
-      summaryCopy.textContent = "Then select one or more of your shifts and choose what you want in return.";
+      summaryCopy.textContent = "Then select one or more of your future shifts and choose what you want in return.";
       return;
     }
 
     if (available.length === 0) {
-      summaryTitle.textContent = name + " has no shifts available to trade";
-      summaryCopy.textContent = "Choose a different RA to build a swap request.";
+      summaryTitle.textContent = name + " has no future shifts available to trade";
+      summaryCopy.textContent = "Choose a different RA.";
       return;
     }
 
     if (checkedCount === 0) {
       summaryTitle.textContent = "Trading with " + name;
-      summaryCopy.textContent = "Select at least one of your shifts below.";
+      summaryCopy.textContent = "Select one of your available shifts below.";
       return;
     }
 
     if (!allComplete) {
       if (selectedRowWithoutEligibleChoice()) {
         summaryTitle.textContent = "No eligible return shift for one selected date";
-        summaryCopy.textContent = "Try another shift, or include the conflicting shift in the same request.";
+        summaryCopy.textContent = "You already work the dates this RA could give you. Try another shift or another RA.";
       } else {
         summaryTitle.textContent = checkedCount + " shift" + (checkedCount === 1 ? "" : "s") + " selected";
         summaryCopy.textContent = "Choose a " + name + " shift for every selected row before sending.";
@@ -199,7 +239,7 @@
 
     if (issue) {
       summaryTitle.textContent = "Choose another available shift";
-      summaryCopy.textContent = "The selected combination cannot produce a duplicate-free schedule.";
+      summaryCopy.textContent = "That combination cannot produce a duplicate-free schedule.";
       return;
     }
 
@@ -249,6 +289,15 @@
     const select = row.querySelector(".swap-target-select");
     if (!check || !select) return false;
 
+    const partnerBlocksRow = Boolean(partnerId) && rowBlockedByPartner(row, available);
+    if (partnerBlocksRow) {
+      check.checked = false;
+      check.disabled = true;
+      row.classList.remove("is-selected");
+    } else {
+      check.disabled = false;
+    }
+
     const previousValue = select.value;
     const eligible = eligiblePartnerPicksForRow(row, partnerId, available);
     select.replaceChildren();
@@ -257,8 +306,10 @@
     placeholder.value = "";
     if (!partnerId) {
       placeholder.textContent = "Choose a partner first";
+    } else if (partnerBlocksRow) {
+      placeholder.textContent = partnerName() + " already works this date";
     } else if (available.length === 0) {
-      placeholder.textContent = "No shifts available";
+      placeholder.textContent = "No future shifts available";
     } else if (eligible.length === 0) {
       placeholder.textContent = "No eligible shifts";
     } else {
@@ -279,7 +330,7 @@
       select.value = previousValue;
     }
 
-    select.disabled = !check.checked || !partnerId || eligible.length === 0;
+    select.disabled = partnerBlocksRow || !check.checked || !partnerId || eligible.length === 0;
     return Boolean(previousValue && !select.value);
   }
 
@@ -302,7 +353,9 @@
 
   partnerSelect.addEventListener("change", function () {
     rows.forEach(function (row) {
+      const check = row.querySelector(".swap-include-check");
       const select = row.querySelector(".swap-target-select");
+      if (check) check.checked = false;
       if (select) select.value = "";
     });
     refreshTargetSelects();

@@ -8,6 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class DutySwapUIRegressionTests(unittest.TestCase):
     def test_swap_partner_picker_uses_csp_safe_external_script(self):
         template = (ROOT / "templates" / "swap_page.html").read_text(encoding="utf-8")
+        manager_template = (ROOT / "templates" / "manager_manual_swap.html").read_text(
+            encoding="utf-8"
+        )
         script = (ROOT / "static" / "swap_page.js").read_text(encoding="utf-8")
 
         self.assertIn("filename='swap_page.js'", template)
@@ -24,14 +27,20 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn("selectedOutgoingDates", script)
         self.assertIn("remainingMyDates.has(pick.rawDate)", script)
         self.assertIn("selectedTargetIds", script)
-        self.assertIn("selectedPartnerOutgoingDates", script)
-        self.assertIn("partnerAlreadyWorksMyDate", script)
+        self.assertIn("rowBlockedByPartner", script)
+        self.assertIn("already works this date", script)
         self.assertIn("projectedBatchIssue", script)
         self.assertIn("No eligible shifts", script)
         self.assertIn("refreshTargetSelects", script)
         self.assertIn("select.appendChild(opt)", script)
-        self.assertNotIn("differentDatePartnerPicks", script)
-        self.assertNotIn("partnerAlreadyOnMyDate", script)
+        self.assertNotIn("selectedPartnerOutgoingDates", script)
+        self.assertNotIn("partnerAlreadyWorksMyDate", script)
+
+        self.assertIn('timeZone: "America/New_York"', script)
+        self.assertIn("row.hidden = true", script)
+        self.assertIn("isPast(rawDate)", script)
+        self.assertIn('option[data-duty-date]', script)
+        self.assertIn('data-duty-date="{{ pick.duty_date }}"', manager_template)
 
     def test_home_navigation_opens_dedicated_duty_swap_menu(self):
         base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")

@@ -14,7 +14,7 @@
         <select name="first_assignment_id" required>
           <option value="">Choose a shift</option>
           {% for pick in manager_picks %}
-          <option value="{{ pick.id }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
+          <option value="{{ pick.id }}" data-duty-date="{{ pick.duty_date }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
           {% endfor %}
         </select>
       </label>
@@ -22,7 +22,7 @@
         <select name="second_assignment_id" required>
           <option value="">Choose a shift</option>
           {% for pick in manager_picks %}
-          <option value="{{ pick.id }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
+          <option value="{{ pick.id }}" data-duty-date="{{ pick.duty_date }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
           {% endfor %}
         </select>
       </label>
