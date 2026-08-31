@@ -20,11 +20,15 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn("item.dataset.userId", script)
         self.assertIn("item.dataset.assignmentId", script)
         self.assertIn("picksByUser[partnerId]", script)
-        self.assertIn("validPartnerPicksForRow", script)
-        self.assertIn("partnerAlreadyOnMyDate", script)
-        self.assertIn("!myDates.has(pick.rawDate)", script)
-        self.assertIn("No valid different-date shifts", script)
+        self.assertIn("differentDatePartnerPicks", script)
+        self.assertIn("projectedBatchIssue", script)
+        self.assertIn("myOutgoingDates", script)
+        self.assertIn("partnerOutgoingDates", script)
+        self.assertIn("requester-duplicate", script)
+        self.assertIn("partner-duplicate", script)
+        self.assertIn("No different-date shifts", script)
         self.assertIn("select.appendChild(opt)", script)
+        self.assertNotIn("partnerAlreadyOnMyDate", script)
 
     def test_home_navigation_opens_dedicated_duty_swap_menu(self):
         base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
@@ -33,7 +37,7 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn(">Duty Swaps</a>", base)
         self.assertIn("url_for('swap_home')", base)
         self.assertNotIn("dashboard') }}#duty-swaps", base)
-        self.assertIn("Available swap menus", swap_home)
+        self.assertIn("Available sessions", swap_home)
         self.assertIn("url_for('swap_page', session_id=s.id)", swap_home)
 
 

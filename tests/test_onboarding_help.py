@@ -168,7 +168,7 @@ class OnboardingHelpTestCase(unittest.TestCase):
             user = db().execute("SELECT building_id FROM users WHERE id=?", (hra_id,)).fetchone()
             self.assertEqual(user["building_id"], first)
 
-    def test_hra_dashboard_explains_immediate_session_start(self):
+    def test_hra_dashboard_has_session_creation_and_role_help(self):
         building_id = self.add_building("North Hall")
         hra_id = self.add_user(
             sub="hra-sub",
@@ -189,7 +189,6 @@ class OnboardingHelpTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Create and open a duty session", page)
         self.assertIn("Create and open session", page)
-        self.assertIn("The first turn starts immediately", page)
         self.assertIn('data-auto-open="true"', page)
         self.assertIn("data-help-open", page)
 

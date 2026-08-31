@@ -32,7 +32,7 @@ def _swap_action_response(session_id, message, *, category="success", status=200
 
 
 def _swap_date_collision(conn, session_id, requester_user_id, target_user_id, validated_pairs):
-    """Return True if a proposed swap would give either person a date they already hold."""
+    """Return True if the final batch would leave either RA assigned twice on one date."""
     requester_dates = {
         row["duty_date"]
         for row in conn.execute(
@@ -48,16 +48,61 @@ def _swap_date_collision(conn, session_id, requester_user_id, target_user_id, va
         ).fetchall()
     }
 
+    requester_outgoing = set()
+    target_outgoing = set()
+    requester_incoming = []
+    target_incoming = []
+
     for requester_assignment, target_assignment in validated_pairs:
         requester_date = requester_assignment["duty_date"]
         target_date = target_assignment["duty_date"]
         if requester_date == target_date:
             return True
-        if target_date in requester_dates:
-            return True
-        if requester_date in target_dates:
-            return True
-    return False
+        requester_outgoing.add(requester_date)
+        target_outgoing.add(target_date)
+        requester_incoming.append(target_date)
+        target_incoming.append(requester_date)
+
+    projected_requester_dates = [
+        duty_date for duty_date in requester_dates if duty_date not in requester_outgoing
+    ] + requester_incoming
+    if len(projected_requester_dates) != len(set(projected_requester_dates)):
+        return True
+
+    projected_target_dates = [
+        duty_date for duty_date in target_dates if duty_date not in target_outgoing
+    ] + target_incoming
+    return len(projected_target_dates) != len(set(projected_target_dates))
+
+
+def _apply_assignment_exchange(conn, batch_id, resolved_pairs):
+    """Exchange assignment owners without violating the immediate unique-date constraint."""
+    held_dates = {}
+    for requester_assignment, target_assignment in resolved_pairs:
+        held_dates[requester_assignment["id"]] = requester_assignment["duty_date"]
+        held_dates[target_assignment["id"]] = target_assignment["duty_date"]
+
+    for assignment_id in held_dates:
+        conn.execute(
+            "UPDATE assignments SET duty_date=? WHERE id=?",
+            (f"__swap_hold__{batch_id}_{assignment_id}", assignment_id),
+        )
+
+    for requester_assignment, target_assignment in resolved_pairs:
+        conn.execute(
+            "UPDATE assignments SET user_id=? WHERE id=?",
+            (target_assignment["user_id"], requester_assignment["id"]),
+        )
+        conn.execute(
+            "UPDATE assignments SET user_id=? WHERE id=?",
+            (requester_assignment["user_id"], target_assignment["id"]),
+        )
+
+    for assignment_id, duty_date in held_dates.items():
+        conn.execute(
+            "UPDATE assignments SET duty_date=? WHERE id=?",
+            (duty_date, assignment_id),
+        )
 
 
 @app.route("/swaps")
@@ -122,7 +167,7 @@ def swap_page(session_id):
             "SELECT a.*,u.name,u.role,o.position FROM assignments a "
             "JOIN users u ON u.id=a.user_id "
             "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
-            "WHERE a.session_id=? ORDER BY a.duty_date,o.position,a.id",
+            "WHERE a.session_id=? ORDER BY u.name,a.duty_date,o.position,a.id",
             (session_id,),
         ).fetchall()
 
@@ -180,6 +225,7 @@ def swap_page(session_id):
             my_picks=my_picks,
             other_picks=other_picks,
             other_participants=other_participants,
+            manager_picks=picks if manager_allowed else [],
             incoming=incoming,
             outgoing=outgoing,
             hra_review=hra_review,
@@ -192,6 +238,162 @@ def swap_page(session_id):
         raise
     conn.commit()
     return page
+
+
+@app.route("/swaps/session/<int:session_id>/manager-swap", methods=["POST"])
+@login_required
+def manager_manual_swap(session_id):
+    """Allow an HRA/Admin to directly exchange two participants' assigned shifts."""
+    require_csrf()
+    manager = current_user()
+    row = session_row(session_id)
+    if not row:
+        abort(404)
+    if not can_manage(manager, row):
+        abort(403)
+    if row["status"] != "CLOSED":
+        return _swap_action_response(
+            session_id,
+            "Manual swaps are only available after the session is closed.",
+            category="error",
+            status=409,
+        )
+
+    try:
+        first_assignment_id = int(request.form.get("first_assignment_id", ""))
+        second_assignment_id = int(request.form.get("second_assignment_id", ""))
+    except (TypeError, ValueError):
+        abort(400)
+
+    if first_assignment_id == second_assignment_id:
+        return _swap_action_response(
+            session_id,
+            "Choose two different assignments.",
+            category="error",
+            status=400,
+        )
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    manager = current_user()
+    row = session_row(session_id)
+    if not row or not can_manage(manager, row):
+        conn.rollback()
+        abort(403)
+
+    first = conn.execute(
+        "SELECT a.*,u.name,u.building_id FROM assignments a "
+        "JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.session_id=?",
+        (first_assignment_id, session_id),
+    ).fetchone()
+    second = conn.execute(
+        "SELECT a.*,u.name,u.building_id FROM assignments a "
+        "JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.session_id=?",
+        (second_assignment_id, session_id),
+    ).fetchone()
+
+    if not first or not second:
+        conn.rollback()
+        return _swap_action_response(
+            session_id,
+            "One of the selected assignments no longer exists.",
+            category="error",
+            status=404,
+        )
+    if first["user_id"] == second["user_id"]:
+        conn.rollback()
+        return _swap_action_response(
+            session_id,
+            "Choose shifts assigned to two different people.",
+            category="error",
+            status=400,
+        )
+    if first["building_id"] != row["building_id"] or second["building_id"] != row["building_id"]:
+        conn.rollback()
+        abort(403)
+    if first["duty_date"] == second["duty_date"]:
+        conn.rollback()
+        return _swap_action_response(
+            session_id,
+            "Those assignments are already on the same duty date.",
+            category="error",
+            status=400,
+        )
+
+    unresolved = conn.execute(
+        "SELECT 1 FROM duty_swap_requests WHERE session_id=? "
+        "AND status IN ('PENDING','TARGET_APPROVED') "
+        "AND (requester_assignment_id IN (?,?) OR target_assignment_id IN (?,?)) LIMIT 1",
+        (
+            session_id,
+            first_assignment_id,
+            second_assignment_id,
+            first_assignment_id,
+            second_assignment_id,
+        ),
+    ).fetchone()
+    if unresolved:
+        conn.rollback()
+        return _swap_action_response(
+            session_id,
+            "One of those shifts is already part of an unresolved swap request.",
+            category="error",
+            status=409,
+        )
+
+    resolved_pairs = [(first, second)]
+    if _swap_date_collision(
+        conn,
+        session_id,
+        first["user_id"],
+        second["user_id"],
+        resolved_pairs,
+    ):
+        conn.rollback()
+        return _swap_action_response(
+            session_id,
+            "That swap would leave one of the participants assigned twice on the same duty date.",
+            category="error",
+            status=400,
+        )
+
+    batch_id = secrets.token_urlsafe(16)
+    cur = conn.execute(
+        "INSERT INTO duty_swap_requests("
+        "session_id,requester_user_id,requester_assignment_id,target_user_id,"
+        "target_assignment_id,status,batch_id,reviewed_by,reviewed_at,target_reviewed_at"
+        ") VALUES (?,?,?,?,?,'APPROVED',?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        (
+            session_id,
+            first["user_id"],
+            first_assignment_id,
+            second["user_id"],
+            second_assignment_id,
+            batch_id,
+            manager["id"],
+        ),
+    )
+
+    _apply_assignment_exchange(conn, batch_id, resolved_pairs)
+    audit(
+        "swap.manager_manual",
+        "swap_request",
+        cur.lastrowid,
+        {
+            "batch_id": batch_id,
+            "session_id": session_id,
+            "reviewed_by": manager["id"],
+            "first_user_id": first["user_id"],
+            "first_assignment_id": first_assignment_id,
+            "second_user_id": second["user_id"],
+            "second_assignment_id": second_assignment_id,
+        },
+    )
+    conn.commit()
+    return _swap_action_response(
+        session_id,
+        f"Swapped {first['name']} and {second['name']}. The schedule has been updated.",
+    )
 
 
 @app.route("/swaps/session/<int:session_id>/request", methods=["POST"])
@@ -316,7 +518,7 @@ def request_swap_batch(session_id):
         conn.rollback()
         return _swap_action_response(
             session_id,
-            "This swap would put one of you on a duty date you are already assigned to. Choose different dates.",
+            "This swap would leave one of you assigned twice on the same duty date. Choose a different combination of shifts.",
             category="error",
             status=400,
         )
@@ -514,20 +716,12 @@ def hra_review_swap(batch_id):
         conn.rollback()
         return _swap_action_response(
             session_id,
-            "The schedule changed and this swap would now create a duplicate duty date for one of the RAs.",
+            "The schedule changed and this swap would now leave one of the RAs assigned twice on the same duty date.",
             category="error",
             status=409,
         )
 
-    for row in rows:
-        conn.execute(
-            "UPDATE assignments SET user_id=? WHERE id=?",
-            (row["target_user_id"], row["requester_assignment_id"]),
-        )
-        conn.execute(
-            "UPDATE assignments SET user_id=? WHERE id=?",
-            (row["requester_user_id"], row["target_assignment_id"]),
-        )
+    _apply_assignment_exchange(conn, batch_id, resolved_pairs)
 
     conn.execute(
         "UPDATE duty_swap_requests SET status='APPROVED', reviewed_by=?, "

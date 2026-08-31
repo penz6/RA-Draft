@@ -26,7 +26,7 @@ except ValueError as exc:
     raise RuntimeError("MAIL_PORT must be an integer.") from exc
 MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "").strip()
 MAIL_APP_PASSWORD = os.environ.get("MAIL_APP_PASSWORD", "").strip()
-MAIL_FROM_NAME = "RA Draft"
+MAIL_FROM_NAME = "Duty Shifts"
 MAIL_TIMEOUT_SECONDS = 10
 
 if MAIL_ENABLED and (not MAIL_USERNAME or not MAIL_APP_PASSWORD):
@@ -148,12 +148,14 @@ def send_session_closed_notifications(session_id):
             f"/calendar/session/{session_id}/my-calendar.ics"
         )
         session_url = _public_url(f"/sessions/{session_id}")
+        swap_url = _public_url(f"/swaps/session/{session_id}")
         context = {
             "first_name": _first_name(participant["name"]),
             "session": session,
             "shifts": shifts,
             "calendar_url": calendar_url,
             "session_url": session_url,
+            "swap_url": swap_url,
         }
         if shifts:
             shift_lines = "\n".join(
@@ -174,6 +176,7 @@ def send_session_closed_notifications(session_id):
             f"{session['building_name']} is ready.\n\n"
             f"Your duty dates:\n{shift_lines}\n\n"
             f"Download your iCal calendar: {calendar_url}\n"
+            f"Duty Swaps: {swap_url}\n"
             f"View the session: {session_url}\n\n"
             "RA Draft"
         )
@@ -394,7 +397,7 @@ def send_swap_approved_notifications(batch_id, reviewer_user_id):
             f"Updated assignments:\n{pair_lines}\n\n"
             f"View the session: {session_url}\n"
             + (f"Download your updated iCal calendar: {calendar_url}\n" if calendar_url else "")
-            + f"View swap history: {swap_url}\n\n"
+            + f"Duty Swaps: {swap_url}\n\n"
             "RA Draft"
         )
         messages.append(

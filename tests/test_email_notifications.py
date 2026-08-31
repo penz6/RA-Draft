@@ -119,12 +119,14 @@ class EmailNotificationTestCase(unittest.TestCase):
         alice_message = next(
             message for message in messages if "alice@g.rwu.edu" in message["To"]
         )
-        self.assertEqual(alice_message["From"], "RA Draft <ra.draft@gmail.com>")
+        self.assertEqual(alice_message["From"], "Duty Shifts <ra.draft@gmail.com>")
         self.assertIn("Maple Hall duty schedule", alice_message["Subject"])
         html = alice_message.get_body(preferencelist=("html",)).get_content()
         self.assertIn("September 1, 2026", html)
         self.assertIn("/calendar/session/", html)
         self.assertIn("/my-calendar.ics", html)
+        self.assertIn("Duty Swaps", html)
+        self.assertIn(f"/swaps/session/{data['session_id']}", html)
 
     def test_closing_session_queues_final_schedule_notification_after_commit(self):
         data = self.create_session(status="OPEN")
@@ -195,6 +197,35 @@ class EmailNotificationTestCase(unittest.TestCase):
                 data={"csrf": csrf, "action": "APPROVE"},
             )
             self.assertEqual(response.status_code, 302)
+            approved_notify.assert_called_once_with(batch_id, data["hra_id"])
+
+    def test_manager_manual_swap_sends_approved_notification_after_commit(self):
+        data = self.create_session(status="CLOSED")
+
+        with patch.object(swap_email_hooks, "MAIL_ENABLED", True), patch.object(
+            swap_email_hooks, "send_swap_approved_notifications"
+        ) as approved_notify:
+            csrf = self.login_as(data["hra_id"], "hra-manual-csrf")
+            response = self.request(
+                "post",
+                f"/swaps/session/{data['session_id']}/manager-swap",
+                data={
+                    "csrf": csrf,
+                    "first_assignment_id": str(data["a1"]),
+                    "second_assignment_id": str(data["b1"]),
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+
+            with app.app_context():
+                swap = db().execute(
+                    "SELECT batch_id,status,reviewed_by FROM duty_swap_requests WHERE session_id=?",
+                    (data["session_id"],),
+                ).fetchone()
+                self.assertEqual(swap["status"], "APPROVED")
+                self.assertEqual(swap["reviewed_by"], data["hra_id"])
+                batch_id = swap["batch_id"]
+
             approved_notify.assert_called_once_with(batch_id, data["hra_id"])
 
 

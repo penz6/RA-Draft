@@ -16,14 +16,17 @@
       <div class="eyebrow">Personal Schedule</div>
       <h2>My upcoming duty shifts</h2>
     </div>
-    <span class="count-badge">{{ upcoming_shifts|length }}</span>
+    <div class="session-head-actions">
+      <span class="count-badge">{{ upcoming_shifts|length }}</span>
+      <a class="button small ghost" href="{{ url_for('upcoming_duty_shifts') }}">View all</a>
+    </div>
   </div>
   <div class="upcoming-shifts-grid">
-    {% for shift in upcoming_shifts %}
+    {% for shift in upcoming_shifts[:3] %}
     <div class="shift-card">
       <div class="shift-card-head">
         <span class="shift-date">{{ shift.duty_date|date_label }}</span>
-        <span class="pill small time-pill">7:00 PM &ndash; 8:00 AM</span>
+        <span class="pill small time-pill">{{ shift.shift_start|time_label }} &ndash; {{ shift.shift_end|time_label }}</span>
       </div>
       <div class="shift-card-body">
         <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
@@ -51,7 +54,6 @@
   <div class="section-head">
     <div>
       <h2>Create and open a duty session</h2>
-      <p>The first turn starts immediately. Turns repeat until every date reaches capacity.</p>
     </div>
   </div>
   {% if me.role == 'HRA' and not me.building_id %}
@@ -92,7 +94,7 @@
     <fieldset class="full participant-fieldset">
       <legend>Participants and turn order</legend>
       <div class="participant-toolbar">
-        <p>Everyone in the selected building starts checked. Drag rows into order, or use the arrow buttons on mobile and keyboard devices.</p>
+        <p>Drag to reorder. Use the arrows on mobile or keyboard.</p>
         <div class="button-group">
           <button class="button secondary small" type="button" data-participant-select-all>Select all</button>
           <button class="button ghost small" type="button" data-participant-clear>Clear</button>
@@ -133,7 +135,7 @@
 
 <section class="card" id="duty-swaps">
   <div class="section-head">
-    <div><h2>Sessions</h2><p>Closed sessions include a Duty Swaps shortcut.</p></div>
+    <div><h2>Sessions</h2></div>
     <span class="count-badge">{{ sessions|length }}</span>
   </div>
   <div class="session-list">
@@ -166,7 +168,7 @@
       {% endif %}
     </div>
     {% else %}
-    <div class="empty-state compact"><h3>No sessions yet</h3><p>New duty sessions will appear here.</p></div>
+    <div class="empty-state compact"><h3>No sessions yet</h3></div>
     {% endfor %}
   </div>
 </section>

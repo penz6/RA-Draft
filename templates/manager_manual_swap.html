@@ -1,0 +1,37 @@
+<section class="card swap-builder-card manager-swap-card">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">Manager action</div>
+      <h2>Manual duty swap</h2>
+    </div>
+  </div>
+
+  {% if manager_picks|length >= 2 %}
+  <form method="post" action="{{ url_for('manager_manual_swap', session_id=draft.id) }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="grid-form">
+      <label class="field">First shift
+        <select name="first_assignment_id" required>
+          <option value="">Choose a shift</option>
+          {% for pick in manager_picks %}
+          <option value="{{ pick.id }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">Second shift
+        <select name="second_assignment_id" required>
+          <option value="">Choose a shift</option>
+          {% for pick in manager_picks %}
+          <option value="{{ pick.id }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="form-actions full">
+        <button class="button" type="submit" data-confirm="Manually swap these two duty assignments? This will update the schedule immediately.">Swap shifts now</button>
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty-state compact"><h3>Not enough assigned shifts</h3></div>
+  {% endif %}
+</section>

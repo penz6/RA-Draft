@@ -38,24 +38,66 @@
     return option && partnerSelect.value ? option.textContent.trim() : "";
   }
 
-  function validPartnerPicksForRow(row, available) {
+  function differentDatePartnerPicks(row, available) {
     const myRawDate = row.dataset.myRawDate || "";
     if (!myRawDate) return [];
-
-    // If the partner is already assigned to the shift I would give them,
-    // the swap would create a duplicate assignment for that person.
-    const partnerAlreadyOnMyDate = available.some(function (pick) {
-      return pick.rawDate === myRawDate;
-    });
-    if (partnerAlreadyOnMyDate) return [];
-
-    // I also cannot receive a date that I am already assigned to.
     return available.filter(function (pick) {
-      return pick.rawDate && pick.rawDate !== myRawDate && !myDates.has(pick.rawDate);
+      return pick.rawDate && pick.rawDate !== myRawDate;
     });
   }
 
-  function updateSummary(partnerId, checkedCount, validCount, allValid, blockedCount) {
+  function pickById(available, assignmentId) {
+    return available.find(function (pick) {
+      return String(pick.id) === String(assignmentId);
+    }) || null;
+  }
+
+  function hasDuplicateDates(dates) {
+    return new Set(dates).size !== dates.length;
+  }
+
+  function projectedBatchIssue(partnerId, selectedPairs) {
+    const available = picksByUser[partnerId] || [];
+    const partnerDates = new Set(
+      available.map(function (pick) { return pick.rawDate; }).filter(Boolean)
+    );
+    const usedTargetIds = new Set();
+    const myOutgoingDates = new Set();
+    const partnerOutgoingDates = new Set();
+    const myIncomingDates = [];
+    const partnerIncomingDates = [];
+
+    for (const pair of selectedPairs) {
+      if (!pair.targetPick) return "incomplete";
+      if (usedTargetIds.has(String(pair.targetPick.id))) return "duplicate-target";
+      usedTargetIds.add(String(pair.targetPick.id));
+
+      if (pair.myRawDate === pair.targetPick.rawDate) return "same-date";
+
+      myOutgoingDates.add(pair.myRawDate);
+      partnerOutgoingDates.add(pair.targetPick.rawDate);
+      myIncomingDates.push(pair.targetPick.rawDate);
+      partnerIncomingDates.push(pair.myRawDate);
+    }
+
+    const projectedMyDates = [];
+    myDates.forEach(function (date) {
+      if (!myOutgoingDates.has(date)) projectedMyDates.push(date);
+    });
+    projectedMyDates.push.apply(projectedMyDates, myIncomingDates);
+    if (hasDuplicateDates(projectedMyDates)) return "requester-duplicate";
+
+    const projectedPartnerDates = [];
+    partnerDates.forEach(function (date) {
+      if (!partnerOutgoingDates.has(date)) projectedPartnerDates.push(date);
+    });
+    projectedPartnerDates.push.apply(projectedPartnerDates, partnerIncomingDates);
+    if (hasDuplicateDates(projectedPartnerDates)) return "partner-duplicate";
+
+    return null;
+  }
+
+  function updateSummary(partnerId, checkedCount, validCount, allComplete, issue) {
     if (!summaryTitle || !summaryCopy) return;
 
     const available = picksByUser[partnerId] || [];
@@ -79,15 +121,33 @@
       return;
     }
 
-    if (blockedCount > 0) {
-      summaryTitle.textContent = "That shift cannot be traded with " + name;
-      summaryCopy.textContent = "One of you is already assigned to the date the other person would receive. Choose a different shift or partner.";
+    if (!allComplete) {
+      summaryTitle.textContent = checkedCount + " shift" + (checkedCount === 1 ? "" : "s") + " selected";
+      summaryCopy.textContent = "Choose a " + name + " shift for every selected row before sending.";
       return;
     }
 
-    if (!allValid) {
-      summaryTitle.textContent = checkedCount + " shift" + (checkedCount === 1 ? "" : "s") + " selected";
-      summaryCopy.textContent = "Choose a " + name + " shift for every selected row before sending.";
+    if (issue === "duplicate-target") {
+      summaryTitle.textContent = "Use each " + name + " shift only once";
+      summaryCopy.textContent = "Choose a different return shift for one of the selected rows.";
+      return;
+    }
+
+    if (issue === "same-date") {
+      summaryTitle.textContent = "Those shifts are already on the same date";
+      summaryCopy.textContent = "Choose two different duty dates to make a meaningful trade.";
+      return;
+    }
+
+    if (issue === "requester-duplicate") {
+      summaryTitle.textContent = "That combination would duplicate one of your duty dates";
+      summaryCopy.textContent = "You can include another shift in the same request if that shift is being traded away, or choose a different return date.";
+      return;
+    }
+
+    if (issue === "partner-duplicate") {
+      summaryTitle.textContent = "That combination would duplicate one of " + name + "'s duty dates";
+      summaryCopy.textContent = "Choose a different shift combination so neither RA ends up assigned twice on one date.";
       return;
     }
 
@@ -97,10 +157,11 @@
 
   function updateSubmitState() {
     const partnerId = partnerSelect.value;
+    const available = picksByUser[partnerId] || [];
     let checkedCount = 0;
     let validCount = 0;
-    let blockedCount = 0;
-    let allValid = true;
+    let allComplete = true;
+    const selectedPairs = [];
 
     rows.forEach(function (row) {
       const check = row.querySelector(".swap-include-check");
@@ -108,22 +169,27 @@
       const selected = Boolean(check && check.checked);
 
       row.classList.toggle("is-selected", selected);
-
       if (!selected) return;
+
       checkedCount += 1;
-      if (row.dataset.swapBlocked === "true") {
-        blockedCount += 1;
-        allValid = false;
-      } else if (select && select.value) {
-        validCount += 1;
+      const targetPick = select && select.value ? pickById(available, select.value) : null;
+      if (!targetPick) {
+        allComplete = false;
       } else {
-        allValid = false;
+        validCount += 1;
       }
+      selectedPairs.push({
+        myRawDate: row.dataset.myRawDate || "",
+        targetPick: targetPick,
+      });
     });
 
-    const ready = Boolean(partnerId) && checkedCount > 0 && allValid;
+    const issue = allComplete && checkedCount > 0
+      ? projectedBatchIssue(partnerId, selectedPairs)
+      : null;
+    const ready = Boolean(partnerId) && checkedCount > 0 && allComplete && !issue;
     submitBtn.disabled = !ready;
-    updateSummary(partnerId, checkedCount, validCount, allValid, blockedCount);
+    updateSummary(partnerId, checkedCount, validCount, allComplete, issue);
   }
 
   function updateTargetSelects() {
@@ -135,10 +201,7 @@
       const select = row.querySelector(".swap-target-select");
       if (!check || !select) return;
 
-      const eligible = validPartnerPicksForRow(row, available);
-      row.dataset.swapBlocked = partnerId && available.length > 0 && eligible.length === 0
-        ? "true"
-        : "false";
+      const eligible = differentDatePartnerPicks(row, available);
       select.replaceChildren();
 
       const placeholder = document.createElement("option");
@@ -148,7 +211,7 @@
       } else if (available.length === 0) {
         placeholder.textContent = "No shifts available";
       } else if (eligible.length === 0) {
-        placeholder.textContent = "No valid different-date shifts";
+        placeholder.textContent = "No different-date shifts";
       } else {
         placeholder.textContent = "Choose their shift";
       }
@@ -175,7 +238,7 @@
       const select = row ? row.querySelector(".swap-target-select") : null;
       const partnerId = partnerSelect.value;
       const available = picksByUser[partnerId] || [];
-      const eligible = row ? validPartnerPicksForRow(row, available) : [];
+      const eligible = row ? differentDatePartnerPicks(row, available) : [];
 
       if (select) {
         select.disabled = !event.target.checked || !partnerId || eligible.length === 0;
@@ -192,6 +255,11 @@
   form.addEventListener("submit", function (event) {
     form.querySelectorAll("input[name='my_assignment_ids'], input[name='target_assignment_ids']")
       .forEach(function (input) { input.remove(); });
+
+    if (submitBtn.disabled) {
+      event.preventDefault();
+      return;
+    }
 
     let count = 0;
     rows.forEach(function (row) {

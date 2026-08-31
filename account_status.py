@@ -48,3 +48,7 @@ def current_user():
 
 
 core.current_user = current_user
+
+# Apply the single-school authorization and timezone policies before route
+# modules import their helpers from core.
+import runtime_policy  # noqa: E402,F401
