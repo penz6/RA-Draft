@@ -78,13 +78,16 @@ class SwapPastGuardTestCase(unittest.TestCase):
             ).lastrowid
             session_id = conn.execute(
                 "INSERT INTO draft_sessions(name,building_id,start_date,end_date,status,created_by) "
-                "VALUES('Duty','2026-08-29','2026-08-31','CLOSED',?)",
-                (hra_id,),
+                "VALUES(?,?,?,?,?,?)",
+                (
+                    "Duty",
+                    building_id,
+                    "2026-08-29",
+                    "2026-08-31",
+                    "CLOSED",
+                    hra_id,
+                ),
             ).lastrowid
-            conn.execute(
-                "UPDATE draft_sessions SET building_id=? WHERE id=?",
-                (building_id, session_id),
-            )
             conn.execute(
                 "INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)",
                 (session_id, requester_id),
