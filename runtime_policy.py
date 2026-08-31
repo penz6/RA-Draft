@@ -1,5 +1,6 @@
 """School-specific runtime policy for authorization and personal schedules."""
 
+import sqlite3
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,23 @@ import core
 # The deployment serves one school in the US Eastern time zone. Using the
 # geographic zone keeps the date correct across both EST and EDT.
 SCHOOL_TIMEZONE = ZoneInfo("America/New_York")
+DUTY_SHIFT_START = "19:00"
+DUTY_SHIFT_END = "08:00"
+
+
+def _normalize_existing_duty_shift_times():
+    """Correct legacy 7pm-7am session rows to the school's 7pm-8am duty window."""
+    conn = core.configure_connection(sqlite3.connect(core.DB_PATH, timeout=10))
+    conn.execute(
+        "UPDATE draft_sessions SET shift_start=?, shift_end=? "
+        "WHERE shift_start='19:00' AND shift_end='07:00'",
+        (DUTY_SHIFT_START, DUTY_SHIFT_END),
+    )
+    conn.commit()
+    conn.close()
+
+
+_normalize_existing_duty_shift_times()
 
 
 def school_today():
@@ -76,6 +94,10 @@ def user_upcoming_shifts(user_id):
             "ORDER BY a.id",
             (row["session_id"], row["duty_date"], user_id),
         ).fetchall()
+        shift_start = row["shift_start"]
+        shift_end = row["shift_end"]
+        if shift_start == "19:00" and shift_end == "07:00":
+            shift_end = DUTY_SHIFT_END
         shifts.append(
             {
                 "assignment_id": row["assignment_id"],
@@ -83,8 +105,8 @@ def user_upcoming_shifts(user_id):
                 "session_id": row["session_id"],
                 "session_name": row["session_name"],
                 "session_status": row["session_status"],
-                "shift_start": row["shift_start"],
-                "shift_end": row["shift_end"],
+                "shift_start": shift_start,
+                "shift_end": shift_end,
                 "building_name": row["building_name"],
                 "partner_names": [partner["name"] for partner in partners],
             }

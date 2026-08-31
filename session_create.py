@@ -12,6 +12,7 @@ from core import (
     require_csrf,
     roles,
 )
+from runtime_policy import DUTY_SHIFT_END, DUTY_SHIFT_START
 
 
 @app.route("/sessions", methods=["POST"])
@@ -114,13 +115,15 @@ def create_session():
 
     cur = conn.execute(
         "INSERT INTO draft_sessions("
-        "name,building_id,start_date,end_date,capacity,date_order,current_position,created_by"
-        ") VALUES(?,?,?,?,?,?,?,?)",
+        "name,building_id,start_date,end_date,shift_start,shift_end,capacity,date_order,current_position,created_by"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?)",
         (
             name,
             building_id,
             start_date.isoformat(),
             end_date.isoformat(),
+            DUTY_SHIFT_START,
+            DUTY_SHIFT_END,
             capacity,
             date_order,
             1,
@@ -143,6 +146,8 @@ def create_session():
             "building_id": building_id,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
+            "shift_start": DUTY_SHIFT_START,
+            "shift_end": DUTY_SHIFT_END,
             "requested_capacity": requested_capacity,
             "capacity": capacity,
             "date_order": date_order,
