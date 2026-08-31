@@ -22,7 +22,7 @@
     <div class="shift-card">
       <div class="shift-card-head">
         <span class="shift-date">{{ shift.duty_date|date_label }}</span>
-        <span class="pill small time-pill">7:00 PM &ndash; 8:00 AM</span>
+        <span class="pill small time-pill">{{ shift.shift_start|time_label }} &ndash; {{ shift.shift_end|time_label }}</span>
       </div>
       <div class="shift-card-body">
         <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
