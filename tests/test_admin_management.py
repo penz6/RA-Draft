@@ -318,6 +318,290 @@ class AdminManagementTestCase(unittest.TestCase):
         self.assertIn("/delete", page)
         self.assertIn("/static/admin.css", page)
 
+    def test_admin_can_see_and_access_all_sessions_not_included_in(self):
+        maple_id = self.add_building("Maple Hall")
+        oak_id = self.add_building("Oak Hall")
+        pine_id = self.add_building("Pine Hall")
+
+        # Admin with no building assignment
+        admin_id = self.add_admin()
+
+        # Other users
+        hra_oak_id = self.add_user(
+            sub="hra-oak",
+            email="hra.oak@rwu.edu",
+            name="Oak HRA",
+            role="HRA",
+            building_id=oak_id,
+        )
+        ra_oak_id = self.add_user(
+            sub="ra-oak",
+            email="ra.oak@g.rwu.edu",
+            name="Oak RA",
+            role="RA",
+            building_id=oak_id,
+        )
+        hra_pine_id = self.add_user(
+            sub="hra-pine",
+            email="hra.pine@rwu.edu",
+            name="Pine HRA",
+            role="HRA",
+            building_id=pine_id,
+        )
+        ra_pine_id = self.add_user(
+            sub="ra-pine",
+            email="ra.pine@g.rwu.edu",
+            name="Pine RA",
+            role="RA",
+            building_id=pine_id,
+        )
+
+        with app.app_context():
+            conn = db()
+            # Session 1: Oak Hall (Open) - Admin is not creator or participant
+            session1_id = conn.execute(
+                "INSERT INTO draft_sessions("
+                "name,building_id,start_date,end_date,created_by,status"
+                ") VALUES(?,?,?,?,?,'OPEN')",
+                ("Oak Fall Draft", oak_id, "2026-09-01", "2026-09-05", hra_oak_id),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)",
+                (session1_id, ra_oak_id),
+            )
+
+            # Session 2: Pine Hall (Closed) - Admin is not creator or participant
+            session2_id = conn.execute(
+                "INSERT INTO draft_sessions("
+                "name,building_id,start_date,end_date,created_by,status"
+                ") VALUES(?,?,?,?,?,'CLOSED')",
+                ("Pine Spring Draft", pine_id, "2026-10-01", "2026-10-05", hra_pine_id),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)",
+                (session2_id, ra_pine_id),
+            )
+            conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (session2_id, ra_pine_id, "2026-10-01", hra_pine_id),
+            )
+            conn.commit()
+
+        # 1. Verify Admin sees all sessions on Dashboard
+        self.login_as(admin_id)
+        dashboard_res = self.request("get", "/dashboard")
+        self.assertEqual(dashboard_res.status_code, 200)
+        dashboard_html = dashboard_res.get_data(as_text=True)
+        self.assertIn("Oak Fall Draft", dashboard_html)
+        self.assertIn("Oak Hall", dashboard_html)
+        self.assertIn("Pine Spring Draft", dashboard_html)
+        self.assertIn("Pine Hall", dashboard_html)
+
+        # 2. Verify Admin receives all sessions in live fragments
+        fragments_res = self.request("get", "/dashboard/live-fragments")
+        self.assertEqual(fragments_res.status_code, 200)
+        fragments_data = fragments_res.get_json()
+        self.assertIn("Oak Fall Draft", fragments_data["fragments"]["sessions"])
+        self.assertIn("Pine Spring Draft", fragments_data["fragments"]["sessions"])
+
+        # 3. Verify Admin can view the open session in Oak Hall
+        oak_view_res = self.request("get", f"/sessions/{session1_id}")
+        self.assertEqual(oak_view_res.status_code, 200)
+        oak_view_html = oak_view_res.get_data(as_text=True)
+        self.assertIn("Oak Fall Draft", oak_view_html)
+        self.assertIn("Oak Hall", oak_view_html)
+
+        # 4. Verify Admin can access live fragments for Oak Hall session
+        oak_live_res = self.request("get", f"/sessions/{session1_id}/live-fragments")
+        self.assertEqual(oak_live_res.status_code, 200)
+        self.assertIn("Oak Fall Draft", oak_live_res.get_json()["fragments"]["heading"])
+
+        # 5. Verify Admin sees all closed sessions in Duty Swaps menu
+        swaps_menu_res = self.request("get", "/swaps")
+        self.assertEqual(swaps_menu_res.status_code, 200)
+        swaps_menu_html = swaps_menu_res.get_data(as_text=True)
+        self.assertIn("Pine Spring Draft", swaps_menu_html)
+        self.assertIn("Pine Hall", swaps_menu_html)
+
+        # 6. Verify Admin can access the duty swap page for Pine Hall session
+        pine_swap_res = self.request("get", f"/swaps/session/{session2_id}")
+        self.assertEqual(pine_swap_res.status_code, 200)
+        pine_swap_html = pine_swap_res.get_data(as_text=True)
+        self.assertIn("Pine Spring Draft", pine_swap_html)
+
+        # 7. Verify Admin can export full session calendar for Pine Hall session
+        cal_res = self.request("get", f"/calendar/session/{session2_id}.ics")
+        self.assertEqual(cal_res.status_code, 200)
+        self.assertIn("Pine Spring Draft", cal_res.get_data(as_text=True))
+
+        # 8. Verify Admin with a specific building assigned still sees all sessions across other buildings
+        with app.app_context():
+            db().execute("UPDATE users SET building_id=? WHERE id=?", (maple_id, admin_id))
+            db().commit()
+
+        dashboard_res2 = self.request("get", "/dashboard")
+        self.assertEqual(dashboard_res2.status_code, 200)
+        dashboard_html2 = dashboard_res2.get_data(as_text=True)
+        self.assertIn("Oak Fall Draft", dashboard_html2)
+        self.assertIn("Pine Spring Draft", dashboard_html2)
+
+        swaps_res2 = self.request("get", "/swaps")
+        self.assertEqual(swaps_res2.status_code, 200)
+        self.assertIn("Pine Spring Draft", swaps_res2.get_data(as_text=True))
+
+    def test_admin_can_impersonate_ra_and_view_regular_ra_ui(self):
+        maple_id = self.add_building("Maple Hall")
+        oak_id = self.add_building("Oak Hall")
+
+        admin_id = self.add_admin()
+        ra_id = self.add_user(
+            sub="ra-maple",
+            email="ra.maple@g.rwu.edu",
+            name="Maple RA",
+            role="RA",
+            building_id=maple_id,
+        )
+
+        with app.app_context():
+            conn = db()
+            maple_session_id = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('Maple Fall Draft',?,'2026-09-01','2026-09-05',?,'OPEN')",
+                (maple_id, admin_id),
+            ).lastrowid
+            oak_session_id = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('Oak Fall Draft',?,'2026-09-01','2026-09-05',?,'OPEN')",
+                (oak_id, admin_id),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)",
+                (maple_session_id, ra_id),
+            )
+            conn.commit()
+
+        # Admin starts impersonating Maple RA
+        csrf = self.login_as(admin_id)
+        impersonate_res = self.request(
+            "post",
+            f"/admin/impersonate/{ra_id}",
+            data={"csrf": csrf},
+        )
+        self.assertEqual(impersonate_res.status_code, 302)
+        self.assertTrue(impersonate_res.location.endswith("/dashboard"))
+
+        # In dashboard: user sees RA interface
+        dashboard_res = self.request("get", "/dashboard")
+        self.assertEqual(dashboard_res.status_code, 200)
+        dashboard_html = dashboard_res.get_data(as_text=True)
+
+        # 1. Impersonation bar is present
+        self.assertIn("Viewing as <strong>Maple RA</strong>", dashboard_html)
+        self.assertIn("Signed in as <strong>Admin User</strong>", dashboard_html)
+        self.assertIn("/admin/stop-impersonation", dashboard_html)
+
+        # 2. RA views only Maple Hall, not Oak Hall
+        self.assertIn("Maple Fall Draft", dashboard_html)
+        self.assertNotIn("Oak Fall Draft", dashboard_html)
+
+        # 3. RA does not have Admin nav link or session delete actions
+        self.assertNotIn('href="/admin"', dashboard_html)
+        self.assertNotIn("Delete session", dashboard_html)
+
+        # 4. In session view: RA does not have session manager controls
+        session_view_res = self.request("get", f"/sessions/{maple_session_id}")
+        self.assertEqual(session_view_res.status_code, 200)
+        session_view_html = session_view_res.get_data(as_text=True)
+        self.assertNotIn("Session manager", session_view_html)
+        self.assertNotIn("Close session", session_view_html)
+
+        # 5. Exit impersonation
+        stop_res = self.request(
+            "post",
+            "/admin/stop-impersonation",
+            data={"csrf": csrf},
+        )
+        self.assertEqual(stop_res.status_code, 302)
+        self.assertTrue(stop_res.location.endswith("/admin"))
+
+        # 6. Admin is fully restored
+        admin_dash_res = self.request("get", "/dashboard")
+        admin_dash_html = admin_dash_res.get_data(as_text=True)
+        self.assertNotIn("Impersonating", admin_dash_html)
+        self.assertIn("Maple Fall Draft", admin_dash_html)
+        self.assertIn("Oak Fall Draft", admin_dash_html)
+        self.assertIn('href="/admin"', admin_dash_html)
+
+    def test_impersonation_security_protections(self):
+        building_id = self.add_building()
+        admin_id = self.add_admin()
+        ra_id = self.add_user(
+            sub="ra-sub",
+            email="ra@g.rwu.edu",
+            name="Regular RA",
+            role="RA",
+            building_id=building_id,
+        )
+        disabled_id = self.add_user(
+            sub="disabled-ra",
+            email="disabled@g.rwu.edu",
+            name="Disabled RA",
+            role="RA",
+            building_id=building_id,
+        )
+        with app.app_context():
+            db().execute("UPDATE users SET disabled=1 WHERE id=?", (disabled_id,))
+            db().commit()
+
+        # RA cannot impersonate (403)
+        ra_csrf = self.login_as(ra_id)
+        res_forbidden = self.request(
+            "post",
+            f"/admin/impersonate/{admin_id}",
+            data={"csrf": ra_csrf},
+        )
+        self.assertEqual(res_forbidden.status_code, 403)
+
+        # Admin cannot impersonate self
+        admin_csrf = self.login_as(admin_id)
+        res_self = self.request(
+            "post",
+            f"/admin/impersonate/{admin_id}",
+            data={"csrf": admin_csrf},
+        )
+        self.assertEqual(res_self.status_code, 302)
+        with self.client.session_transaction() as flask_session:
+            self.assertNotIn("impersonator_uid", flask_session)
+
+        # Admin cannot impersonate disabled user
+        res_disabled = self.request(
+            "post",
+            f"/admin/impersonate/{disabled_id}",
+            data={"csrf": admin_csrf},
+        )
+        self.assertEqual(res_disabled.status_code, 302)
+        with self.client.session_transaction() as flask_session:
+            self.assertNotIn("impersonator_uid", flask_session)
+
+        # Verify audit logs
+        self.request(
+            "post",
+            f"/admin/impersonate/{ra_id}",
+            data={"csrf": admin_csrf},
+        )
+        self.request(
+            "post",
+            "/admin/stop-impersonation",
+            data={"csrf": admin_csrf},
+        )
+        with app.app_context():
+            audit_actions = [
+                row["action"]
+                for row in db().execute("SELECT action FROM audit_log ORDER BY id ASC").fetchall()
+            ]
+            self.assertIn("admin.impersonate.start", audit_actions)
+            self.assertIn("admin.impersonate.stop", audit_actions)
+
 
 if __name__ == "__main__":
     unittest.main()

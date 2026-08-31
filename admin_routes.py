@@ -2,7 +2,7 @@
 
 import secrets
 
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import abort, flash, redirect, render_template, request, session, url_for
 
 from core import (
     ADMIN_EMAILS,
@@ -469,4 +469,76 @@ def delete_user(user_id):
     )
     conn.commit()
     flash("User deleted.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/impersonate/<int:user_id>", methods=["POST"])
+@roles("ADMIN")
+def impersonate_user(user_id):
+    """Allow an active administrator to view the portal as another user."""
+    require_csrf()
+    actor = current_user()
+    if not actor or actor["role"] != "ADMIN":
+        abort(403)
+    if session.get("impersonator_uid"):
+        flash("Cannot nest impersonation sessions.", "error")
+        return redirect(url_for("admin"))
+    if actor["id"] == user_id:
+        flash("You are already signed in as this user.", "info")
+        return redirect(url_for("admin"))
+
+    conn = db()
+    target = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not target:
+        abort(404)
+    if bool(target["disabled"]):
+        flash("Cannot impersonate a disabled user.", "error")
+        return redirect(url_for("admin"))
+
+    session["impersonator_uid"] = actor["id"]
+    session["uid"] = target["id"]
+    audit(
+        "admin.impersonate.start",
+        "user",
+        target["id"],
+        {
+            "target_email": target["email"],
+            "target_name": target["name"],
+            "target_role": target["role"],
+        },
+        actor_user_id=actor["id"],
+    )
+    conn.commit()
+    flash(f"Now viewing as {target['name']} ({target['role']}).", "info")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin/stop-impersonation", methods=["POST"])
+def stop_impersonation():
+    """Exit an active impersonation session and restore the original administrator."""
+    require_csrf()
+    impersonator_uid = session.pop("impersonator_uid", None)
+    if not impersonator_uid or not isinstance(impersonator_uid, int):
+        return redirect(url_for("dashboard"))
+
+    conn = db()
+    admin_user = conn.execute(
+        "SELECT * FROM users WHERE id=? AND disabled=0 AND role='ADMIN'",
+        (impersonator_uid,),
+    ).fetchone()
+    if not admin_user:
+        session.clear()
+        return redirect(url_for("login"))
+
+    impersonated_uid = session.get("uid")
+    session["uid"] = admin_user["id"]
+    audit(
+        "admin.impersonate.stop",
+        "user",
+        impersonated_uid,
+        {"admin_id": admin_user["id"]},
+        actor_user_id=admin_user["id"],
+    )
+    conn.commit()
+    flash(f"Exited impersonation. Returned to {admin_user['name']} (Admin).", "info")
     return redirect(url_for("admin"))
