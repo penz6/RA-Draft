@@ -7,6 +7,8 @@ from flask import has_request_context, request
 
 import core
 
+# The deployment serves one school in the US Eastern time zone. Using the
+# geographic zone keeps the date correct across both EST and EDT.
 SCHOOL_TIMEZONE = ZoneInfo("America/New_York")
 
 
