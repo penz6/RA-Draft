@@ -1,12 +1,12 @@
 {% extends 'emails/base.html' %}
-{% block title %}Duty swap awaiting approval | RA Draft{% endblock %}
+{% block title %}Duty swap awaiting approval | Duty Shift{% endblock %}
 {% block preheader %}A duty swap is ready for your final approval.{% endblock %}
 {% block content %}
   <div style="font-size:13px;line-height:18px;font-weight:700;color:#7a5a10;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">HRA approval needed</div>
   <h1 style="margin:0 0 14px;font-size:28px;line-height:35px;color:#172033;letter-spacing:-0.6px;">A swap is ready for review</h1>
   <p style="margin:0 0 22px;font-size:16px;line-height:25px;color:#465066;">Hi {{ first_name }}, <strong>{{ swap.requester.name }}</strong> and <strong>{{ swap.target.name }}</strong> have both agreed to the duty swap below for <strong>{{ swap.session_name }}</strong> in <strong>{{ swap.building_name }}</strong>. It now needs final HRA approval.</p>
 
-  <div style="padding:14px 16px;margin-bottom:20px;border-radius:12px;background:#fff8e5;border:1px solid #f0d58a;color:#765915;font-size:14px;line-height:21px;"><strong>No schedule change has been made yet.</strong> The assignments update only after final approval in RA Draft.</div>
+  <div style="padding:14px 16px;margin-bottom:20px;border-radius:12px;background:#fff8e5;border:1px solid #f0d58a;color:#765915;font-size:14px;line-height:21px;"><strong>No schedule change has been made yet.</strong> The assignments update only after final approval in Duty Shift.</div>
 
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 24px;border:1px solid #e3e9f2;border-radius:12px;overflow:hidden;">
     <tr style="background:#f8fafc;">
