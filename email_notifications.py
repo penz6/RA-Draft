@@ -81,7 +81,7 @@ def _deliver(messages):
                     sent += 1
                 except (OSError, smtplib.SMTPException):
                     app.logger.exception(
-                        "Could not send RA Draft email to %s.",
+                        "Could not send Duty Shift email to %s.",
                         message.get("To", "unknown recipient"),
                     )
     except (OSError, smtplib.SMTPException):
@@ -172,13 +172,13 @@ def send_session_closed_notifications(session_id):
 
         text_body = (
             f"Hi {context['first_name']},\n\n"
-            f"Your RA Draft schedule for {session['name']} in "
+            f"Your Duty Shift schedule for {session['name']} in "
             f"{session['building_name']} is ready.\n\n"
             f"Your duty dates:\n{shift_lines}\n\n"
             f"Download your iCal calendar: {calendar_url}\n"
             f"Duty Swaps: {swap_url}\n"
             f"View the session: {session_url}\n\n"
-            "RA Draft"
+            "Duty Shift"
         )
         messages.append(
             _build_message(
@@ -263,8 +263,8 @@ def send_swap_request_notification(batch_id):
         f"{swap['requester']['name']} requested a duty swap with you in "
         f"{swap['building_name']} ({swap['session_name']}).\n\n"
         f"Requested swap:\n{pair_lines}\n\n"
-        f"Review the request in RA Draft: {review_url}\n\n"
-        "RA Draft"
+        f"Review the request in Duty Shift: {review_url}\n\n"
+        "Duty Shift"
     )
     message = _build_message(
         recipient=swap["target"],
@@ -313,8 +313,8 @@ def send_hra_swap_review_notification(batch_id):
             f"agreed to a duty swap in {swap['building_name']} "
             f"({swap['session_name']}). Final approval is required.\n\n"
             f"Swap details:\n{pair_lines}\n\n"
-            f"Review the swap in RA Draft: {review_url}\n\n"
-            "RA Draft"
+            f"Review the swap in Duty Shift: {review_url}\n\n"
+            "Duty Shift"
         )
         messages.append(
             _build_message(
@@ -392,13 +392,13 @@ def send_swap_approved_notifications(batch_id, reviewer_user_id):
         text_body = (
             f"Hi {context['first_name']},\n\n"
             f"The duty swap between {swap['requester']['name']} and "
-            f"{swap['target']['name']} has been approved. The RA Draft schedule "
+            f"{swap['target']['name']} has been approved. The Duty Shift schedule "
             f"has been updated.\n\n"
             f"Updated assignments:\n{pair_lines}\n\n"
             f"View the session: {session_url}\n"
             + (f"Download your updated iCal calendar: {calendar_url}\n" if calendar_url else "")
             + f"Duty Swaps: {swap_url}\n\n"
-            "RA Draft"
+            "Duty Shift"
         )
         messages.append(
             _build_message(
