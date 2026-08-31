@@ -127,6 +127,12 @@
           <button class="button small" type="submit">Save access</button>
         </form>
         <div class="admin-user-actions">
+          {% if u.id != me.id and not u.disabled %}
+          <form method="post" action="{{ url_for('impersonate_user', user_id=u.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <button class="button secondary small" type="submit">View as</button>
+          </form>
+          {% endif %}
           <form method="post" action="{{ url_for('admin_user_status', user_id=u.id) }}">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="disabled" value="{{ 0 if u.disabled else 1 }}">

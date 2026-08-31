@@ -433,7 +433,7 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
   .date-grid{max-height:none}
   .building-admin-row,.user-admin-entry,.building-rename-form,.user-access-form{grid-template-columns:1fr}
   .user-access-form .button{grid-column:auto;justify-self:stretch}
-  .admin-user-actions{display:grid;grid-template-columns:1fr 1fr}
+  .admin-user-actions{display:grid;grid-template-columns:repeat(auto-fit, minmax(70px, 1fr))}
   .admin-user-actions .button,.admin-delete-form .button,.building-rename-form .button{width:100%}
   .assignment-table thead,.audit-table thead{display:none}
   .assignment-table,.assignment-table tbody,.assignment-table tr,.assignment-table td,.audit-table,.audit-table tbody,.audit-table tr,.audit-table td{display:block;width:100%}
@@ -511,6 +511,64 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 .pill.pending,.pill.target_approved{background:var(--gold-soft);color:var(--gold)}
 .pill.approved{background:var(--success-soft);color:var(--success)}
 .pill.rejected,.pill.cancelled{background:var(--danger-soft);color:var(--danger)}
+
+/* ─── Impersonation Bar ─── */
+.impersonation-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: linear-gradient(90deg, #78350f, #92400e);
+  color: #fef3c7;
+  border-bottom: 1px solid #d97706;
+  padding: 0.5rem 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.impersonation-bar-inner {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+}
+.impersonation-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.impersonation-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  color: #fde68a;
+}
+.impersonation-form {
+  margin: 0;
+  flex-shrink: 0;
+}
+.impersonation-form .button {
+  background: #fef3c7;
+  color: #78350f;
+  border: 1px solid #fde68a;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
+}
+.impersonation-form .button:hover {
+  background: #ffffff;
+  color: #451a03;
+}
+@media(max-width: 640px) {
+  .impersonation-bar-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .impersonation-form .button {
+    width: 100%;
+  }
+}
 
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important}

@@ -722,10 +722,28 @@ def current_user():
     return user
 
 
+def impersonator_user():
+    """Fetch the real administrator user record when impersonation is active."""
+    impersonator_uid = session.get("impersonator_uid")
+    if not isinstance(impersonator_uid, int):
+        return None
+    admin = db().execute(
+        "SELECT users.*, buildings.name AS building_name FROM users "
+        "LEFT JOIN buildings ON buildings.id=users.building_id WHERE users.id=?",
+        (impersonator_uid,),
+    ).fetchone()
+    if admin is None or bool(admin["disabled"]) or admin["role"] != "ADMIN":
+        return None
+    return admin
+
+
 @app.context_processor
 def inject_user():
-    """Inject current user object into all Jinja templates under 'me'."""
-    return {"me": current_user()}
+    """Inject current user object and active impersonator into all Jinja templates."""
+    return {
+        "me": current_user(),
+        "impersonator": impersonator_user(),
+    }
 
 
 def login_required(fn):
@@ -1350,4 +1368,3 @@ def user_pending_swap_count(user_id):
         (user_id,),
     ).fetchone()
     return row["n"] if row else 0
-
