@@ -35,13 +35,14 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a href="{{ url_for('dashboard') if me else url_for('index') }}" class="brand">
-        <span class="brand-mark" aria-hidden="true">DS</span>
         <span>Duty Shift</span>
       </a>
       {% if me %}
       <nav class="primary-nav" aria-label="Primary navigation">
         <a class="nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">Sessions</a>
-        <a class="nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">Duty Swaps</a>
+        <a class="nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">
+          Duty Swaps{% if pending_swap_approval_count %} <span class="pill small pending" aria-label="{{ pending_swap_approval_count }} pending swap approval{{ 's' if pending_swap_approval_count != 1 else '' }}">{{ pending_swap_approval_count }}</span>{% endif %}
+        </a>
         {% if me.role == 'ADMIN' %}
         <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
         {% endif %}

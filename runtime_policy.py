@@ -16,12 +16,25 @@ DUTY_SHIFT_END = "08:00"
 
 
 def _normalize_existing_duty_shift_times():
-    """Correct legacy 7pm-7am session rows to the school's 7pm-8am duty window."""
+    """Keep the school's duty window at 7pm-8am, including legacy defaults."""
     conn = core.configure_connection(sqlite3.connect(core.DB_PATH, timeout=10))
     conn.execute(
         "UPDATE draft_sessions SET shift_start=?, shift_end=? "
         "WHERE shift_start='19:00' AND shift_end='07:00'",
         (DUTY_SHIFT_START, DUTY_SHIFT_END),
+    )
+    # The original baseline schema used 07:00 as its SQL default. Normal app
+    # creation now writes 08:00 explicitly, but this trigger also protects any
+    # future internal insert that relies on the legacy database default.
+    conn.executescript(
+        """
+        CREATE TRIGGER IF NOT EXISTS normalize_duty_shift_end_after_insert
+        AFTER INSERT ON draft_sessions
+        WHEN NEW.shift_start='19:00' AND NEW.shift_end='07:00'
+        BEGIN
+          UPDATE draft_sessions SET shift_end='08:00' WHERE id=NEW.id;
+        END;
+        """
     )
     conn.commit()
     conn.close()

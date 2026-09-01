@@ -194,7 +194,11 @@ class EmailNotificationTestCase(unittest.TestCase):
             response = self.request(
                 "post",
                 f"/swaps/batch/{batch_id}/hra-review",
-                data={"csrf": csrf, "action": "APPROVE"},
+                data={
+                    "csrf": csrf,
+                    "action": "APPROVE",
+                    "google_calendar_updated": "1",
+                },
             )
             self.assertEqual(response.status_code, 302)
             approved_notify.assert_called_once_with(batch_id, data["hra_id"])
@@ -213,6 +217,7 @@ class EmailNotificationTestCase(unittest.TestCase):
                     "csrf": csrf,
                     "first_assignment_id": str(data["a1"]),
                     "second_assignment_id": str(data["b1"]),
+                    "google_calendar_updated": "1",
                 },
             )
             self.assertEqual(response.status_code, 302)

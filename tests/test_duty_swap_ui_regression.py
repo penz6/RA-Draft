@@ -46,9 +46,11 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         base = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
         swap_home = (ROOT / "templates" / "swap_home.html").read_text(encoding="utf-8")
 
-        self.assertIn(">Duty Swaps</a>", base)
+        self.assertIn("Duty Swaps", base)
+        self.assertIn("pending_swap_approval_count", base)
         self.assertIn("url_for('swap_home')", base)
         self.assertNotIn("dashboard') }}#duty-swaps", base)
+        self.assertIn("Needs your approval", swap_home)
         self.assertIn("Available sessions", swap_home)
         self.assertIn("url_for('swap_page', session_id=s.id)", swap_home)
 

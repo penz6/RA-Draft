@@ -216,7 +216,11 @@ class DutySwapTestCase(unittest.TestCase):
         resp = self.request(
             "post",
             f"/swaps/batch/{batch_id}/hra-review",
-            data={"csrf": csrf_hra, "action": "APPROVE"},
+            data={
+                "csrf": csrf_hra,
+                "action": "APPROVE",
+                "google_calendar_updated": "1",
+            },
         )
         self.assertEqual(resp.status_code, 302)
 
@@ -282,7 +286,11 @@ class DutySwapTestCase(unittest.TestCase):
         resp = self.request(
             "post",
             f"/swaps/batch/{batch_id}/hra-review",
-            data={"csrf": self.get_csrf(), "action": "APPROVE"},
+            data={
+                "csrf": self.get_csrf(),
+                "action": "APPROVE",
+                "google_calendar_updated": "1",
+            },
         )
         self.assertEqual(resp.status_code, 302)
 
