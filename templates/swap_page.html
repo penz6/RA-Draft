@@ -219,22 +219,30 @@
 </section>
 {% endif %}
 
-{% if outgoing %}
+{% set my_swaps = participant_swap_batches(draft.id, me.id) %}
+{% if my_swaps %}
 <section class="card">
   <div class="section-head">
     <div>
-      <h2>My requests</h2>
-      <p>Track requests you created and cancel one while it is still pending approval.</p>
+      <h2>My swaps</h2>
+      <p>Track duty swaps you are part of. The original requester is shown on each swap.</p>
     </div>
-    <span class="count-badge">{{ outgoing|length }}</span>
+    <span class="count-badge">{{ my_swaps|length }}</span>
   </div>
   <div class="swap-status-list">
-    {% for batch in outgoing %}
+    {% for batch in my_swaps %}
     <article class="swap-status-card">
       <div class="swap-status-top">
         <div>
-          <h3>Swap with {{ batch.target_name }}</h3>
-          <p>{{ batch.pairs|length }} shift{{ 's' if batch.pairs|length > 1 else '' }}</p>
+          <h3>Swap with {{ batch.other_name }}</h3>
+          <p>
+            {% if batch.manager_manual %}
+              Manual swap by {{ batch.manager_name or 'HRA/Admin' }}
+            {% else %}
+              Requested by {{ batch.requester_name }}
+            {% endif %}
+            &bull; {{ batch.pairs|length }} shift{{ 's' if batch.pairs|length > 1 else '' }}
+          </p>
         </div>
         <span class="pill small {{ batch.status|lower }}">
           {% if batch.status == 'PENDING' %}Waiting for {{ batch.target_name }}
@@ -248,13 +256,19 @@
       <div class="swap-pairs-list">
         {% for pair in batch.pairs %}
         <div class="swap-pair">
+          {% if batch.viewer_is_requester %}
           <span class="swap-pair-from"><small>You give</small><br><strong>{{ pair.requester_date|date_label }}</strong></span>
           <span class="swap-arrow" aria-hidden="true">&harr;</span>
           <span class="swap-pair-to"><small>You receive</small><br><strong>{{ pair.target_date|date_label }}</strong></span>
+          {% else %}
+          <span class="swap-pair-from"><small>You give</small><br><strong>{{ pair.target_date|date_label }}</strong></span>
+          <span class="swap-arrow" aria-hidden="true">&harr;</span>
+          <span class="swap-pair-to"><small>You receive</small><br><strong>{{ pair.requester_date|date_label }}</strong></span>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
-      {% if batch.status in ('PENDING', 'TARGET_APPROVED') %}
+      {% if batch.viewer_is_requester and batch.status in ('PENDING', 'TARGET_APPROVED') %}
       <div class="swap-actions">
         <form method="post" action="{{ url_for('cancel_swap_batch', batch_id=batch.batch_id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
