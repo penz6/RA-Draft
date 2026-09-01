@@ -9,6 +9,44 @@
   <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
 </div>
 
+{% if pending_swap_approvals %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">Final approval</div>
+      <h2>Needs your approval</h2>
+      <p>These swaps were approved by both RAs and are waiting for HRA review.</p>
+    </div>
+    <span class="count-badge">{{ pending_swap_approval_count }}</span>
+  </div>
+
+  <div class="session-list">
+    {% for swap in pending_swap_approvals %}
+    <a class="session-card" href="{{ url_for('swap_page', session_id=swap.session_id) }}">
+      <div class="session-card-main">
+        <div class="session-card-title">
+          <h3>{{ swap.requester_name }} &harr; {{ swap.target_name }}</h3>
+          <span class="pill target_approved">RA approved</span>
+        </div>
+        <p>{{ swap.session_name }} &bull; {{ swap.building_name }}</p>
+      </div>
+      <dl class="session-meta">
+        <div>
+          <dt>Waiting on you</dt>
+          <dd>{{ swap.pair_count }} shift{{ 's' if swap.pair_count != 1 else '' }}</dd>
+        </div>
+        <div>
+          <dt>Next step</dt>
+          <dd>Update Calendar &amp; approve</dd>
+        </div>
+      </dl>
+      <span class="session-arrow" aria-hidden="true">&rarr;</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="card">
   <div class="section-head">
     <div>
