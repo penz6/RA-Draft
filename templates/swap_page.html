@@ -87,7 +87,7 @@
       <div>
         <div class="eyebrow">Final approval</div>
         <h2>HRA review queue</h2>
-        <p>Both RAs already agreed. Approving will immediately update the schedule.</p>
+        <p>Both RAs already agreed. Update the shared Google Calendar, then approve to update the schedule.</p>
       </div>
       <span class="count-badge">{{ hra_review|length }}</span>
     </div>
@@ -112,9 +112,13 @@
           {% endfor %}
         </div>
         <div class="swap-actions">
-          <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
+          <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:0.5rem;">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="APPROVE">
+            <label class="check">
+              <input type="checkbox" name="google_calendar_updated" value="1" required>
+              <span>Shared Google Calendar updated</span>
+            </label>
             <button class="button small" type="submit" data-confirm="Approve this swap and update both RAs' assignments?">Approve &amp; update schedule</button>
           </form>
           <form method="post" action="{{ url_for('hra_review_swap', batch_id=batch.batch_id) }}">
