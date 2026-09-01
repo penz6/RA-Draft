@@ -127,6 +127,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
                 "csrf": "swap-validation-csrf",
                 "first_assignment_id": str(first_assignment),
                 "second_assignment_id": str(second_assignment),
+                "google_calendar_updated": "1",
             },
             headers={"X-RA-Draft-Async": "1"},
         )
@@ -256,7 +257,11 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         response = self.request(
             "post",
             f"/swaps/batch/{batch_id}/hra-review",
-            data={"csrf": "swap-validation-csrf", "action": "APPROVE"},
+            data={
+                "csrf": "swap-validation-csrf",
+                "action": "APPROVE",
+                "google_calendar_updated": "1",
+            },
             headers={"X-RA-Draft-Async": "1"},
         )
         self.assertEqual(response.status_code, 200)
@@ -297,7 +302,11 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         response = self.request(
             "post",
             f"/swaps/batch/{batch_id}/hra-review",
-            data={"csrf": "swap-validation-csrf", "action": "APPROVE"},
+            data={
+                "csrf": "swap-validation-csrf",
+                "action": "APPROVE",
+                "google_calendar_updated": "1",
+            },
             headers={"X-RA-Draft-Async": "1"},
         )
         self.assertEqual(response.status_code, 200)
