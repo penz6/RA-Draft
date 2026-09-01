@@ -5,6 +5,7 @@ from email_notifications import send_session_closed_notifications
 import swap_email_hooks  # noqa: F401
 import swap_view_helpers  # noqa: F401
 import swap_dashboard_live  # noqa: F401
+import swap_calendar_confirmation  # noqa: F401
 
 
 @app.route("/sessions/<int:session_id>/status", methods=["POST"])
