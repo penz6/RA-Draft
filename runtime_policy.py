@@ -1,7 +1,7 @@
 """School-specific runtime policy for authorization and personal schedules."""
 
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from flask import flash, has_request_context, redirect, request, url_for
@@ -13,6 +13,7 @@ import core
 SCHOOL_TIMEZONE = ZoneInfo("America/New_York")
 DUTY_SHIFT_START = "19:00"
 DUTY_SHIFT_END = "08:00"
+TEST_SCHOOL_TODAY = date(2026, 9, 1)
 
 
 def _normalize_existing_duty_shift_times():
@@ -44,7 +45,13 @@ _normalize_existing_duty_shift_times()
 
 
 def school_today():
-    """Return the current calendar date at the school."""
+    """Return the current school date, with a stable clock during tests."""
+    # Most fixtures use September 1-4, 2026. Without a frozen test clock those
+    # fixtures become "past" as wall-clock time advances and unrelated tests
+    # start failing in the past-duty guard. Date-specific tests patch this
+    # function explicitly, so they can still exercise other dates.
+    if core.app.config.get("TESTING"):
+        return TEST_SCHOOL_TODAY
     return datetime.now(SCHOOL_TIMEZONE).date()
 
 
