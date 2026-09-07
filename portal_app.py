@@ -67,7 +67,12 @@ def disabled_account_failure(conn):
 
 @app.route("/auth/callback")
 def auth_callback():
-    """Handle Google OAuth return callback, authenticate user, and sync profile."""
+    """
+    Authenticate a user from the Google OAuth callback and synchronize their account profile.
+    
+    Returns:
+        A redirect response to the dashboard after successful authentication or to the landing page when authentication fails.
+    """
     try:
         token = oauth.google.authorize_access_token()
         info = token.get("userinfo")
