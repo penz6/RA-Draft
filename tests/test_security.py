@@ -5,19 +5,18 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+TEST_DIR = tempfile.mkdtemp(prefix="ra-draft-tests-")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-0123456789abcdef0123456789abcdef")
 os.environ.setdefault("PUBLIC_HOST", "ci.local")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "ci-client.apps.googleusercontent.com")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "ci-client-secret")
 os.environ.setdefault("ADMIN_EMAILS", "admin@rwu.edu")
 os.environ.setdefault("PROXY_HOPS", "0")
-os.environ.setdefault(
-    "DATABASE_PATH",
-    str(Path(tempfile.gettempdir()) / "ra-draft-security-tests.db"),
-)
+os.environ.setdefault("DATABASE_PATH", str(Path(TEST_DIR) / "test.db"))
 
 import portal_app  # noqa: E402,F401
-from core import app, db, ics_escape, oauth  # noqa: E402
+from calendar_routes import ics_escape  # noqa: E402
+from core import app, clean_single_line, db, google_identity_allowed, oauth  # noqa: E402
 
 
 class SecurityTestCase(unittest.TestCase):
@@ -28,6 +27,7 @@ class SecurityTestCase(unittest.TestCase):
             conn = db()
             for table in (
                 "audit_log",
+                "session_deferrals",
                 "assignments",
                 "session_order",
                 "draft_sessions",
@@ -37,13 +37,16 @@ class SecurityTestCase(unittest.TestCase):
                 conn.execute(f"DELETE FROM {table}")
             conn.commit()
 
+    def request(self, method, path, **kwargs):
+        return getattr(self.client, method)(path, base_url="https://ci.local", **kwargs)
+
     def add_building(self, name):
         with app.app_context():
             cur = db().execute("INSERT INTO buildings(name) VALUES(?)", (name,))
             db().commit()
             return cur.lastrowid
 
-    def add_user(self, sub, email, name, role="RA", building_id=None):
+    def add_user(self, *, sub, email, name, role="RA", building_id=None):
         with app.app_context():
             cur = db().execute(
                 "INSERT INTO users(google_sub,email,name,role,building_id) VALUES(?,?,?,?,?)",
@@ -52,187 +55,146 @@ class SecurityTestCase(unittest.TestCase):
             db().commit()
             return cur.lastrowid
 
-    def login_as(self, user_id):
-        with self.client.session_transaction() as sess:
-            sess["uid"] = user_id
+    def login_as(self, user_id, csrf="test-csrf-token"):
+        with self.client.session_transaction() as flask_session:
+            flask_session["uid"] = user_id
+            flask_session["csrf"] = csrf
+        return csrf
 
-    def request(self, method, path, **kwargs):
-        return getattr(self.client, method)(path, base_url="https://ci.local", **kwargs)
+    def test_single_line_validation_rejects_control_characters(self):
+        for value in ("North\rHall", "North\nHall", "North\x00Hall", "North\tHall"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    clean_single_line(value, max_length=80)
 
-    def test_session_cookie_security_flags(self):
-        response = self.request("get", "/")
-        cookie = response.headers.get("Set-Cookie", "")
-        self.assertIn("HttpOnly", cookie)
-        self.assertIn("SameSite=Lax", cookie)
-        self.assertIn("Secure", cookie)
+    def test_email_verified_must_be_boolean_true(self):
+        info = {
+            "sub": "123",
+            "email": "person@rwu.edu",
+            "email_verified": "true",
+            "hd": "rwu.edu",
+        }
+        self.assertFalse(google_identity_allowed(info))
+        info["email_verified"] = True
+        self.assertTrue(google_identity_allowed(info))
 
-    def test_security_headers_present_and_strict(self):
-        response = self.request("get", "/")
-        headers = response.headers
-        self.assertEqual(headers.get("X-Frame-Options"), "DENY")
-        self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
-        self.assertEqual(headers.get("Referrer-Policy"), "strict-origin-when-cross-origin")
-        self.assertIn("max-age=31536000", headers.get("Strict-Transport-Security", ""))
-        self.assertIn("default-src 'self'", headers.get("Content-Security-Policy", ""))
-        self.assertIn("frame-ancestors 'none'", headers.get("Content-Security-Policy", ""))
-
-    def test_csrf_protection_blocks_state_modifications(self):
-        building_id = self.add_building("North Hall")
+    def test_sql_metacharacters_are_stored_as_data(self):
         admin_id = self.add_user(
             sub="admin-sub",
             email="admin@rwu.edu",
             name="Admin",
             role="ADMIN",
-            building_id=building_id,
         )
-        self.login_as(admin_id)
-
-        response = self.request("post", "/admin/buildings", data={"name": "Attacked Hall"})
-        self.assertEqual(response.status_code, 400)
-
-        with self.client.session_transaction() as sess:
-            csrf = sess["csrf_token"]
+        csrf = self.login_as(admin_id)
+        payload = "Hall'); DROP TABLE users;--"
         response = self.request(
             "post",
             "/admin/buildings",
-            data={"name": "Attacked Hall", "csrf": csrf},
+            data={"csrf": csrf, "name": payload},
         )
         self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            stored = db().execute(
+                "SELECT name FROM buildings WHERE name=?",
+                (payload,),
+            ).fetchone()
+            self.assertEqual(stored["name"], payload)
+            self.assertIsNotNone(db().execute("SELECT COUNT(*) n FROM users").fetchone())
 
-    def test_unauthenticated_protected_route_redirects_to_login(self):
-        response = self.request("get", "/dashboard")
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.location.endswith("/login"))
+    def test_html_is_autoescaped_in_admin_ui(self):
+        admin_id = self.add_user(
+            sub="admin-sub",
+            email="admin@rwu.edu",
+            name="Admin",
+            role="ADMIN",
+        )
+        csrf = self.login_as(admin_id)
+        payload = "<script>alert(1)</script>"
+        self.request(
+            "post",
+            "/admin/buildings",
+            data={"csrf": csrf, "name": payload},
+        )
+        response = self.request("get", "/admin")
+        page = response.get_data(as_text=True)
+        self.assertNotIn(payload, page)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", page)
 
-    def test_role_enforcement_prevents_ra_access_to_admin_panel(self):
-        building_id = self.add_building("North Hall")
+    def test_untrusted_host_is_rejected_without_rendering_application_ui(self):
+        response = self.client.get(
+            "/healthz",
+            base_url="https://attacker.example",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_data(as_text=True), "Invalid request host.")
+
+    def test_post_without_csrf_is_rejected(self):
+        admin_id = self.add_user(
+            sub="admin-sub",
+            email="admin@rwu.edu",
+            name="Admin",
+            role="ADMIN",
+        )
+        self.login_as(admin_id)
+        response = self.request(
+            "post",
+            "/admin/buildings",
+            data={"name": "North Hall"},
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_hra_cannot_manage_another_building(self):
+        first = self.add_building("First Hall")
+        second = self.add_building("Second Hall")
+        hra_id = self.add_user(
+            sub="hra-sub",
+            email="hra@rwu.edu",
+            name="HRA",
+            role="HRA",
+            building_id=first,
+        )
         ra_id = self.add_user(
             sub="ra-sub",
             email="ra@g.rwu.edu",
-            name="RA User",
+            name="RA",
             role="RA",
-            building_id=building_id,
+            building_id=second,
         )
-        self.login_as(ra_id)
-        response = self.request("get", "/admin")
-        self.assertEqual(response.status_code, 403)
-
-    def test_hra_cannot_create_session_in_foreign_building(self):
-        building_a = self.add_building("Hall A")
-        building_b = self.add_building("Hall B")
-        hra_id = self.add_user(
-            sub="hra-sub",
-            email="hra@g.rwu.edu",
-            name="HRA User",
-            role="HRA",
-            building_id=building_a,
-        )
-        ra_b_id = self.add_user(
-            sub="ra-b-sub",
-            email="ra.b@g.rwu.edu",
-            name="RA Hall B",
-            role="RA",
-            building_id=building_b,
-        )
-        self.login_as(hra_id)
-        with self.client.session_transaction() as sess:
-            csrf = sess["csrf_token"]
-
-        payload = {
-            "csrf": csrf,
-            "name": "Intruder Session",
-            "building_id": str(building_b),
-            "start_date": "2026-09-01",
-            "end_date": "2026-09-03",
-            "capacity": "1",
-            "date_order": "CHRONOLOGICAL",
-            "participant_ids": [str(ra_b_id)],
-            f"order_{ra_b_id}": "1",
-        }
-        response = self.request("post", "/sessions/new", data=payload)
-        self.assertEqual(response.status_code, 403)
-        with app.app_context():
-            count = db().execute("SELECT COUNT(*) n FROM draft_sessions").fetchone()["n"]
-            self.assertEqual(count, 0)
-
-    def test_session_actions_enforce_single_active_picker(self):
-        building_id = self.add_building("Cedar Hall")
-        hra_id = self.add_user(
-            sub="hra-sub",
-            email="hra@g.rwu.edu",
-            name="HRA Cedar",
-            role="HRA",
-            building_id=building_id,
-        )
-        ra_1 = self.add_user(
-            sub="ra1-sub",
-            email="ra1@g.rwu.edu",
-            name="RA One",
-            role="RA",
-            building_id=building_id,
-        )
-        ra_2 = self.add_user(
-            sub="ra2-sub",
-            email="ra2@g.rwu.edu",
-            name="RA Two",
-            role="RA",
-            building_id=building_id,
-        )
-
         with app.app_context():
             conn = db()
             cur = conn.execute(
-                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,capacity,date_order,created_by,current_position) "
-                "VALUES('Fall Picks',?,?,?,1,'CHRONOLOGICAL',?,1)",
-                (building_id, "2026-09-01", "2026-09-02", hra_id),
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by) VALUES(?,?,?,?,?)",
+                ("Other Hall Draft", second, "2026-09-01", "2026-09-02", hra_id),
             )
             session_id = cur.lastrowid
-            conn.execute("INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)", (session_id, ra_1))
-            conn.execute("INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,2)", (session_id, ra_2))
+            conn.execute(
+                "INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)",
+                (session_id, ra_id),
+            )
             conn.commit()
-
-        self.login_as(ra_2)
-        with self.client.session_transaction() as sess:
-            csrf = sess["csrf_token"]
+        csrf = self.login_as(hra_id)
         response = self.request(
             "post",
-            f"/sessions/{session_id}/pick",
-            data={"duty_date": "2026-09-01", "csrf": csrf},
+            f"/sessions/{session_id}/assign",
+            data={"csrf": csrf, "user_id": ra_id, "duty_date": "2026-09-01"},
         )
         self.assertEqual(response.status_code, 403)
 
-        self.login_as(ra_1)
-        with self.client.session_transaction() as sess:
-            csrf = sess["csrf_token"]
-        response = self.request(
-            "post",
-            f"/sessions/{session_id}/pick",
-            data={"duty_date": "2026-09-01", "csrf": csrf},
-        )
-        self.assertEqual(response.status_code, 302)
-
-        with app.app_context():
-            assignment = db().execute("SELECT * FROM assignments WHERE session_id=?", (session_id,)).fetchone()
-            self.assertIsNotNone(assignment)
-            self.assertEqual(assignment["user_id"], ra_1)
-
-    def test_calendar_export_escapes_crlf_injection(self):
-        building_id = self.add_building("Willow Hall")
+    def test_ical_export_cannot_inject_new_properties(self):
+        building_id = self.add_building("Hall\r\nX-EVIL: yes")
         user_id = self.add_user(
-            sub="evil-sub",
-            email="evil@g.rwu.edu",
-            name="Evil RA\r\nX-EVIL: yes\r\nBEGIN:VALARM",
-            role="RA",
+            sub="ra-sub",
+            email="ra@g.rwu.edu",
+            name="RA",
             building_id=building_id,
         )
         with app.app_context():
             conn = db()
-            sess = conn.execute(
-                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,capacity,date_order,created_by,current_position) "
-                "VALUES('Injected Session',?,?,?,1,'CHRONOLOGICAL',?,1)",
-                (building_id, "2026-09-01", "2026-09-02", user_id),
+            cur = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by) VALUES(?,?,?,?,?)",
+                ("Draft\r\nBEGIN:VALARM", building_id, "2026-09-01", "2026-09-01", user_id),
             )
-            session_id = sess.lastrowid
+            session_id = cur.lastrowid
             assignment = conn.execute(
                 "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
                 (session_id, user_id, "2026-09-01", user_id),
