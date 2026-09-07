@@ -371,6 +371,17 @@ class SecurityTestCase(unittest.TestCase):
         self.assertNotEqual(save_changes_pos, -1)
         self.assertLess(impersonate_pos, save_changes_pos)
 
+    def test_admin_tag_has_no_animation_or_sparkles_and_has_dull_green_styling(self):
+        static_root = Path(__file__).resolve().parents[1] / "static"
+        for css_file in ("role_help.css", "style.css"):
+            content = (static_root / css_file).read_text(encoding="utf-8")
+            self.assertNotIn("admin-shimmer", content)
+            self.assertNotIn("admin-twinkle", content)
+            self.assertNotIn("✦", content)
+            self.assertNotIn("✧", content)
+            self.assertIn(".admin-role", content)
+            self.assertIn("#7fa88c", content)
+
 
 if __name__ == "__main__":
     unittest.main()
