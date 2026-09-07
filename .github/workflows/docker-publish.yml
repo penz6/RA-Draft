@@ -1,10 +1,16 @@
-name: Docker Build and Security Tests
+name: Docker Build, Security Tests, and Publish
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/penz6/ra-draft
 
 jobs:
   docker:
@@ -62,3 +68,13 @@ jobs:
       - name: Clean up test container
         if: always()
         run: docker rm --force ra-draft-ci || true
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Tag and publish image
+        run: |
+          docker tag ra-draft:ci "${IMAGE_NAME}:latest"
+          docker tag ra-draft:ci "${IMAGE_NAME}:${GITHUB_SHA}"
+          docker push "${IMAGE_NAME}:latest"
+          docker push "${IMAGE_NAME}:${GITHUB_SHA}"
