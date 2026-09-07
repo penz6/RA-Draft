@@ -64,7 +64,7 @@
   <form method="post" action="{{ url_for('create_session') }}" class="grid-form" data-session-form>
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
 
-    <label class="field">Session name
+    <label class="field{% if me.role != 'ADMIN' %} full{% endif %}">Session name
       <input name="name" maxlength="120" required autocomplete="off" placeholder="Fall duty picking">
     </label>
     {% if me.role == 'ADMIN' %}

@@ -103,17 +103,18 @@ img.user-avatar,img.user-pfp{width:2rem;height:2rem;border-radius:50%;object-fit
 input,select{width:100%;min-height:42px;padding:0.62rem 0.72rem;border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);background:var(--surface-2)}
 input:hover,select:hover{border-color:rgba(255,255,255,0.25)}
 input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,0.25);background:#1e293b}
-input[type="checkbox"]{width:1.1rem;min-height:1.1rem;accent-color:var(--blue)}
+input[type="checkbox"]{width:1.1rem;min-height:1.1rem;margin:0;accent-color:var(--blue)}
 fieldset{min-width:0;padding:1rem;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,0.02)}
 legend{padding:0 0.35rem;color:var(--ink);font-weight:850}
-.check{display:inline-flex;flex-direction:row;align-items:flex-start;gap:0.65rem}
+.check{display:inline-flex;flex-direction:row;align-items:center;gap:0.65rem}
 .inline-form{display:flex;align-items:end;gap:0.7rem}
-.participant-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:0.6rem}
+.participant-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.6rem}
 .participant-toolbar p{max-width:720px;margin-bottom:0;color:var(--muted);font-size:0.9rem;font-weight:500}
 .participant-list{border-top:1px solid var(--line)}
 .participant-row{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:1rem;align-items:center;padding:0.8rem 0;border-bottom:1px solid var(--line)}
 .participant-name{font-weight:500}
-.participant-name span,.user-admin-identity,.edit-row>div{display:flex;min-width:0;flex-direction:column}
+.participant-name > span,.user-admin-identity,.edit-row>div{display:flex;min-width:0;flex-direction:column}
+.participant-name > span > strong{display:inline-flex;align-items:center;gap:0.45rem}
 .participant-name small,.user-admin-identity span,.user-admin-identity small,.edit-row small{overflow:hidden;color:var(--muted);font-size:0.78rem;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
 .order-field{display:grid;grid-template-columns:auto 64px;align-items:center;gap:0.45rem;color:var(--muted);font-size:0.78rem}
 .order-field input{min-height:36px;padding:0.4rem 0.5rem}
@@ -163,6 +164,7 @@ legend{padding:0 0.35rem;color:var(--ink);font-weight:850}
 .table-wrap{width:100%;overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 th,td{padding:0.78rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.assignment-table td{vertical-align:middle}
 th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;text-transform:uppercase}
 .text-link{font-weight:750;color:var(--blue)}
 .manager-panel{margin-top:1.2rem;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
@@ -227,8 +229,9 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 .help-steps li,.help-permissions li{padding-left:.25rem}
 .help-limit{margin:1rem 0 0;padding:.75rem .85rem;border-radius:9px;color:var(--muted);background:var(--background);font-size:.9rem}
 .help-dialog-actions{display:flex;justify-content:flex-end;margin-top:1.4rem}
-.inline-role{display:inline-flex;margin-left:.35rem;padding:.12rem .4rem;border-radius:999px;color:#93c5fd;background:var(--blue-soft);font-size:.65rem;font-weight:850;letter-spacing:.04em;vertical-align:middle}
-.admin-role{color:#e2b744 !important;background:rgba(212,167,44,0.18) !important;border:1px solid rgba(212,167,44,0.45) !important;box-shadow:none !important}
+.inline-role{display:inline-flex;align-items:center;justify-content:center;margin-left:.35rem;padding:.12rem .42rem;border-radius:999px;color:#93c5fd;background:var(--blue-soft);font-size:.65rem;font-weight:850;letter-spacing:.04em;vertical-align:middle;line-height:1.2}
+.admin-role{position:relative;color:#7fa88c !important;background:rgba(46,94,68,0.28) !important;border:1px solid rgba(75,140,100,0.45) !important;box-shadow:none !important;animation:none !important}
+.admin-role::before,.admin-role::after{display:none !important;content:none !important;animation:none !important}
 .manager-section{padding-bottom:1.25rem;margin-bottom:1.25rem;border-bottom:1px solid var(--line)}
 .manager-rule-form{align-items:end;flex-wrap:wrap}
 .capacity-input{flex:0 1 150px}
@@ -255,8 +258,10 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 .your-turn-copy strong{font-size:.92rem;color:#fff}
 .your-turn-copy small{margin-top:.1rem;color:#fca5a5;font-size:.76rem}
 @keyframes your-turn-pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.35)}70%{box-shadow:0 0 0 8px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
-.participant-row.draggable-participant{grid-template-columns:38px minmax(0,1fr) auto;align-items:center;cursor:grab}
+.participant-row.draggable-participant{grid-template-columns:38px 32px minmax(0,1fr) auto;align-items:center;cursor:grab}
 .participant-name{align-items:center}
+.participant-row .participant-name{display:inline-flex;align-items:center;gap:0.65rem}
+.participant-row .participant-name input[type="checkbox"]{margin:0;align-self:center}
 .participant-row.draggable-participant.is-dragging{opacity:.48;border:1px dashed var(--blue);background:var(--blue-soft)}
 .drag-handle{display:grid;width:36px;height:36px;place-items:center;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:var(--surface-2);cursor:grab;font-size:1rem;line-height:1;letter-spacing:0}
 .drag-handle:active{cursor:grabbing}
@@ -284,7 +289,7 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 .calendar-day-head{display:flex;align-items:center;justify-content:space-between;gap:.35rem}
 .calendar-day-head strong{font-size:1rem;color:#f8fafc}
 .calendar-day-head small{font-size:.65rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-.calendar-assignees{display:flex;min-width:0;flex-direction:column;gap:.25rem}
+.calendar-assignees{display:flex;min-width:0;flex:1;flex-direction:column;gap:.25rem}
 .calendar-assignee,.calendar-more{overflow:hidden;padding:.18rem .36rem;border-radius:6px;color:#93c5fd;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.25);font-size:.72rem;font-weight:750;text-overflow:ellipsis;white-space:nowrap}
 .calendar-assignee{display:inline-flex;align-items:center;gap:.25rem}
 .calendar-assignee img.calendar-assignee-pfp{width:0.95rem;height:0.95rem;border-radius:50%;object-fit:cover;flex:0 0 auto;display:block}
