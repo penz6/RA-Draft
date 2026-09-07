@@ -1,6 +1,30 @@
 (() => {
   "use strict";
 
+  document.documentElement.classList.add("js");
+
+  const navToggle = document.querySelector("[data-nav-toggle]");
+  const primaryNav = document.querySelector("[data-primary-nav]");
+  if (navToggle && primaryNav) {
+    const setNavOpen = (open) => {
+      navToggle.setAttribute("aria-expanded", String(open));
+      primaryNav.classList.toggle("is-open", open);
+    };
+
+    navToggle.addEventListener("click", () => {
+      setNavOpen(navToggle.getAttribute("aria-expanded") !== "true");
+    });
+    primaryNav.addEventListener("click", (event) => {
+      if (event.target.closest("a")) setNavOpen(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && navToggle.getAttribute("aria-expanded") === "true") {
+        setNavOpen(false);
+        navToggle.focus();
+      }
+    });
+  }
+
   // Live session transport and compatibility polling (pollLiveState) live in
   // live_stream.js. Keep this file focused on non-live page interactions.
 
@@ -129,9 +153,16 @@
     });
   }
 
-  document.querySelectorAll("[data-confirm]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      if (!window.confirm(button.dataset.confirm)) event.preventDefault();
-    });
-  });
+  // Listen on the document so confirmations also protect controls inserted by
+  // live updates. Handling submit (rather than click) also covers keyboard and
+  // assistive-technology form submission.
+  document.addEventListener("submit", (event) => {
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+    if (!form) return;
+    const message = event.submitter?.dataset.confirm || form.dataset.confirm;
+    if (message && !window.confirm(message)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
 })();

@@ -42,6 +42,12 @@ small,.muted{color:var(--muted)}
 .brand{display:inline-flex;align-items:center;gap:0.65rem;color:#f8fafc;font-size:1.1rem;font-weight:850;text-decoration:none;letter-spacing:-0.02em}
 .brand-mark{display:grid;width:2.2rem;height:2.2rem;place-items:center;border-radius:10px;color:white;background:linear-gradient(135deg,#1d4ed8,#3b82f6);box-shadow:inset 0 -3px 0 var(--gold);font-size:0.78rem;letter-spacing:0.04em}
 .primary-nav{display:flex;align-items:center;justify-content:flex-end;gap:0.7rem}
+.nav-toggle{display:none;align-items:center;gap:.55rem;min-height:42px;padding:.55rem .75rem;border:1px solid var(--line-strong);border-radius:9px;color:var(--ink);background:var(--surface-2);cursor:pointer;font-weight:800}
+.nav-toggle-icon{display:grid;gap:3px;width:1rem}
+.nav-toggle-icon span{display:block;height:2px;border-radius:2px;background:currentColor;transition:transform 120ms ease,opacity 120ms ease}
+.nav-toggle[aria-expanded="true"] .nav-toggle-icon span:first-child{transform:translateY(5px) rotate(45deg)}
+.nav-toggle[aria-expanded="true"] .nav-toggle-icon span:nth-child(2){opacity:0}
+.nav-toggle[aria-expanded="true"] .nav-toggle-icon span:last-child{transform:translateY(-5px) rotate(-45deg)}
 .nav-link{padding:0.55rem 0.7rem;border-radius:8px;color:var(--muted);font-weight:700;text-decoration:none;transition:color 120ms ease,background 120ms ease}
 .nav-link:hover,.nav-link.is-active{color:#f8fafc;background:var(--surface-2)}
 .user-chip{display:inline-flex;align-items:center;gap:0.55rem;min-width:0;padding:0.35rem 0.65rem;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-2)}
@@ -121,6 +127,7 @@ legend{padding:0 0.35rem;color:var(--ink);font-weight:850}
 .session-list{display:grid;gap:0.75rem}
 .session-item-row{display:flex;align-items:center;gap:0.75rem}
 .session-item-row .session-card{flex:1}
+.session-row-actions{display:flex;flex:0 0 auto;align-items:center;gap:.5rem}
 .session-admin-actions{flex:0 0 auto}
 .session-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,0.8fr) auto;gap:1rem;align-items:center;padding:1rem 1.25rem;border:1px solid var(--line);border-radius:12px;color:var(--ink);background:var(--surface-2);text-decoration:none;transition:border-color 120ms ease,transform 120ms ease,box-shadow 120ms ease}
 .session-card:hover{color:var(--ink);border-color:rgba(59,130,246,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.35);transform:translateY(-1px)}
@@ -435,6 +442,10 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 @media(max-width:720px){
   .topbar-inner,.site-footer{width:min(100% - 1.2rem,1180px)}
   .topbar-inner{flex-direction:column}
+  .js .topbar-inner{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.65rem}
+  .js .nav-toggle{display:inline-flex;grid-column:2;grid-row:1}
+  .js .primary-nav{display:none;grid-column:1 / -1;grid-row:2}
+  .js .primary-nav.is-open{display:flex}
   .primary-nav{width:100%;justify-content:flex-start}
   .user-chip{max-width:100%;margin-left:auto}
   .container{width:min(100% - 1.2rem,1180px);padding-top:1.35rem}
@@ -457,6 +468,8 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
   .assignment-table td,.audit-table td{display:grid;grid-template-columns:95px minmax(0,1fr);gap:0.7rem;padding:0.38rem 0;border:0}
   .assignment-table td::before,.audit-table td::before{content:attr(data-label);color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.04em;text-transform:uppercase}
   .session-item-row{flex-direction:column;align-items:stretch}
+  .session-row-actions{display:grid}
+  .session-row-actions .button{width:100%}
   .session-admin-actions .button{width:100%}
   .swap-request-card{flex-direction:column;align-items:stretch}
   .swap-actions{width:100%;justify-content:stretch}

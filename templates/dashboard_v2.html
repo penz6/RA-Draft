@@ -140,8 +140,8 @@
   </div>
   <div class="session-list">
     {% for s in sessions %}
-    <div class="session-item-row" style="display:flex; align-items:center; gap:0.75rem;">
-      <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}" style="flex:1;">
+    <div class="session-item-row">
+      <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}">
         <div class="session-card-main">
           <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
           <p>{{ s.building_name }}</p>
@@ -154,15 +154,15 @@
         <span class="session-arrow" aria-hidden="true">&rarr;</span>
       </a>
       {% if s.status == 'CLOSED' %}
-      <div style="display:flex; gap:0.5rem; align-items:center; flex-shrink:0;">
+      <div class="session-row-actions">
         <a class="button small secondary" href="{{ url_for('swap_page', session_id=s.id) }}">Duty Swaps</a>
       </div>
       {% endif %}
       {% if me.role == 'ADMIN' %}
       <div class="session-admin-actions">
-        <form method="POST" action="{{ url_for('delete_session', session_id=s.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete session \'{{ s.name }}\'? This cannot be undone.');" style="margin:0;">
+        <form method="post" action="{{ url_for('delete_session', session_id=s.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <button type="submit" class="button danger small">Delete session</button>
+          <button type="submit" class="button danger small" data-confirm="Permanently delete session '{{ s.name }}' and all its assignments? This cannot be undone.">Delete session</button>
         </form>
       </div>
       {% endif %}

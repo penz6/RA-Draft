@@ -38,7 +38,11 @@
         <span>Duty Shift</span>
       </a>
       {% if me %}
-      <nav class="primary-nav" aria-label="Primary navigation">
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
+        <span class="nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>Menu</span>
+      </button>
+      <nav class="primary-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
         <a class="nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">Sessions</a>
         <a class="nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">
           Duty Swaps{% if pending_swap_approval_count %} <span class="pill small pending" aria-label="{{ pending_swap_approval_count }} pending swap approval{{ 's' if pending_swap_approval_count != 1 else '' }}">{{ pending_swap_approval_count }}</span>{% endif %}
