@@ -17,7 +17,16 @@
       <tbody>
         {% for a in picks %}
         <tr>
-          <td data-label="Participant"><strong>{{ a.name }}</strong></td>
+          <td data-label="Participant">
+            <div class="user-inline-cell">
+              {% if a.picture_url %}
+              <img class="user-avatar user-pfp small" src="{{ a.picture_url }}" alt="" referrerpolicy="no-referrer">
+              {% else %}
+              <span class="user-avatar small" aria-hidden="true">{{ a.name[:1] }}</span>
+              {% endif %}
+              <strong>{{ a.name }}</strong>
+            </div>
+          </td>
           <td data-label="Role"><span class="inline-role{% if a.role == 'ADMIN' %} admin-role{% endif %}">{{ a.role }}</span></td>
           <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
           <td data-label="Actions">

@@ -1,5 +1,7 @@
-A project to make duty picking easier for my RA staff.
+# RA Draft
 
-Made mostly with Codex and Antigravity, the first project I have done that really used AI Agents for coding.
+A duty picking app for my RA staff.
 
-Deployed with Pangolin as a proxy and authwall, and running on an XS vps from Ionos.
+The first app that I have made mainly using AI Agents (Codex and Antigravity)
+
+Deployed behind a pangolin authwall and hosted on an XS VPS from ionos.

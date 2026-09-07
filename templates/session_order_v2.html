@@ -7,7 +7,14 @@
     <li class="draft-person{% if draft.status == 'OPEN' and next and next.id == p.id %} is-current{% endif %}">
       <span class="order-number">{{ loop.index }}</span>
       <div class="draft-person-copy">
-        <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
+        <div class="draft-person-name-row">
+          {% if p.picture_url %}
+          <img class="user-avatar user-pfp small" src="{{ p.picture_url }}" alt="" referrerpolicy="no-referrer">
+          {% else %}
+          <span class="user-avatar small" aria-hidden="true">{{ p.name[:1] }}</span>
+          {% endif %}
+          <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
+        </div>
         {% if p.disabled %}
         <span class="status-text disabled-user-status">Account disabled · {{ p.assignment_count }} assigned</span>
         {% elif draft.status == 'CLOSED' and next and next.id == p.id %}
@@ -35,11 +42,41 @@
     {% endfor %}
   </ol>
   {% if draft.status == 'CLOSED' and next %}
-  <div class="current-picker"><span>Next picker when reopened</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  <div class="current-picker">
+    <span>Next picker when reopened</span>
+    <div class="current-picker-user">
+      {% if next.picture_url %}
+      <img class="user-avatar user-pfp small" src="{{ next.picture_url }}" alt="" referrerpolicy="no-referrer">
+      {% else %}
+      <span class="user-avatar small" aria-hidden="true">{{ next.name[:1] }}</span>
+      {% endif %}
+      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong>
+    </div>
+  </div>
   {% elif draft.picking_paused and next %}
-  <div class="current-picker"><span>Current turn · paused</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  <div class="current-picker">
+    <span>Current turn · paused</span>
+    <div class="current-picker-user">
+      {% if next.picture_url %}
+      <img class="user-avatar user-pfp small" src="{{ next.picture_url }}" alt="" referrerpolicy="no-referrer">
+      {% else %}
+      <span class="user-avatar small" aria-hidden="true">{{ next.name[:1] }}</span>
+      {% endif %}
+      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong>
+    </div>
+  </div>
   {% elif next %}
-  <div class="current-picker"><span>Current picker</span><strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong></div>
+  <div class="current-picker">
+    <span>Current picker</span>
+    <div class="current-picker-user">
+      {% if next.picture_url %}
+      <img class="user-avatar user-pfp small" src="{{ next.picture_url }}" alt="" referrerpolicy="no-referrer">
+      {% else %}
+      <span class="user-avatar small" aria-hidden="true">{{ next.name[:1] }}</span>
+      {% endif %}
+      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong>
+    </div>
+  </div>
   {% elif schedule_complete %}
   <div class="notice success">The calendar is complete.</div>
   {% else %}

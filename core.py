@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'RA' CHECK(role IN ('RA','HRA','ADMIN')),
   building_id INTEGER REFERENCES buildings(id),
   disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)),
+  picture_url TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS draft_sessions (
@@ -434,6 +435,8 @@ def migrate_schema(conn):
             "ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL "
             "DEFAULT 0 CHECK(disabled IN (0,1))"
         )
+    if "picture_url" not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN picture_url TEXT")
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS session_date_overrides ("
@@ -552,7 +555,7 @@ def security_headers(response):
         "object-src 'none'; "
         "frame-ancestors 'none'; "
         "form-action 'self'; "
-        "img-src 'self' data:; "
+        "img-src 'self' data: https://*.googleusercontent.com https://lh3.googleusercontent.com; "
         "style-src 'self'; "
         "script-src 'self'; "
         "connect-src 'self'"
@@ -850,7 +853,7 @@ def can_manage(user, row):
 def ordered_people(session_id):
     """Retrieve ordered list of participants and their current assignment counts."""
     return db().execute(
-        "SELECT u.id,u.name,u.email,u.role,u.disabled,o.position,"
+        "SELECT u.id,u.name,u.email,u.role,u.disabled,u.picture_url,o.position,"
         "(SELECT COUNT(*) FROM assignments a "
         " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) AS assignment_count,"
         "0 AS deferred "

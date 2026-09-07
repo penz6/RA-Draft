@@ -53,6 +53,10 @@
 .calendar-day-head small{overflow:hidden;color:var(--muted);font-size:.58rem;font-weight:800;letter-spacing:.04em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
 .calendar-assignees{display:flex;min-width:0;flex:1;flex-direction:column;gap:.22rem}
 .calendar-assignee,.calendar-more{overflow:hidden;padding:.16rem .34rem;border:1px solid rgba(59,130,246,.18);border-radius:6px;color:#bfdbfe;background:rgba(59,130,246,.11);font-size:.68rem;font-weight:750;text-overflow:ellipsis;white-space:nowrap}
+.calendar-assignee{display:inline-flex;align-items:center;gap:.22rem}
+.calendar-assignee img.calendar-assignee-pfp{width:0.95rem;height:0.95rem;border-radius:50%;object-fit:cover;flex:0 0 auto;display:block}
+.calendar-assignee .calendar-assignee-initial{display:inline-grid;place-items:center;width:0.95rem;height:0.95rem;border-radius:50%;background:#2563eb;color:#fff;font-size:0.52rem;font-weight:800;flex:0 0 auto;line-height:1}
+.calendar-assignee .calendar-assignee-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .calendar-more{color:var(--muted);background:rgba(255,255,255,.035);border-color:var(--line)}
 .calendar-empty{margin:auto 0;color:var(--muted);font-size:.68rem;font-weight:650}
 .calendar-no-duty{margin:auto 0;color:var(--muted);font-size:.67rem;font-weight:700}

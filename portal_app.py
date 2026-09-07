@@ -61,7 +61,7 @@ def disabled_account_failure(conn):
     """Roll back transaction and notify user that their account is disabled."""
     conn.rollback()
     return oauth_failure(
-        "This Duty Shift account is disabled. Contact an administrator if access should be restored."
+        "Your account is currently disabled. Please contact a residence life administrator if you need access."
     )
 
 
@@ -75,16 +75,17 @@ def auth_callback():
             raise ValueError("Google did not return a valid OpenID profile.")
     except (OAuthError, RequestException, TypeError, ValueError, KeyError):
         return oauth_failure(
-            "Google sign-in could not be completed. Return to the portal and try again."
+            "Couldn't sign in with Google. Please return to the login page and try again."
         )
 
     email = (info.get("email") or "").strip().lower()
     google_sub = str(info.get("sub") or "").strip()
     display_name = safe_display_name(info.get("name"), email)
+    picture_url = str(info.get("picture") or "").strip() or None
 
     if not google_identity_allowed(info):
         return oauth_failure(
-            "Sign in with a verified @g.rwu.edu or @rwu.edu Google Workspace account."
+            "Please sign in with your @g.rwu.edu or @rwu.edu Google account."
         )
 
     conn = db()
@@ -106,11 +107,11 @@ def auth_callback():
         if email_owner:
             conn.rollback()
             return oauth_failure(
-                "This RWU email is already linked to another account. Ask an admin to resolve it."
+                "This email is already linked to another account. Please contact an admin."
             )
         conn.execute(
-            "UPDATE users SET email=?, name=? WHERE id=?",
-            (email, display_name, user["id"]),
+            "UPDATE users SET email=?, name=?, picture_url=COALESCE(?, picture_url) WHERE id=?",
+            (email, display_name, picture_url, user["id"]),
         )
         uid = user["id"]
     else:
@@ -124,17 +125,17 @@ def auth_callback():
             if not str(email_owner["google_sub"]).startswith("manual:"):
                 conn.rollback()
                 return oauth_failure(
-                    "This RWU email is already linked to another account. Ask an admin to resolve it."
+                    "This email is already linked to another account. Please contact an admin."
                 )
             linked = conn.execute(
-                "UPDATE users SET google_sub=?,email=?,name=? "
+                "UPDATE users SET google_sub=?,email=?,name=?,picture_url=? "
                 "WHERE id=? AND google_sub LIKE 'manual:%' AND disabled=0",
-                (google_sub, email, display_name, email_owner["id"]),
+                (google_sub, email, display_name, picture_url, email_owner["id"]),
             )
             if linked.rowcount != 1:
                 conn.rollback()
                 return oauth_failure(
-                    "This pre-created account could not be linked. Ask an admin to resolve it."
+                    "We couldn't connect your account automatically. Please check with an admin."
                 )
             uid = email_owner["id"]
             is_new = False
@@ -149,8 +150,8 @@ def auth_callback():
         else:
             role = "ADMIN" if email in ADMIN_EMAILS else "RA"
             cur = conn.execute(
-                "INSERT INTO users(google_sub,email,name,role) VALUES(?,?,?,?)",
-                (google_sub, email, display_name, role),
+                "INSERT INTO users(google_sub,email,name,role,picture_url) VALUES(?,?,?,?,?)",
+                (google_sub, email, display_name, role, picture_url),
             )
             uid = cur.lastrowid
             audit(

@@ -43,7 +43,7 @@ def _session_template_context(session_id, user):
 
     people = ordered_people(session_id)
     picks = db().execute(
-        "SELECT a.*,u.name,u.role,o.position FROM assignments a "
+        "SELECT a.*,u.name,u.role,u.picture_url,o.position FROM assignments a "
         "JOIN users u ON u.id=a.user_id "
         "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
         "WHERE a.session_id=? ORDER BY a.duty_date,o.position,a.id",

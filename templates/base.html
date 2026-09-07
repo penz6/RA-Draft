@@ -48,7 +48,11 @@
         {% endif %}
         <button class="nav-link nav-button" type="button" data-help-open>How it works</button>
         <span class="user-chip" title="{{ me.email }}">
+          {% if me.picture_url %}
+          <img class="user-avatar user-pfp" src="{{ me.picture_url }}" alt="" referrerpolicy="no-referrer">
+          {% else %}
           <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
+          {% endif %}
           <span class="user-copy"><strong>{{ me.name }}</strong><small><span class="inline-role{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
         </span>
         <form class="nav-form" method="post" action="{{ url_for('logout') }}">

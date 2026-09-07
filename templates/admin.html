@@ -3,9 +3,9 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <div class="eyebrow">System administration</div>
-    <h1>Access and buildings</h1>
-    <p>Create users, assign access, disable accounts, and manage building records.</p>
+    <div class="eyebrow">Administration</div>
+    <h1>Users &amp; Buildings</h1>
+    <p>Manage team member access, residence halls, and system permissions.</p>
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
@@ -15,7 +15,7 @@
     <div class="section-head">
       <div>
         <h2>Buildings</h2>
-        <p>Rename unused or active buildings. Buildings with session history are retained for schedule integrity.</p>
+        <p>Add or rename residence halls. Halls with duty history cannot be deleted to preserve records.</p>
       </div>
       <span class="count-badge">{{ buildings|length }}</span>
     </div>
@@ -37,7 +37,7 @@
             <span class="sr-only">Rename {{ b.name }}</span>
             <input name="name" value="{{ b.name }}" maxlength="80" required autocomplete="off">
             <span class="admin-row-meta">
-              {{ b.user_count }} user{{ '' if b.user_count == 1 else 's' }} ·
+              {{ b.user_count }} user{{ '' if b.user_count == 1 else 's' }} &bull;
               {{ b.session_count }} session{{ '' if b.session_count == 1 else 's' }}
             </span>
           </label>
@@ -48,8 +48,8 @@
           <button
             class="button danger small"
             type="submit"
-            data-confirm="Delete {{ b.name }}? Users assigned to it will become unassigned."
-            {% if b.session_count %}disabled aria-disabled="true" title="Buildings with session history cannot be deleted"{% endif %}
+            data-confirm="Delete {{ b.name }}? Team members assigned to it will become unassigned."
+            {% if b.session_count %}disabled aria-disabled="true" title="Buildings with duty sessions cannot be deleted"{% endif %}
           >Delete</button>
         </form>
       </div>
@@ -62,8 +62,8 @@
   <section class="card">
     <div class="section-head">
       <div>
-        <h2>Users</h2>
-        <p>Pre-create an RWU user, assign their role/building, or disable access without deleting schedule history.</p>
+        <h2>Team Members</h2>
+        <p>Add team members, assign their role and building, or manage account access.</p>
       </div>
       <span class="count-badge">{{ users|length }}</span>
     </div>
@@ -97,73 +97,97 @@
     <div class="user-admin-list">
       {% for u in users %}
       <div class="user-admin-entry{% if u.disabled %} is-disabled{% endif %}">
+        <div class="user-admin-top">
+          <div class="user-admin-identity">
+            <div class="user-avatar-wrap">
+              {% if u.picture_url %}
+              <img class="user-avatar user-pfp" src="{{ u.picture_url }}" alt="" referrerpolicy="no-referrer">
+              {% else %}
+              <span class="user-avatar" aria-hidden="true">{{ u.name[:1] }}</span>
+              {% endif %}
+            </div>
+            <div class="user-identity-text">
+              <div class="user-name-line">
+                <strong>{{ u.name }}</strong>
+                {% if u.role == 'ADMIN' %}<span class="inline-role admin-role">ADMIN</span>{% else %}<span class="inline-role">{{ u.role }}</span>{% endif %}
+              </div>
+              <span class="user-email-text">{{ u.email }}</span>
+              <div class="user-meta-line">
+                <small>Joined {{ u.created_at[:10] }}</small>
+                {% if u.disabled %}
+                <span class="account-state disabled">Disabled</span>
+                {% elif u.pending_google %}
+                <span class="account-state pending">Invited &bull; Awaiting sign-in</span>
+                {% else %}
+                <span class="account-state">Google verified</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="admin-user-actions">
+            {% if u.id != me.id and not u.disabled %}
+            <form method="post" action="{{ url_for('impersonate_user', user_id=u.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <button class="button secondary small impersonate-btn" type="submit">View as</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin_user_status', user_id=u.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="disabled" value="{{ 0 if u.disabled else 1 }}">
+              <button
+                class="button {{ 'secondary' if u.disabled else 'ghost' }} small"
+                type="submit"
+                {% if not u.disabled %}data-confirm="Disable {{ u.name }}? They will be signed out and unable to pick shifts until re-enabled."{% endif %}
+                {% if u.id == me.id and not u.disabled %}disabled aria-disabled="true" title="You cannot disable your own signed-in account"{% endif %}
+              >{{ 'Enable' if u.disabled else 'Disable' }}</button>
+            </form>
+            <form class="admin-delete-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <button
+                class="button danger small"
+                type="submit"
+                data-confirm="Delete {{ u.name }}? This cannot be undone."
+                {% if u.id == me.id %}disabled aria-disabled="true" title="You cannot delete your own signed-in account"{% endif %}
+              >Delete</button>
+            </form>
+          </div>
+        </div>
+
         <form class="user-access-form" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <div class="user-admin-identity">
-            <strong>{{ u.name }}{% if u.role == 'ADMIN' %} <span class="inline-role admin-role">ADMIN</span>{% endif %}</strong>
-            <span>{{ u.email }}</span>
-            <small>Joined {{ u.created_at }}</small>
-            {% if u.disabled %}
-            <span class="account-state disabled">Disabled · sign-in blocked</span>
-            {% elif u.pending_google %}
-            <span class="account-state pending">Waiting for first Google sign-in</span>
-            {% else %}
-            <span class="account-state">Google linked</span>
-            {% endif %}
+          <div class="user-access-controls">
+            <label class="field compact">Role
+              <select name="role">
+                <option value="RA" {% if u.role == 'RA' %}selected{% endif %}>RA</option>
+                <option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option>
+                <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
+              </select>
+            </label>
+            <label class="field compact">Building
+              <select name="building_id">
+                <option value="">No building</option>
+                {% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+              </select>
+            </label>
+            <button class="button small" type="submit">Save changes</button>
           </div>
-          <label class="field compact">Role
-            <select name="role">
-              <option value="RA" {% if u.role == 'RA' %}selected{% endif %}>RA</option>
-              <option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option>
-              <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>
-            </select>
-          </label>
-          <label class="field compact">Building
-            <select name="building_id">
-              <option value="">No building</option>
-              {% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
-            </select>
-          </label>
-          <button class="button small" type="submit">Save access</button>
         </form>
-        <div class="admin-user-actions">
-          {% if u.id != me.id and not u.disabled %}
-          <form method="post" action="{{ url_for('impersonate_user', user_id=u.id) }}">
-            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-            <button class="button secondary small" type="submit">View as</button>
-          </form>
-          {% endif %}
-          <form method="post" action="{{ url_for('admin_user_status', user_id=u.id) }}">
-            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-            <input type="hidden" name="disabled" value="{{ 0 if u.disabled else 1 }}">
-            <button
-              class="button {{ 'secondary' if u.disabled else 'danger' }} small"
-              type="submit"
-              {% if not u.disabled %}data-confirm="Disable {{ u.name }}? They will be signed out and unable to use Duty Picking until re-enabled."{% endif %}
-              {% if u.id == me.id and not u.disabled %}disabled aria-disabled="true" title="You cannot disable your own signed-in account"{% endif %}
-            >{{ 'Enable' if u.disabled else 'Disable' }}</button>
-          </form>
-          <form class="admin-delete-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}">
-            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-            <button
-              class="button danger small"
-              type="submit"
-              data-confirm="Delete {{ u.name }}? This cannot be undone."
-              {% if u.id == me.id %}disabled aria-disabled="true" title="You cannot delete your own signed-in account"{% endif %}
-            >Delete</button>
-          </form>
-        </div>
       </div>
       {% else %}
       <div class="empty-state compact"><p>No users exist yet.</p></div>
       {% endfor %}
     </div>
-    <p class="admin-policy-note">Disabling an account preserves its schedule history but blocks sign-in and future self-service. Users already referenced by a duty session or assignment still cannot be deleted.</p>
+    <p class="admin-policy-note">Disabling an account preserves duty history but blocks sign-in. Team members with assigned shifts cannot be deleted.</p>
   </section>
 </div>
 
 <section class="card">
-  <div class="section-head"><div><h2>Recent audit activity</h2><p>The latest 100 authentication and privileged changes.</p></div></div>
+  <div class="section-head">
+    <div>
+      <h2>Recent activity</h2>
+      <p>Recent sign-ins, role changes, and administrative actions.</p>
+    </div>
+  </div>
   <div class="table-wrap">
     <table class="audit-table">
       <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>

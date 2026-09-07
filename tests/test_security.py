@@ -218,6 +218,7 @@ class SecurityTestCase(unittest.TestCase):
             "email_verified": True,
             "hd": "g.rwu.edu",
             "name": "New User",
+            "picture": "https://lh3.googleusercontent.com/a/avatar-123",
         }
         with patch.object(oauth.google, "authorize_access_token", return_value={"userinfo": info}):
             response = self.request("get", "/auth/callback")
@@ -230,6 +231,7 @@ class SecurityTestCase(unittest.TestCase):
             ).fetchone()
             self.assertEqual(user["email"], "new.user@g.rwu.edu")
             self.assertEqual(user["name"], "New User")
+            self.assertEqual(user["picture_url"], "https://lh3.googleusercontent.com/a/avatar-123")
 
     def test_google_callback_rejects_non_rwu_domain(self):
         info = {
@@ -309,6 +311,65 @@ class SecurityTestCase(unittest.TestCase):
     def test_ics_escape_handles_all_newline_forms(self):
         escaped = ics_escape("one\r\ntwo\rthree\nfour")
         self.assertEqual(escaped, "one\\ntwo\\nthree\\nfour")
+
+    def test_content_security_policy_allows_google_profile_pictures(self):
+        response = self.request("get", "/")
+        csp = response.headers.get("Content-Security-Policy", "")
+        self.assertIn("googleusercontent.com", csp)
+        self.assertIn("img-src", csp)
+
+    def test_profile_picture_rendered_in_base_navigation(self):
+        building_id = self.add_building("Maple Hall")
+        user_id = self.add_user(
+            sub="pfp-user",
+            email="pfp@g.rwu.edu",
+            name="PFP User",
+            building_id=building_id,
+        )
+        with app.app_context():
+            db().execute(
+                "UPDATE users SET picture_url=? WHERE id=?",
+                ("https://lh3.googleusercontent.com/a/pfp-avatar", user_id),
+            )
+            db().commit()
+        self.login_as(user_id)
+        response = self.request("get", "/dashboard")
+        html = response.get_data(as_text=True)
+        self.assertIn('src="https://lh3.googleusercontent.com/a/pfp-avatar"', html)
+        self.assertIn('referrerpolicy="no-referrer"', html)
+        self.assertIn("user-pfp", html)
+
+    def test_admin_impersonation_option_rendered_above_save_changes(self):
+        building_id = self.add_building("Maple Hall")
+        admin_id = self.add_user(
+            sub="admin-user-sub",
+            email="admin@rwu.edu",
+            name="Admin User",
+            role="ADMIN",
+            building_id=building_id,
+        )
+        ra_id = self.add_user(
+            sub="ra-target",
+            email="target.ra@g.rwu.edu",
+            name="Target RA",
+            building_id=building_id,
+        )
+        self.login_as(admin_id)
+        response = self.request("get", "/admin")
+        html = response.get_data(as_text=True)
+
+        # Confirm impersonation form is present for Target RA
+        impersonate_str = f'/admin/impersonate/{ra_id}'
+        save_changes_str = "Save changes"
+        self.assertIn(impersonate_str, html)
+        self.assertIn(save_changes_str, html)
+
+        # Confirm impersonation appears before (above) Save changes for this user card
+        impersonate_pos = html.find(impersonate_str)
+        save_changes_pos = html.find(save_changes_str, impersonate_pos)
+        self.assertNotEqual(impersonate_pos, -1)
+        self.assertNotEqual(save_changes_pos, -1)
+        self.assertLess(impersonate_pos, save_changes_pos)
 
 
 if __name__ == "__main__":
