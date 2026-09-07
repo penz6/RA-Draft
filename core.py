@@ -406,7 +406,11 @@ def _install_audit_retention(conn):
 
 
 def migrate_schema(conn):
-    """Apply schema migrations and table upgrades idempotently."""
+    """
+    Apply idempotent database schema migrations and data upgrades.
+    
+    Updates session and user fields, creates or upgrades date-override and duty-swap tables, adds performance indexes, normalizes existing capacity data, and installs audit-log retention support. Initializes turn positions when the corresponding session field is newly added.
+    """
     session_columns = {
         row["name"] for row in conn.execute("PRAGMA table_info(draft_sessions)")
     }
@@ -549,6 +553,15 @@ init_db()
 
 @app.after_request
 def security_headers(response):
+    """
+    Apply security, privacy, and caching headers to an HTTP response.
+    
+    Parameters:
+    	response: The Flask response to configure.
+    
+    Returns:
+    	response: The response with the security headers applied.
+    """
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "base-uri 'none'; "

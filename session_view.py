@@ -34,7 +34,16 @@ from live_updates import session_state_version
 
 
 def _session_template_context(session_id, user):
-    """Compile complete template context dictionary for a draft session view."""
+    """
+    Build the complete template context for a session view.
+    
+    Parameters:
+    	session_id: The session identifier.
+    	user: The authenticated user requesting the session.
+    
+    Returns:
+    	dict: Template context containing session details, participants, assignments, scheduling data, permissions, completion state, and live-update information.
+    """
     row = session_row(session_id)
     if not row:
         abort(404)

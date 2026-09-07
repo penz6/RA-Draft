@@ -20,6 +20,9 @@ from core import app, db  # noqa: E402
 
 class PfpDutyPageTestCase(unittest.TestCase):
     def setUp(self):
+        """
+        Initialize the test application, database fixtures, and authenticated client session.
+        """
         app.config.update(TESTING=True, SERVER_NAME="ci.local")
         self.client = app.test_client()
         with app.app_context():
@@ -83,6 +86,17 @@ class PfpDutyPageTestCase(unittest.TestCase):
             flask_session["uid"] = self.admin_id
 
     def request(self, method, path, **kwargs):
+        """
+        Send an HTTP request through the test client using the configured CI host.
+        
+        Parameters:
+        	method (str): HTTP method to invoke on the test client.
+        	path (str): Request path.
+        	**kwargs: Additional arguments passed to the test client method.
+        
+        Returns:
+        	The test client's response.
+        """
         return getattr(self.client, method)(path, base_url="https://ci.local", **kwargs)
 
     def test_pfp_displayed_on_duty_picking_page(self):
