@@ -13,9 +13,9 @@
 <section class="card">
   <div class="section-head">
     <div>
-      <div class="eyebrow">Final approval</div>
+      <div class="eyebrow">Duty swaps</div>
       <h2>Needs your approval</h2>
-      <p>These swaps were approved by both RAs and are waiting for HRA review.</p>
+      <p>Both RAs have agreed to these swaps and are waiting for your review.</p>
     </div>
     <span class="count-badge">{{ pending_swap_approval_count }}</span>
   </div>
@@ -32,12 +32,12 @@
       </div>
       <dl class="session-meta">
         <div>
-          <dt>Waiting on you</dt>
+          <dt>Shifts</dt>
           <dd>{{ swap.pair_count }} shift{{ 's' if swap.pair_count != 1 else '' }}</dd>
         </div>
         <div>
           <dt>Next step</dt>
-          <dd>Update Calendar &amp; approve</dd>
+          <dd>Review &amp; approve</dd>
         </div>
       </dl>
       <span class="session-arrow" aria-hidden="true">&rarr;</span>

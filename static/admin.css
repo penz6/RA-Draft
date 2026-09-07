@@ -13,75 +13,138 @@
 .building-admin-list,
 .user-admin-list {
   display: grid;
-  gap: .65rem;
+  gap: .75rem;
   margin-top: 1rem;
 }
 
 .building-admin-row,
 .user-admin-entry {
-  padding: .75rem;
+  padding: .9rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--surface-2);
 }
 
 .user-admin-entry.is-disabled {
   background: var(--danger-soft);
   border-color: rgba(239, 68, 68, 0.3);
+  opacity: .85;
 }
 
+/* Building row alignment */
 .building-admin-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: .6rem;
-  align-items: end;
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
 }
 
 .building-rename-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex: 1;
+  min-width: 0;
   gap: .6rem;
-  align-items: end;
+  align-items: flex-start;
 }
 
 .building-name-field {
+  flex: 1;
   min-width: 0;
+  margin: 0;
 }
 
 .admin-row-meta {
   display: block;
-  margin-top: .3rem;
+  margin-top: .35rem;
   color: var(--muted);
   font-size: .75rem;
   font-weight: 550;
 }
 
-.user-admin-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: .6rem;
-  align-items: end;
+.building-rename-form .button,
+.admin-delete-form .button {
+  margin-top: .05rem;
 }
 
-.user-access-form {
-  display: grid;
-  grid-template-columns: minmax(190px, 1.35fr) 110px 160px auto;
-  gap: .65rem;
-  align-items: end;
+/* User Card: Two-tier layout with impersonation above save changes */
+.user-admin-entry {
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+
+.user-admin-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .85rem;
+  flex-wrap: wrap;
 }
 
 .user-admin-identity {
-  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-width: 0;
+}
+
+.user-avatar-wrap {
+  flex: 0 0 auto;
+}
+
+.user-avatar-wrap .user-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+.user-avatar-wrap img.user-pfp {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.user-identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.user-name-line {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .95rem;
+  color: #f8fafc;
+}
+
+.user-email-text {
+  color: var(--muted);
+  font-size: .8rem;
+  word-break: break-all;
+}
+
+.user-meta-line {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .74rem;
+  color: var(--muted);
+  margin-top: .1rem;
 }
 
 .account-state {
   display: inline-flex;
-  align-self: flex-start;
-  margin-top: .25rem;
-  padding: .18rem .42rem;
+  align-items: center;
+  padding: .15rem .45rem;
   border-radius: 999px;
-  color: var(--blue);
+  color: #93c5fd;
   background: var(--blue-soft);
+  border: 1px solid rgba(59, 130, 246, 0.25);
   font-size: .68rem;
   font-weight: 800;
 }
@@ -89,17 +152,20 @@
 .account-state.pending {
   color: var(--gold);
   background: var(--gold-soft);
+  border-color: rgba(212, 167, 44, 0.3);
 }
 
 .account-state.disabled {
-  color: var(--danger);
+  color: #fca5a5;
   background: var(--danger-soft);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .admin-user-actions {
   display: flex;
-  gap: .4rem;
-  align-items: end;
+  gap: .45rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .admin-user-actions form,
@@ -107,8 +173,34 @@
   margin: 0;
 }
 
-.admin-delete-form .button {
-  width: 100%;
+.impersonate-btn {
+  font-weight: 700;
+}
+
+/* User access controls form: placed below top row and impersonation */
+.user-access-form {
+  margin: 0;
+}
+
+.user-access-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: .65rem;
+  flex-wrap: wrap;
+  padding: .65rem .85rem;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 26, 0.35);
+}
+
+.user-access-controls .field {
+  flex: 1 1 120px;
+  margin: 0;
+}
+
+.user-access-controls .button {
+  flex: 0 0 auto;
+  align-self: flex-end;
 }
 
 .button:disabled,
@@ -119,43 +211,51 @@
 }
 
 .admin-policy-note {
-  margin: .8rem 0 0;
+  margin: .9rem 0 0;
   color: var(--muted);
   font-size: .8rem;
-}
-
-@media (max-width: 980px) {
-  .user-access-form {
-    grid-template-columns: minmax(180px, 1fr) 100px 150px;
-  }
-
-  .user-access-form .button {
-    grid-column: 1 / -1;
-    justify-self: end;
-  }
+  line-height: 1.4;
 }
 
 @media (max-width: 720px) {
-  .building-admin-row,
-  .user-admin-entry,
-  .building-rename-form,
-  .user-access-form {
-    grid-template-columns: 1fr;
+  .building-admin-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .user-access-form .button {
-    grid-column: auto;
-    justify-self: stretch;
+  .building-rename-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .building-rename-form .button,
+  .admin-delete-form .button {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .user-admin-top {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .admin-user-actions {
+    width: 100%;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
   }
 
-  .admin-user-actions .button,
-  .admin-delete-form .button,
-  .building-rename-form .button {
+  .admin-user-actions .button {
+    width: 100%;
+  }
+
+  .user-access-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .user-access-controls .field,
+  .user-access-controls .button {
     width: 100%;
   }
 }

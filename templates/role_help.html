@@ -5,32 +5,32 @@
         <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
         <h2 id="role-help-title">Your {{ me.role }} role</h2>
       </div>
-      <button class="help-close" type="button" aria-label="Close instructions" data-help-close>&times;</button>
+      <button class="help-close" type="button" aria-label="Close guide" data-help-close>&times;</button>
     </div>
 
     {% if me.role == 'RA' %}
     <ul class="help-permissions">
-      <li>Choose your assigned building on first sign-in.</li>
-      <li>View duty sessions, turn order, and the live assignment calendar for your building.</li>
-      <li><strong>Wait for your turn.</strong> When your turn is active, choose one highlighted date. Turns repeat until every required slot is filled.</li>
-      <li>See assignments update as the session progresses.</li>
-      <li>Download your duty event or the full session calendar.</li>
+      <li>Select your assigned building when you first sign in.</li>
+      <li>Check upcoming duty sessions, turn order, and the live calendar for your building.</li>
+      <li><strong>Wait for your turn.</strong> When active, choose an open highlighted date. Rounds repeat until every duty shift is filled.</li>
+      <li>Watch the calendar update live as other RAs make their picks.</li>
+      <li>Export your shifts to Google Calendar or Apple Calendar anytime.</li>
     </ul>
     {% elif me.role == 'HRA' %}
     <ul class="help-permissions">
       <li>Create and manage duty sessions for your assigned building, including participants and turn order.</li>
-      <li>Take your own turns when included in a session, or pick a date for a participant.</li>
-      <li>Pause or resume picking for the whole session, skip a turn, and remove incorrect assignments.</li>
-      <li>Set date-selection rules, per-date capacity, weekday/weekend treatment, and dates where no coverage is needed.</li>
-      <li>Close or reopen sessions and download the completed schedule.</li>
+      <li>Pick shifts when included in a session, or select dates on behalf of team members.</li>
+      <li>Pause or resume picking, skip turns, and manage shift assignments.</li>
+      <li>Set scheduling rules, night capacities, and days where duty coverage isn't required.</li>
+      <li>Close sessions when drafting wraps up and export the final schedule.</li>
     </ul>
     {% else %}
     <ul class="help-permissions">
-      <li>Create and manage users, roles, and buildings.</li>
-      <li>Create and manage duty sessions across all buildings and participate when included.</li>
-      <li>Pause or resume session picking and manage turn actions and assignments.</li>
-      <li>Set date-selection rules, capacity overrides, weekday/weekend treatment, and dates where no coverage is needed.</li>
-      <li>Close or reopen sessions, export calendars, and review audit history.</li>
+      <li>Manage staff accounts, roles, permissions, and campus residence halls.</li>
+      <li>Create and oversee duty sessions across all halls, or join in when participating.</li>
+      <li>Preview the portal as any RA to verify what they see.</li>
+      <li>Adjust shift capacities, scheduling rules, and dates where no coverage is needed.</li>
+      <li>Export schedules, manage duty swaps, and review system audit history.</li>
     </ul>
     {% endif %}
 
