@@ -16,6 +16,7 @@ os.environ.setdefault(
 
 import portal_app  # noqa: E402,F401
 from core import app, db  # noqa: E402
+from live_updates import session_state_version  # noqa: E402
 
 
 class PfpDutyPageTestCase(unittest.TestCase):
@@ -111,6 +112,30 @@ class PfpDutyPageTestCase(unittest.TestCase):
         self.assertIn("calendar-assignee-pfp", html)
         # Check table has inline cell with user pfp
         self.assertIn("user-inline-cell", html)
+
+    def test_profile_picture_change_invalidates_live_session_fragments(self):
+        with app.app_context():
+            conn = db()
+            draft = conn.execute(
+                "SELECT s.*,b.name building_name,u.name creator_name "
+                "FROM draft_sessions s JOIN buildings b ON b.id=s.building_id "
+                "JOIN users u ON u.id=s.created_by WHERE s.id=?",
+                (self.session_id,),
+            ).fetchone()
+            viewer = conn.execute(
+                "SELECT u.*,b.name building_name FROM users u "
+                "LEFT JOIN buildings b ON b.id=u.building_id WHERE u.id=?",
+                (self.admin_id,),
+            ).fetchone()
+            before = session_state_version(draft, viewer)
+            conn.execute(
+                "UPDATE users SET picture_url=? WHERE email=?",
+                ("https://lh3.googleusercontent.com/ra-new-pic", "ra@rwu.edu"),
+            )
+            conn.commit()
+            after = session_state_version(draft, viewer)
+
+        self.assertNotEqual(before, after)
 
 
 if __name__ == "__main__":

@@ -446,8 +446,12 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
   .js .nav-toggle{display:inline-flex;grid-column:2;grid-row:1}
   .js .primary-nav{display:none;grid-column:1 / -1;grid-row:2}
   .js .primary-nav.is-open{display:flex}
-  .primary-nav{width:100%;justify-content:flex-start}
-  .user-chip{max-width:100%;margin-left:auto}
+  .primary-nav{width:100%;align-items:stretch;justify-content:flex-start}
+  .js .primary-nav.is-open{flex-direction:column;gap:.4rem;padding-top:.25rem}
+  .primary-nav .nav-link{display:flex;width:100%;min-height:42px;align-items:center;justify-content:center;text-align:center}
+  .primary-nav .user-chip{width:100%;max-width:100%;order:initial;margin:0;border-radius:10px}
+  .primary-nav .nav-form{width:100%;margin:0}
+  .primary-nav .nav-form .button{width:100%}
   .container{width:min(100% - 1.2rem,1180px);padding-top:1.35rem}
   .site-footer{flex-direction:column}
   .feature-grid,.grid-form,.summary-grid{grid-template-columns:1fr}
@@ -510,8 +514,6 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 }
 @media(max-width:480px){
   .primary-nav{gap:0.35rem}
-  .user-chip{width:100%;order:4}
-  .nav-form{margin-left:auto}
   .hero-card{padding:1.5rem 1.1rem}
   .card{padding:1rem}
   .draft-person{grid-template-columns:2rem minmax(0,1fr)}
