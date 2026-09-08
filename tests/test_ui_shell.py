@@ -17,6 +17,8 @@ class UiShellRegressionTests(unittest.TestCase):
         self.assertIn('event.key === "Escape"', script)
         self.assertIn(".js .primary-nav{display:none", styles)
         self.assertIn(".js .primary-nav.is-open{display:flex}", styles)
+        self.assertIn(".js .primary-nav.is-open{flex-direction:column", styles)
+        self.assertIn(".primary-nav .nav-form .button{width:100%}", styles)
 
     def test_confirmation_handler_covers_live_and_keyboard_submissions(self):
         dashboard = (ROOT / "templates" / "dashboard_v2.html").read_text()

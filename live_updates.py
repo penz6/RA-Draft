@@ -303,7 +303,7 @@ def session_state_version(row, viewer):
 
     session_id = row["id"]
     people = _rows(
-        "SELECT u.id,u.name,u.email,u.role,o.position,"
+        "SELECT u.id,u.name,u.email,u.role,u.picture_url,o.position,"
         "(SELECT COUNT(*) FROM assignments a "
         " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) assignment_count,"
         "CASE WHEN EXISTS(SELECT 1 FROM session_deferrals d "
@@ -311,10 +311,20 @@ def session_state_version(row, viewer):
         "FROM session_order o JOIN users u ON u.id=o.user_id "
         "WHERE o.session_id=? ORDER BY o.position",
         (session_id,),
-        ("id", "name", "email", "role", "position", "assignment_count", "deferred"),
+        (
+            "id",
+            "name",
+            "email",
+            "role",
+            "picture_url",
+            "position",
+            "assignment_count",
+            "deferred",
+        ),
     )
     assignments = _rows(
         "SELECT a.id,a.user_id,u.name user_name,u.role user_role,"
+        "u.picture_url user_picture_url,"
         "a.duty_date,a.created_by,a.created_at FROM assignments a "
         "JOIN users u ON u.id=a.user_id WHERE a.session_id=? ORDER BY a.id",
         (session_id,),
@@ -323,6 +333,7 @@ def session_state_version(row, viewer):
             "user_id",
             "user_name",
             "user_role",
+            "user_picture_url",
             "duty_date",
             "created_by",
             "created_at",
@@ -335,6 +346,7 @@ def session_state_version(row, viewer):
         viewer["role"],
         viewer["building_id"],
         viewer["building_name"],
+        viewer["picture_url"],
     ]
 
     return _digest(
