@@ -16,7 +16,13 @@ SSE_MAX_CONNECTION_SECONDS = 300
 # Keep ordinary routes and health checks serviceable even when all stream slots
 # are occupied. WEB_THREADS is also consumed by the production Gunicorn command.
 SSE_MAX_CONNECTIONS = max(1, int(os.environ.get("WEB_THREADS", "64")) - 4)
-SSE_MAX_CONNECTIONS_PER_USER = 2
+# A person can legitimately have a phone and laptop connected while an old
+# EventSource is still being released by the server. Keep a per-account guard,
+# but leave enough headroom that those normal connections do not force a
+# device onto slower reconciliation polling.
+SSE_MAX_CONNECTIONS_PER_USER = max(
+    1, int(os.environ.get("SSE_MAX_CONNECTIONS_PER_USER", "4"))
+)
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
