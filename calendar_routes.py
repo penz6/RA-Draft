@@ -66,9 +66,9 @@ def format_names(names):
 
 
 def calendar_summary(building_name, names):
-    """Generate a calendar event title combining building name and scheduled assignees."""
+    """Generate a compact calendar title using the building initial and assignees."""
     building = str(building_name).strip()
-    prefix = building if building.endswith("*") else f"{building}*"
+    prefix = f"{building[0].upper()}*" if building else "*"
     return f"{prefix} {format_names(names)}"
 
 
@@ -122,9 +122,6 @@ def calendar_response(events, filename):
         content_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
-
-
 
 
 @app.route("/calendar/session/<int:session_id>.ics")

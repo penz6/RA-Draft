@@ -372,8 +372,8 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(body.count("BEGIN:VEVENT"), 2)
-        self.assertIn("SUMMARY:Maple* Alex & Blair", body)
-        self.assertIn("SUMMARY:Maple* Alex", body)
+        self.assertIn("SUMMARY:M* Alex & Blair", body)
+        self.assertIn("SUMMARY:M* Alex", body)
         self.assertIn("DTSTART;VALUE=DATE:20260901", body)
         self.assertNotIn("Reference hours", body)
 
