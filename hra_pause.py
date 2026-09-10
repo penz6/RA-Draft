@@ -45,6 +45,11 @@ def session_picking(session_id):
     if not row:
         return redirect(url_for("view_session", session_id=session_id))
 
+    if row["order_edit_token"] and not paused:
+        conn.rollback()
+        flash("Finish or cancel editing the picking order before resuming.", "error")
+        return redirect(url_for("edit_picking_order", session_id=session_id))
+
     current = int(bool(row["picking_paused"]))
     if current == paused:
         conn.rollback()

@@ -25,6 +25,9 @@ def _ensure_picking_pause_column():
             "DEFAULT 0 CHECK(picking_paused IN (0,1))"
         )
         conn.commit()
+    if "order_edit_token" not in columns:
+        conn.execute("ALTER TABLE draft_sessions ADD COLUMN order_edit_token TEXT")
+        conn.commit()
     conn.close()
 
 
@@ -137,6 +140,7 @@ def session_state_version(row, viewer):
         base,
         {
             "picking_paused": int(bool(row["picking_paused"])),
+            "order_edit_token": row["order_edit_token"],
             "participant_status": [
                 [item["id"], item["disabled"]] for item in participants
             ],

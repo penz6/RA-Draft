@@ -1,4 +1,4 @@
-from flask import abort, redirect, request, url_for
+from flask import abort, flash, redirect, request, url_for
 
 from core import app, audit, can_manage, current_user, db, require_csrf, roles, session_row
 from email_notifications import send_session_closed_notifications
@@ -27,6 +27,10 @@ def session_status(session_id):
     if not can_manage(user, row):
         conn.rollback()
         abort(403)
+    if row["order_edit_token"]:
+        conn.rollback()
+        flash("Finish or cancel editing the picking order before changing session status.", "error")
+        return redirect(url_for("edit_picking_order", session_id=session_id))
     if status == row["status"] and not row["picking_paused"]:
         conn.rollback()
         return redirect(url_for("view_session", session_id=session_id))
