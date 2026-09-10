@@ -7,6 +7,7 @@ frozen for an entire session while preserving the current turn.
 
 import hashlib
 import json
+import secrets
 import sqlite3
 
 import core
@@ -25,10 +26,50 @@ def _ensure_picking_pause_column():
             "DEFAULT 0 CHECK(picking_paused IN (0,1))"
         )
         conn.commit()
+    if "order_edit_token" not in columns:
+        conn.execute("ALTER TABLE draft_sessions ADD COLUMN order_edit_token TEXT")
+        conn.commit()
+    # 0: weekday phase, 1: awaiting confirmation, 2: weekend order confirmed.
+    if "phase_order_state" not in columns:
+        conn.execute(
+            "ALTER TABLE draft_sessions ADD COLUMN phase_order_state INTEGER NOT NULL "
+            "DEFAULT 0 CHECK(phase_order_state IN (0,1,2))"
+        )
+        conn.commit()
     conn.close()
 
 
 _ensure_picking_pause_column()
+
+
+def pause_for_phase_confirmation(session_id):
+    """Gate weekday-to-weekend picking inside the caller's write transaction.
+
+    Confirmation is once per session. Reopening a weekday after confirmation
+    does not reverse the order a second time.
+    """
+    row = core.session_row(session_id)
+    if (not row or row["status"] != "OPEN"
+            or row["date_order"] != core.DATE_ORDER_WEEKDAYS_FIRST
+            or row["phase_order_state"] != 0):
+        return False
+    counts = core.assignment_counts(session_id)
+    capacities = core.capacities_for(row)
+    kinds = core.date_kinds_for(row)
+    weekdays = [d for d, capacity in capacities.items()
+                if capacity > 0 and kinds[d] == core.DATE_KIND_WEEKDAY]
+    weekdays_full = weekdays and all(counts.get(d, 0) >= capacities[d] for d in weekdays)
+    weekends_open = any(capacity > counts.get(d, 0) and kinds[d] == core.DATE_KIND_WEEKEND
+                        for d, capacity in capacities.items())
+    if not weekdays_full or not weekends_open:
+        return False
+    core.db().execute(
+        "UPDATE draft_sessions SET picking_paused=1,phase_order_state=1,order_edit_token=? WHERE id=?",
+        (secrets.token_urlsafe(32), session_id),
+    )
+    core.audit("draft.phase.awaiting_confirmation", "session", session_id,
+               {"completed_phase": "WEEKDAY", "next_phase": "WEEKEND"})
+    return True
 
 
 def ordered_people(session_id):
@@ -137,6 +178,8 @@ def session_state_version(row, viewer):
         base,
         {
             "picking_paused": int(bool(row["picking_paused"])),
+            "order_edit_token": row["order_edit_token"],
+            "phase_order_state": row["phase_order_state"],
             "participant_status": [
                 [item["id"], item["disabled"]] for item in participants
             ],

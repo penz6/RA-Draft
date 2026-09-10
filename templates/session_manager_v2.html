@@ -18,6 +18,7 @@
           </span>
           <h3>
             {% if draft.status == 'CLOSED' %}Session closed
+            {% elif draft.phase_order_state == 1 %}Confirm next phase
             {% elif draft.picking_paused %}Picking paused
             {% elif schedule_complete %}Calendar complete
             {% else %}Picking active{% endif %}
@@ -32,6 +33,8 @@
       <p>
         {% if draft.status == 'CLOSED' %}
           Reopen the session before changing the active turn.
+        {% elif draft.phase_order_state == 1 %}
+          Review the reversed picking order and choose who starts before weekend picking begins.
         {% elif draft.picking_paused %}
           The current turn is frozen. Resume when everyone is ready.
         {% elif schedule_complete %}
@@ -42,6 +45,11 @@
       </p>
       {% if draft.status == 'OPEN' and (draft.picking_paused or not schedule_complete) %}
       <div class="manager-quick-actions">
+        <form method="post" action="{{ url_for('begin_picking_order_edit', session_id=draft.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="button secondary" type="submit">{{ "Confirm reversed order" if draft.phase_order_state == 1 else "Edit picking order" }}</button>
+        </form>
+        {% if draft.phase_order_state != 1 %}
         <form method="post" action="{{ url_for('session_picking', session_id=draft.id) }}" data-live-action-form>
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <input type="hidden" name="paused" value="{{ 0 if draft.picking_paused else 1 }}">
@@ -49,6 +57,7 @@
             {{ 'Resume picking' if draft.picking_paused else 'Pause picking' }}
           </button>
         </form>
+        {% endif %}
       </div>
       {% endif %}
     </article>
