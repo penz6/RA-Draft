@@ -19,6 +19,7 @@ from core import (
     session_row,
 )
 from session_action_response import session_action_response
+from session_pause import pause_for_phase_confirmation
 
 
 @app.route("/sessions/<int:session_id>/assign", methods=["POST"])
@@ -55,6 +56,13 @@ def manual_assign(session_id):
             "Reopen the session before assigning duty dates.",
             category="error",
             status=409,
+        )
+    if pause_for_phase_confirmation(session_id):
+        conn.commit()
+        return session_action_response(
+            session_id,
+            "Weekdays are full. An HRA or Admin must confirm the reversed order before weekend picking.",
+            category="error", status=409,
         )
     if row["picking_paused"]:
         conn.rollback()
@@ -141,11 +149,14 @@ def manual_assign(session_id):
             "consumed_turn": consumed_turn,
         },
     )
+    awaiting_confirmation = pause_for_phase_confirmation(session_id)
     complete = session_complete(row)
     conn.commit()
     return session_action_response(
         session_id,
-        "Every duty slot is filled."
+        "Weekdays are full. Picking paused for confirmation of the reversed weekend order."
+        if awaiting_confirmation
+        else "Every duty slot is filled."
         if complete
         else ("Assignment added and the turn advanced." if consumed_turn else "Assignment added."),
     )

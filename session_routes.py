@@ -20,6 +20,7 @@ from core import (
     session_row,
 )
 from session_action_response import session_action_response
+from session_pause import pause_for_phase_confirmation
 
 
 def _locked_manager_session(conn, session_id):
@@ -74,6 +75,8 @@ def begin_picking_order_edit(session_id):
     if row["status"] != "OPEN":
         conn.rollback()
         abort(409, "Reopen the session before editing the picking order.")
+    if pause_for_phase_confirmation(session_id):
+        row = session_row(session_id)
     if not row["order_edit_token"]:
         conn.execute(
             "UPDATE draft_sessions SET picking_paused=1,order_edit_token=? WHERE id=?",
@@ -99,6 +102,9 @@ def edit_picking_order(session_id):
         return redirect(url_for("view_session", session_id=session_id))
 
     people = ordered_people(session_id)
+    old_order = [p["id"] for p in people]
+    if row["phase_order_state"] == 1:
+        people = list(reversed(people))
     eligible = [p for p in people if not p["disabled"] and selectable_dates(row, p["id"])]
     error = None
     if request.method == "POST":
@@ -107,7 +113,8 @@ def edit_picking_order(session_id):
             abort(409, "This editor is out of date. Return to the session and open it again.")
         action = request.form.get("action")
         if action == "cancel":
-            conn.execute("UPDATE draft_sessions SET order_edit_token=NULL WHERE id=?", (session_id,))
+            if row["phase_order_state"] != 1:
+                conn.execute("UPDATE draft_sessions SET order_edit_token=NULL WHERE id=?", (session_id,))
             audit("draft.order.edit_canceled", "session", session_id, {})
             conn.commit()
             flash("Order unchanged. Picking remains paused.", "success")
@@ -132,18 +139,21 @@ def edit_picking_order(session_id):
                 [(position, session_id, uid) for position, uid in enumerate(new_order, 1)],
             )
             conn.execute(
-                "UPDATE draft_sessions SET current_position=?,picking_paused=0,order_edit_token=NULL WHERE id=?",
+                "UPDATE draft_sessions SET current_position=?,picking_paused=0,order_edit_token=NULL, "
+                "phase_order_state=CASE WHEN phase_order_state=1 THEN 2 ELSE phase_order_state END WHERE id=?",
                 (new_order.index(next_id) + 1, session_id),
             )
             audit("draft.order.updated", "session", session_id, {
-                "old_order": [p["id"] for p in people], "new_order": new_order,
-                "next_user_id": next_id,
+                "old_order": old_order, "new_order": new_order,
+                "next_user_id": next_id, "confirmed_phase_reversal": row["phase_order_state"] == 1,
             })
             conn.commit()
             flash("Picking order saved. Picking resumed with the selected participant.", "success")
             return redirect(url_for("view_session", session_id=session_id))
 
     page = render_template("session_order_edit.html", me=manager, draft=row,
-                           people=people, eligible=eligible, next=next_picker(session_id), error=error)
+                           people=people, eligible=eligible,
+                           next=(eligible[0] if eligible else None) if row["phase_order_state"] == 1 else next_picker(session_id),
+                           error=error)
     conn.commit()
     return page, 400 if error else 200

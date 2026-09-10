@@ -13,6 +13,8 @@ from core import (
     session_row,
 )
 
+from session_pause import pause_for_phase_confirmation
+
 
 def _locked_manager_session(conn, session_id):
     manager = current_user()
@@ -44,6 +46,11 @@ def session_picking(session_id):
     manager, row = _locked_manager_session(conn, session_id)
     if not row:
         return redirect(url_for("view_session", session_id=session_id))
+
+    if not paused and pause_for_phase_confirmation(session_id):
+        conn.commit()
+        flash("Weekdays are full. Confirm the reversed order before weekend picking.", "success")
+        return redirect(url_for("edit_picking_order", session_id=session_id))
 
     if row["order_edit_token"] and not paused:
         conn.rollback()

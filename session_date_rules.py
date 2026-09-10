@@ -13,6 +13,7 @@ from core import (
     roles,
     session_row,
 )
+from session_pause import pause_for_phase_confirmation
 from date_exceptions import (
     DATE_KIND_AUTO,
     DATE_KIND_FORM_CHOICES,
@@ -60,6 +61,7 @@ def update_date_order(session_id):
         session_id,
         {"old_date_order": row["date_order"], "new_date_order": date_order},
     )
+    pause_for_phase_confirmation(session_id)
     conn.commit()
     flash("Date selection rule updated.", "success")
     return redirect(url_for("view_session", session_id=session_id))
@@ -144,6 +146,7 @@ def update_date_kind(session_id):
             "removed_capacity_override": removed_capacity,
         },
     )
+    pause_for_phase_confirmation(session_id)
     conn.commit()
 
     if date_kind == DATE_KIND_AUTO:
@@ -200,6 +203,7 @@ def update_date_capacity(session_id):
                     "default_capacity": row["capacity"],
                 },
             )
+            pause_for_phase_confirmation(session_id)
             conn.commit()
             flash("That date now uses the session default capacity.", "success")
         else:
@@ -255,6 +259,7 @@ def update_date_capacity(session_id):
                     "default_capacity": row["capacity"],
                 },
             )
+            pause_for_phase_confirmation(session_id)
             conn.commit()
         else:
             conn.rollback()
@@ -280,6 +285,7 @@ def update_date_capacity(session_id):
             "is_override": True,
         },
     )
+    pause_for_phase_confirmation(session_id)
     conn.commit()
     flash("Date capacity updated.", "success")
     return redirect(url_for("view_session", session_id=session_id))

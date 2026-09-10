@@ -17,6 +17,7 @@ from core import (
     session_row,
 )
 from session_action_response import session_action_response
+from session_pause import pause_for_phase_confirmation
 
 
 @app.route("/sessions/<int:session_id>/choose", methods=["POST"])
@@ -63,6 +64,13 @@ def choose_shift(session_id):
             "This duty session is closed.",
             category="error",
             status=409,
+        )
+    if pause_for_phase_confirmation(session_id):
+        conn.commit()
+        return session_action_response(
+            session_id,
+            "Weekdays are full. An HRA or Admin must confirm the reversed order before weekend picking.",
+            category="error", status=409,
         )
     if row["picking_paused"]:
         conn.rollback()
@@ -117,11 +125,14 @@ def choose_shift(session_id):
             "duty_date": duty_date,
         },
     )
+    awaiting_confirmation = pause_for_phase_confirmation(session_id)
     complete = session_complete(row)
     conn.commit()
     return session_action_response(
         session_id,
-        "Every duty slot is filled."
+        "Weekdays are full. Picking paused for confirmation of the reversed weekend order."
+        if awaiting_confirmation
+        else "Every duty slot is filled."
         if complete
         else "Duty date selected. The turn advanced.",
     )
