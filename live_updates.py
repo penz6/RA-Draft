@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import queue
 import threading
 import time
@@ -12,6 +13,10 @@ from core import app, can_view_session, current_user, db, session_row
 
 SSE_HEARTBEAT_SECONDS = 15
 SSE_MAX_CONNECTION_SECONDS = 300
+# Keep ordinary routes and health checks serviceable even when all stream slots
+# are occupied. WEB_THREADS is also consumed by the production Gunicorn command.
+SSE_MAX_CONNECTIONS = max(1, int(os.environ.get("WEB_THREADS", "64")) - 4)
+SSE_MAX_CONNECTIONS_PER_USER = 2
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -81,6 +86,55 @@ class LiveEventBroker:
 
 
 live_event_broker = LiveEventBroker()
+
+
+class LiveStreamAdmission:
+    """Keep SSE clients from consuming every request thread in this worker."""
+
+    def __init__(self, maximum, maximum_per_user):
+        self.maximum = maximum
+        self.maximum_per_user = maximum_per_user
+        self._lock = threading.Lock()
+        self._active = 0
+        self._active_by_user = {}
+
+    def acquire(self, user_id):
+        with self._lock:
+            user_connections = self._active_by_user.get(user_id, 0)
+            if self._active >= self.maximum or user_connections >= self.maximum_per_user:
+                return None
+            self._active += 1
+            self._active_by_user[user_id] = user_connections + 1
+        return LiveStreamLease(self, user_id)
+
+    def release(self, user_id):
+        with self._lock:
+            self._active -= 1
+            remaining = self._active_by_user[user_id] - 1
+            if remaining:
+                self._active_by_user[user_id] = remaining
+            else:
+                del self._active_by_user[user_id]
+
+
+class LiveStreamLease:
+    def __init__(self, admission, user_id):
+        self._admission = admission
+        self._user_id = user_id
+        self._released = False
+        self._lock = threading.Lock()
+
+    def release(self):
+        with self._lock:
+            if self._released:
+                return
+            self._released = True
+        self._admission.release(self._user_id)
+
+
+live_stream_admission = LiveStreamAdmission(
+    SSE_MAX_CONNECTIONS, SSE_MAX_CONNECTIONS_PER_USER
+)
 
 
 def publish_live_topics(*topics):
@@ -487,11 +541,20 @@ def live_events():
         if not can_view_session(user, row):
             abort(403)
 
+    stream_lease = live_stream_admission.acquire(user["id"])
+    if stream_lease is None:
+        return Response(
+            "Too many live update connections.\n",
+            status=429,
+            headers={"Retry-After": "5"},
+        )
+
     subscriber = live_event_broker.subscribe(_subscription_topics(user, row))
     try:
         initial_version = _authorized_version(session_id)
     except Exception:
         live_event_broker.unsubscribe(subscriber)
+        stream_lease.release()
         raise
     viewer_id = user["id"]
 
@@ -530,6 +593,7 @@ def live_events():
             return
         finally:
             live_event_broker.unsubscribe(subscriber)
+            stream_lease.release()
 
     response = Response(
         generate(),
@@ -541,4 +605,5 @@ def live_events():
         },
     )
     response.call_on_close(lambda: live_event_broker.unsubscribe(subscriber))
+    response.call_on_close(stream_lease.release)
     return response
