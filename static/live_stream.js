@@ -435,8 +435,12 @@
   }, true);
   document.addEventListener("close", applyPendingRefresh, true);
 
+  // SSE notifications make updates fast, but they are deliberately only an
+  // optimization. Some reverse proxies can leave an EventSource looking open
+  // in the browser while no longer forwarding events. Reconcile periodically,
+  // with jitter to avoid all connected clients polling at the same instant.
   const stopFallbackPolling = () => {
-    if (fallbackTimer) window.clearInterval(fallbackTimer);
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
     fallbackTimer = null;
   };
 
@@ -450,7 +454,6 @@
       const payload = JSON.parse(event.data);
       if (!payload || typeof payload.version !== "string") return;
       eventSourceFailures = 0;
-      stopFallbackPolling();
       if (!liveVersion) {
         liveVersion = payload.version;
         return;
@@ -492,7 +495,16 @@
   const startFallbackPolling = () => {
     if (fallbackTimer || !liveStateUrl || document.hidden) return;
     pollLiveState();
-    fallbackTimer = window.setInterval(pollLiveState, 10000);
+    const scheduleNextPoll = () => {
+      const delay = 15000 + Math.floor(Math.random() * 5000);
+      fallbackTimer = window.setTimeout(() => {
+        fallbackTimer = null;
+        if (document.hidden) return;
+        pollLiveState();
+        scheduleNextPoll();
+      }, delay);
+    };
+    scheduleNextPoll();
   };
 
   const connectStream = () => {
@@ -506,7 +518,7 @@
     eventSource = new window.EventSource(liveEventsUrl, { withCredentials: true });
     eventSource.addEventListener("open", () => {
       eventSourceFailures = 0;
-      stopFallbackPolling();
+      startFallbackPolling();
     });
     eventSource.addEventListener("state", readVersionEvent);
     eventSource.addEventListener("update", readVersionEvent);
@@ -533,9 +545,8 @@
 
   const resumeLiveUpdates = () => {
     applyPendingRefresh();
-    checkLiveState();
+    startFallbackPolling();
     if ("EventSource" in window) connectStream();
-    else startFallbackPolling();
   };
 
   document.addEventListener("visibilitychange", () => {
