@@ -61,7 +61,7 @@ def manual_assign(session_id):
         conn.commit()
         return session_action_response(
             session_id,
-            "Weekdays are full. An HRA or Admin must confirm the reversed order before weekend picking.",
+            "Waiting for HRA to confirm order.",
             category="error", status=409,
         )
     if row["picking_paused"]:
@@ -154,7 +154,7 @@ def manual_assign(session_id):
     conn.commit()
     return session_action_response(
         session_id,
-        "Weekdays are full. Picking paused for confirmation of the reversed weekend order."
+        "Waiting for HRA to confirm order."
         if awaiting_confirmation
         else "Every duty slot is filled."
         if complete
