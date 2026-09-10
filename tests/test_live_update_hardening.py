@@ -240,6 +240,47 @@ class LiveUpdateHardeningTestCase(unittest.TestCase):
         self.assertIn("event: state", first_chunk)
         response.close()
 
+    def test_stream_admission_limits_each_user_and_releases_on_close(self):
+        building_id = self.add_building()
+        hra_id = self.add_user(
+            sub="limited-stream-hra",
+            email="limited.stream.hra@rwu.edu",
+            name="HRA",
+            role="HRA",
+            building_id=building_id,
+        )
+        clients = [app.test_client() for _ in range(3)]
+        for client in clients:
+            with client.session_transaction() as flask_session:
+                flask_session["uid"] = hra_id
+                flask_session["csrf"] = "live-hardening-csrf"
+
+        first = clients[0].get(
+            "/live-events", base_url="https://ci.local", buffered=False
+        )
+        self.assertEqual(first.status_code, 200)
+        next(iter(first.response))
+
+        second = clients[1].get(
+            "/live-events", base_url="https://ci.local", buffered=False
+        )
+        self.assertEqual(second.status_code, 200)
+        next(iter(second.response))
+
+        rejected = clients[2].get(
+            "/live-events", base_url="https://ci.local", buffered=False
+        )
+        self.assertEqual(rejected.status_code, 429)
+        self.assertEqual(rejected.headers.get("Retry-After"), "5")
+
+        second.close()
+        replacement = clients[1].get(
+            "/live-events", base_url="https://ci.local", buffered=False
+        )
+        self.assertEqual(replacement.status_code, 200)
+        replacement.close()
+        first.close()
+
     def test_rendered_session_version_matches_authorized_live_state(self):
         building_id = self.add_building()
         hra_id = self.add_user(
