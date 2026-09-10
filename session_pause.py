@@ -74,7 +74,7 @@ def pause_for_phase_confirmation(session_id):
 
 def ordered_people(session_id):
     return core.db().execute(
-        "SELECT u.id,u.name,u.email,u.role,u.disabled,o.position,"
+        "SELECT u.id,u.name,u.email,u.role,u.disabled,u.picture_url,o.position,"
         "(SELECT COUNT(*) FROM assignments a "
         " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) AS assignment_count,"
         "0 AS deferred "

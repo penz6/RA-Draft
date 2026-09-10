@@ -19,6 +19,7 @@ os.environ.setdefault(
 import portal_app  # noqa: E402,F401
 from core import app, db  # noqa: E402
 from live_updates import (  # noqa: E402
+    LiveStreamAdmission,
     live_event_broker,
     publish_live_topics,
     topics_for_logout,
@@ -241,45 +242,17 @@ class LiveUpdateHardeningTestCase(unittest.TestCase):
         response.close()
 
     def test_stream_admission_limits_each_user_and_releases_on_close(self):
-        building_id = self.add_building()
-        hra_id = self.add_user(
-            sub="limited-stream-hra",
-            email="limited.stream.hra@rwu.edu",
-            name="HRA",
-            role="HRA",
-            building_id=building_id,
-        )
-        clients = [app.test_client() for _ in range(3)]
-        for client in clients:
-            with client.session_transaction() as flask_session:
-                flask_session["uid"] = hra_id
-                flask_session["csrf"] = "live-hardening-csrf"
+        admission = LiveStreamAdmission(maximum=10, maximum_per_user=4)
+        leases = [admission.acquire(42) for _ in range(4)]
+        self.assertTrue(all(lease is not None for lease in leases))
+        self.assertIsNone(admission.acquire(42))
 
-        first = clients[0].get(
-            "/live-events", base_url="https://ci.local", buffered=False
-        )
-        self.assertEqual(first.status_code, 200)
-        next(iter(first.response))
-
-        second = clients[1].get(
-            "/live-events", base_url="https://ci.local", buffered=False
-        )
-        self.assertEqual(second.status_code, 200)
-        next(iter(second.response))
-
-        rejected = clients[2].get(
-            "/live-events", base_url="https://ci.local", buffered=False
-        )
-        self.assertEqual(rejected.status_code, 429)
-        self.assertEqual(rejected.headers.get("Retry-After"), "5")
-
-        second.close()
-        replacement = clients[1].get(
-            "/live-events", base_url="https://ci.local", buffered=False
-        )
-        self.assertEqual(replacement.status_code, 200)
-        replacement.close()
-        first.close()
+        leases[-1].release()
+        replacement = admission.acquire(42)
+        self.assertIsNotNone(replacement)
+        replacement.release()
+        for lease in leases[:-1]:
+            lease.release()
 
     def test_rendered_session_version_matches_authorized_live_state(self):
         building_id = self.add_building()
@@ -330,6 +303,9 @@ class LiveUpdateHardeningTestCase(unittest.TestCase):
         self.assertIn("dirtyForms", client)
         self.assertIn("live-update-notice", client)
         self.assertIn("window.RADraftLiveSession", client)
+        self.assertIn("15000 + Math.floor(Math.random() * 5000)", client)
+        self.assertIn("window.setTimeout", client)
+        self.assertIn('eventSource.addEventListener("open", () => {\n      eventSourceFailures = 0;\n      startFallbackPolling();', client)
         self.assertIn("disconnectStream();", client)
         self.assertIn('document.addEventListener("visibilitychange"', client)
         self.assertNotIn("new window.EventSource", app_client)

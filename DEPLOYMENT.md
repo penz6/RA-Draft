@@ -30,13 +30,16 @@ GOOGLE_CLIENT_SECRET=<Google OAuth client secret>
 ADMIN_EMAILS=you@rwu.edu
 PROXY_HOPS=1
 PANGOLIN_NETWORK=pangolin
-WEB_THREADS=64
+WEB_THREADS=32
+SSE_MAX_CONNECTIONS_PER_USER=4
 AUDIT_LOG_MAX_ROWS=5000
 ```
 
 `PUBLIC_HOST` is the hostname only, without a scheme or path. `PROXY_HOPS` must match the number of trusted forwarded-host/proto values between Pangolin and Flask. Keep it at `1` unless the deployment has been intentionally tested with another value.
 
-`WEB_THREADS` controls how many concurrent ordinary requests and visible live pages Gunicorn can serve. Each visible dashboard or session uses one lightweight Server-Sent Events connection. Hidden tabs close their connection and reconnect when visible again. The image defaults to 64 threads.
+`WEB_THREADS` controls how many concurrent ordinary requests and visible live pages Gunicorn can serve. Each visible dashboard or session uses one lightweight Server-Sent Events connection. Hidden tabs close their connection and reconnect when visible again. The Pangolin Compose deployment defaults to 32 threads, which allows up to 28 live streams while reserving four threads for ordinary requests. Two devices signed in to the same account do not require more threads.
+
+`SSE_MAX_CONNECTIONS_PER_USER` limits simultaneous visible live pages for one signed-in account. Keep the default of `4` for normal use: it accommodates a phone and laptop plus brief overlap while a browser or proxy releases an older connection. This setting only apportions the existing `WEB_THREADS` capacity; it does not create threads or increase the global stream limit. Older Compose files that omit it still receive the image default of `4`, but declaring it explicitly makes the deployed configuration clear.
 
 `AUDIT_LOG_MAX_ROWS` bounds the persistent Admin audit trail. The default is 5,000 rows. Older audit rows are deleted automatically and SQLite reuses the freed pages for later records. This limit does not remove duty sessions or assignment history.
 
@@ -114,6 +117,25 @@ Content-Encoding: identity
 ```
 
 Browsers without EventSource use the scoped JSON state endpoint as a slower compatibility fallback. If a stream repeatedly errors, the browser also performs fallback checks while EventSource reconnects.
+
+For the standard single-container deployment, use these settings:
+
+```yaml
+environment:
+  WEB_THREADS: ${WEB_THREADS:-32}
+  SSE_MAX_CONNECTIONS_PER_USER: ${SSE_MAX_CONNECTIONS_PER_USER:-4}
+```
+
+After updating an existing Compose file, recreate the container (a restart alone does not apply changed environment variables):
+
+```bash
+docker compose -f docker-compose.pangolin.yml up -d --force-recreate
+docker compose -f docker-compose.pangolin.yml exec ra-draft sh -c \
+  'printf "WEB_THREADS=%s\nSSE_MAX_CONNECTIONS_PER_USER=%s\n" \
+  "$WEB_THREADS" "$SSE_MAX_CONNECTIONS_PER_USER"'
+```
+
+The expected values are `32` and `4`. Increase `WEB_THREADS` only when the deployment regularly has close to 28 simultaneously visible live pages; increasing it is not necessary merely because one person uses two devices. Do not increase the per-user limit to solve delays until the browser Network panel has confirmed `/live-events` is returning HTTP `429` because that account actually has four streams open.
 
 A quick authenticated browser check is to open Developer Tools, select **Network**, and confirm that `live-events` remains pending with content type `text/event-stream`. When another participant picks, the server emits an `update` event and the session page fetches a fresh authorized fragment snapshot. Turn order, calendar assignments, counts, status, and manager controls are replaced in place without a full page reload, while the current vertical position and mobile calendar horizontal position are preserved. If the user has unsaved form changes, an open dialog, or manager-selection mode active, the update waits and applies automatically once that interaction is finished. A full page reload is retained only as an authorization/error fallback.
 

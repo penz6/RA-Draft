@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -105,9 +106,13 @@ class PfpDutyPageTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
 
-        # Check turn order and current picker contain the profile pictures
-        self.assertIn("https://lh3.googleusercontent.com/ra-pic", html)
-        self.assertIn("https://lh3.googleusercontent.com/admin-pic", html)
+        # Check that every participant row (not merely the separate current
+        # picker summary) receives the profile URL from ordered_people().
+        turn_order = re.search(
+            r'<section class="card turn-order-card"[\s\S]*?</section>', html
+        ).group(0)
+        self.assertIn("https://lh3.googleusercontent.com/ra-pic", turn_order)
+        self.assertIn("https://lh3.googleusercontent.com/admin-pic", turn_order)
         # Check calendar assignment has assignee pfp
         self.assertIn("calendar-assignee-pfp", html)
         # Check table has inline cell with user pfp
