@@ -416,14 +416,14 @@
   });
   document.addEventListener("submit", (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
-    if (form?.matches("[data-live-pick-form]")) return;
+    if (!form || event.defaultPrevented || form.matches("[data-live-pick-form]")) return;
 
-    // Non-enhanced actions still use normal POST/redirect. Preserve the current
-    // session view for those less frequent manager actions.
+    // Run in the bubble phase, after capture-phase confirmation and async action
+    // handlers. Only an accepted native submission should stop live updates.
     saveViewState();
     liveSubmitting = true;
     disconnectStream();
-  }, true);
+  }, false);
   document.addEventListener("dragstart", () => {
     liveDragging = true;
   }, true);
