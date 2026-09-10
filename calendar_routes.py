@@ -66,12 +66,9 @@ def format_names(names):
 
 
 def calendar_summary(building_name, names):
-    """Generate a calendar event title combining the building label and assignees."""
+    """Generate a compact calendar title using the building initial and assignees."""
     building = str(building_name).strip()
-    if building.casefold() == "maple hall":
-        prefix = "M*"
-    else:
-        prefix = building if building.endswith("*") else f"{building}*"
+    prefix = f"{building[0].upper()}*" if building else "*"
     return f"{prefix} {format_names(names)}"
 
 
