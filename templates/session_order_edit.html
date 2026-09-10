@@ -3,21 +3,32 @@
 {% block content %}
 <section class="card">
   <div class="eyebrow">{{ draft.building_name }} · {{ draft.name }}</div>
-  <h1>{{ "Confirm reversed picking order" if draft.phase_order_state == 1 else "Edit picking order" }}</h1>
+  <h1>{{ "Confirm picking order" if draft.phase_order_state == 1 else "Edit picking order" }}</h1>
   {% if draft.phase_order_state == 1 %}
-  <p>Weekday slots are full. Weekend picking is awaiting manager confirmation. The proposed order below is reversed. Review or edit it and choose who starts the next phase.</p>
+  <p>Waiting for HRA to confirm the order. The suggested order below is reversed.</p>
   {% endif %}
   <p role="status">Picking is paused while this order is being edited. Existing assignments stay in place.</p>
-  <p>Set each participant’s position from 1 to {{ people|length }}, using each number once. After the selected next picker, turns follow this order and wrap back to the start. Disabled accounts remain in the order but are skipped.</p>
+  <p>Drag participants into picking order, or use the arrow buttons. After the selected next picker, turns follow this order and wrap back to the start. Disabled accounts remain in the order but are skipped.</p>
   {% if error %}<p role="alert" class="flash error">{{ error }}</p>{% endif %}
   <form method="post" action="{{ url_for('edit_picking_order', session_id=draft.id) }}">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="edit_token" value="{{ draft.order_edit_token }}">
-    {% for person in people %}
-    <label class="field">{{ person.name }} · {{ person.email }}{% if person.disabled %} (disabled){% endif %}
-      <input type="number" name="position_{{ person.id }}" min="1" max="{{ people|length }}" value="{{ request.form.get('position_' ~ person.id, loop.index) }}" required>
-    </label>
-    {% endfor %}
+    <div class="participant-list" data-sortable-participants>
+      {% for person in people %}
+      <div class="participant-row draggable-participant" draggable="true" data-participant-row>
+        <button class="drag-handle" type="button" aria-label="Drag {{ person.name }} to change order" title="Drag to reorder">&#8597;</button>
+        <span class="order-number compact" data-order-label>{{ loop.index }}</span>
+        <span class="participant-name">
+          <span><strong>{{ person.name }}</strong><small>{{ person.email }}{% if person.disabled %} · disabled{% endif %}</small></span>
+        </span>
+        <div class="mobile-order-buttons" aria-label="Move {{ person.name }}">
+          <button class="button ghost small" type="button" data-move-up aria-label="Move {{ person.name }} up">&#8593;</button>
+          <button class="button ghost small" type="button" data-move-down aria-label="Move {{ person.name }} down">&#8595;</button>
+        </div>
+        <input type="hidden" name="position_{{ person.id }}" value="{{ loop.index }}" data-order-input>
+      </div>
+      {% endfor %}
+    </div>
     <label class="field">Who picks next when resumed?
       <select name="next_user_id" required>
         {% for person in eligible %}

@@ -49,7 +49,7 @@ def session_picking(session_id):
 
     if not paused and pause_for_phase_confirmation(session_id):
         conn.commit()
-        flash("Weekdays are full. Confirm the reversed order before weekend picking.", "success")
+        flash("Waiting for HRA to confirm order.", "success")
         return redirect(url_for("edit_picking_order", session_id=session_id))
 
     if row["order_edit_token"] and not paused:

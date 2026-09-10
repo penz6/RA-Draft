@@ -56,12 +56,8 @@
     if (helpDialog.dataset.autoOpen === "true") openHelp();
   }
 
-  const sessionForm = document.querySelector("[data-session-form]");
-  if (sessionForm) {
-    const buildingPicker = sessionForm.querySelector("[data-building-picker]");
-    const participantList = sessionForm.querySelector("[data-participant-list]");
-    const rows = Array.from(sessionForm.querySelectorAll("[data-participant-row]"));
-    const emptyMessage = sessionForm.querySelector("[data-no-participants]");
+  const setupSortableParticipants = (participantList) => {
+    if (!participantList) return null;
     let draggedRow = null;
 
     const activeRows = () => Array.from(
@@ -88,25 +84,7 @@
       row.scrollIntoView({ behavior: "smooth", block: "nearest" });
     };
 
-    const syncBuilding = (selectVisible) => {
-      const selectedBuilding = buildingPicker ? buildingPicker.value : null;
-      let visibleCount = 0;
-      rows.forEach((row) => {
-        const matches = !selectedBuilding || row.dataset.buildingId === selectedBuilding;
-        const checkbox = row.querySelector("[data-participant-check]");
-        row.hidden = !matches;
-        if (checkbox) {
-          checkbox.disabled = !matches;
-          if (!matches) checkbox.checked = false;
-          if (matches && selectVisible) checkbox.checked = true;
-        }
-        if (matches) visibleCount += 1;
-      });
-      if (emptyMessage) emptyMessage.hidden = visibleCount !== 0;
-      updateOrders();
-    };
-
-    rows.forEach((row) => {
+    participantList.querySelectorAll("[data-participant-row]").forEach((row) => {
       row.addEventListener("dragstart", (event) => {
         draggedRow = row;
         row.classList.add("is-dragging");
@@ -129,6 +107,40 @@
       row.querySelector("[data-move-down]")?.addEventListener("click", () => moveRow(row, 1));
     });
 
+    updateOrders();
+    return { activeRows, updateOrders };
+  };
+
+  document.querySelectorAll("[data-sortable-participants]").forEach((list) => {
+    setupSortableParticipants(list);
+  });
+
+  const sessionForm = document.querySelector("[data-session-form]");
+  if (sessionForm) {
+    const buildingPicker = sessionForm.querySelector("[data-building-picker]");
+    const participantList = sessionForm.querySelector("[data-participant-list]");
+    const rows = Array.from(sessionForm.querySelectorAll("[data-participant-row]"));
+    const emptyMessage = sessionForm.querySelector("[data-no-participants]");
+    const sortable = setupSortableParticipants(participantList);
+
+    const syncBuilding = (selectVisible) => {
+      const selectedBuilding = buildingPicker ? buildingPicker.value : null;
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const matches = !selectedBuilding || row.dataset.buildingId === selectedBuilding;
+        const checkbox = row.querySelector("[data-participant-check]");
+        row.hidden = !matches;
+        if (checkbox) {
+          checkbox.disabled = !matches;
+          if (!matches) checkbox.checked = false;
+          if (matches && selectVisible) checkbox.checked = true;
+        }
+        if (matches) visibleCount += 1;
+      });
+      if (emptyMessage) emptyMessage.hidden = visibleCount !== 0;
+      sortable?.updateOrders();
+    };
+
     if (buildingPicker) {
       buildingPicker.addEventListener("change", () => syncBuilding(true));
       syncBuilding(true);
@@ -137,19 +149,19 @@
     }
 
     sessionForm.querySelector("[data-participant-select-all]")?.addEventListener("click", () => {
-      activeRows().forEach((row) => {
+      sortable?.activeRows().forEach((row) => {
         const checkbox = row.querySelector("[data-participant-check]");
         if (checkbox) checkbox.checked = true;
       });
-      updateOrders();
+      sortable?.updateOrders();
     });
 
     sessionForm.querySelector("[data-participant-clear]")?.addEventListener("click", () => {
-      activeRows().forEach((row) => {
+      sortable?.activeRows().forEach((row) => {
         const checkbox = row.querySelector("[data-participant-check]");
         if (checkbox) checkbox.checked = false;
       });
-      updateOrders();
+      sortable?.updateOrders();
     });
   }
 
