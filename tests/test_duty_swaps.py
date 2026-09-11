@@ -158,7 +158,7 @@ class DutySwapTestCase(unittest.TestCase):
         self.login_as(data["ra1_id"])
         response = self.request("get", "/swaps")
         self.assertEqual(response.status_code, 302)
-        self.assertIn(f"/swaps/session/{data['session_id']}", response.headers["Location"])
+        self.assertIn(f"/swaps/building/{data['building_id']}", response.headers["Location"])
 
         page = self.request("get", response.headers["Location"]).get_data(as_text=True)
         self.assertIn("All closed-session shifts for today or later in Oak Hall", page)
