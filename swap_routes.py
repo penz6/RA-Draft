@@ -17,6 +17,7 @@ from core import (
     session_swap_requests,
     swap_batch_details,
 )
+from runtime_policy import school_today
 
 
 def _swap_action_response(session_id, message, *, category="success", status=200):
@@ -36,15 +37,15 @@ def _swap_date_collision(conn, session_id, requester_user_id, target_user_id, va
     requester_dates = {
         row["duty_date"]
         for row in conn.execute(
-            "SELECT duty_date FROM assignments WHERE session_id=? AND user_id=?",
-            (session_id, requester_user_id),
+            "SELECT duty_date FROM assignments WHERE user_id=?",
+            (requester_user_id,),
         ).fetchall()
     }
     target_dates = {
         row["duty_date"]
         for row in conn.execute(
-            "SELECT duty_date FROM assignments WHERE session_id=? AND user_id=?",
-            (session_id, target_user_id),
+            "SELECT duty_date FROM assignments WHERE user_id=?",
+            (target_user_id,),
         ).fetchall()
     }
 
@@ -127,11 +128,16 @@ def swap_home():
                 "SELECT s.*,b.name building_name FROM draft_sessions s "
                 "JOIN buildings b ON b.id=s.building_id "
                 "WHERE s.status='CLOSED' AND s.building_id=? "
-                "ORDER BY s.created_at DESC",
+                "ORDER BY s.created_at DESC,s.id DESC",
                 (user["building_id"],),
             ).fetchall()
         else:
             closed_sessions = []
+
+        if user["role"] == "RA" and closed_sessions:
+            destination = url_for("swap_page", session_id=closed_sessions[0]["id"])
+            conn.commit()
+            return redirect(destination)
 
         page = render_template(
             "swap_home.html",
@@ -164,22 +170,24 @@ def swap_page(session_id):
     conn.execute("BEGIN")
     try:
         picks = conn.execute(
-            "SELECT a.*,u.name,u.role,o.position FROM assignments a "
+            "SELECT a.*,u.name,u.role,s.name AS session_name FROM assignments a "
             "JOIN users u ON u.id=a.user_id "
-            "JOIN session_order o ON o.session_id=a.session_id AND o.user_id=a.user_id "
-            "WHERE a.session_id=? ORDER BY u.name,a.duty_date,o.position,a.id",
-            (session_id,),
+            "JOIN draft_sessions s ON s.id=a.session_id "
+            "WHERE s.building_id=? AND s.status='CLOSED' AND a.duty_date>=? "
+            "ORDER BY u.name,a.duty_date,a.id",
+            (row["building_id"], school_today().isoformat()),
         ).fetchall()
 
         my_picks = [p for p in picks if p["user_id"] == user["id"]]
         other_picks = [p for p in picks if p["user_id"] != user["id"]]
 
         other_participants = conn.execute(
-            "SELECT DISTINCT u.id, u.name FROM session_order o "
-            "JOIN users u ON u.id=o.user_id "
-            "WHERE o.session_id=? AND u.id<>? AND u.building_id=? "
+            "SELECT DISTINCT u.id, u.name FROM assignments a "
+            "JOIN users u ON u.id=a.user_id "
+            "JOIN draft_sessions s ON s.id=a.session_id "
+            "WHERE s.status='CLOSED' AND a.duty_date>=? AND u.id<>? AND u.building_id=? "
             "ORDER BY u.name",
-            (session_id, user["id"], row["building_id"]),
+            (school_today().isoformat(), user["id"], row["building_id"]),
         ).fetchall()
 
         swaps = session_swap_requests(session_id)
@@ -226,6 +234,10 @@ def swap_page(session_id):
             other_picks=other_picks,
             other_participants=other_participants,
             manager_picks=picks if manager_allowed else [],
+            manager_people=(
+                list({pick["user_id"]: pick for pick in picks}.values())
+                if manager_allowed else []
+            ),
             incoming=incoming,
             outgoing=outgoing,
             hra_review=hra_review,
@@ -283,13 +295,15 @@ def manager_manual_swap(session_id):
 
     first = conn.execute(
         "SELECT a.*,u.name,u.building_id FROM assignments a "
-        "JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.session_id=?",
-        (first_assignment_id, session_id),
+        "JOIN users u ON u.id=a.user_id JOIN draft_sessions s ON s.id=a.session_id "
+        "WHERE a.id=? AND s.building_id=? AND s.status='CLOSED' AND a.duty_date>=?",
+        (first_assignment_id, row["building_id"], school_today().isoformat()),
     ).fetchone()
     second = conn.execute(
         "SELECT a.*,u.name,u.building_id FROM assignments a "
-        "JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.session_id=?",
-        (second_assignment_id, session_id),
+        "JOIN users u ON u.id=a.user_id JOIN draft_sessions s ON s.id=a.session_id "
+        "WHERE a.id=? AND s.building_id=? AND s.status='CLOSED' AND a.duty_date>=?",
+        (second_assignment_id, row["building_id"], school_today().isoformat()),
     ).fetchone()
 
     if not first or not second:
@@ -321,11 +335,10 @@ def manager_manual_swap(session_id):
         )
 
     unresolved = conn.execute(
-        "SELECT 1 FROM duty_swap_requests WHERE session_id=? "
-        "AND status IN ('PENDING','TARGET_APPROVED') "
+        "SELECT 1 FROM duty_swap_requests WHERE "
+        "status IN ('PENDING','TARGET_APPROVED') "
         "AND (requester_assignment_id IN (?,?) OR target_assignment_id IN (?,?)) LIMIT 1",
         (
-            session_id,
             first_assignment_id,
             second_assignment_id,
             first_assignment_id,
@@ -453,8 +466,9 @@ def request_swap_batch(session_id):
             )
 
         my_assign = conn.execute(
-            "SELECT * FROM assignments WHERE id=? AND session_id=? AND user_id=?",
-            (my_aid, session_id, user["id"]),
+            "SELECT a.* FROM assignments a JOIN draft_sessions s ON s.id=a.session_id "
+            "WHERE a.id=? AND a.user_id=? AND s.building_id=? AND s.status='CLOSED' AND a.duty_date>=?",
+            (my_aid, user["id"], row["building_id"], school_today().isoformat()),
         ).fetchone()
         if not my_assign:
             conn.rollback()
@@ -466,8 +480,9 @@ def request_swap_batch(session_id):
         target_assign = conn.execute(
             "SELECT a.*, u.building_id FROM assignments a "
             "JOIN users u ON u.id=a.user_id "
-            "WHERE a.id=? AND a.session_id=?",
-            (target_aid, session_id),
+            "JOIN draft_sessions s ON s.id=a.session_id "
+            "WHERE a.id=? AND s.building_id=? AND s.status='CLOSED' AND a.duty_date>=?",
+            (target_aid, row["building_id"], school_today().isoformat()),
         ).fetchone()
         if not target_assign or target_assign["user_id"] == user["id"]:
             conn.rollback()
@@ -500,10 +515,10 @@ def request_swap_batch(session_id):
             )
 
         existing = conn.execute(
-            "SELECT 1 FROM duty_swap_requests WHERE session_id=? "
-            "AND status IN ('PENDING','TARGET_APPROVED') "
+            "SELECT 1 FROM duty_swap_requests WHERE "
+            "status IN ('PENDING','TARGET_APPROVED') "
             "AND (requester_assignment_id IN (?, ?) OR target_assignment_id IN (?, ?))",
-            (session_id, my_aid, target_aid, my_aid, target_aid),
+            (my_aid, target_aid, my_aid, target_aid),
         ).fetchone()
         if existing:
             conn.rollback()
@@ -688,12 +703,14 @@ def hra_review_swap(batch_id):
         seen_target_assignments.add(row["target_assignment_id"])
 
         req_assign = conn.execute(
-            "SELECT * FROM assignments WHERE id=? AND session_id=? AND user_id=?",
-            (row["requester_assignment_id"], session_id, row["requester_user_id"]),
+            "SELECT a.* FROM assignments a JOIN draft_sessions s ON s.id=a.session_id "
+            "WHERE a.id=? AND a.user_id=? AND s.building_id=? AND s.status='CLOSED'",
+            (row["requester_assignment_id"], row["requester_user_id"], session["building_id"]),
         ).fetchone()
         target_assign = conn.execute(
-            "SELECT * FROM assignments WHERE id=? AND session_id=? AND user_id=?",
-            (row["target_assignment_id"], session_id, row["target_user_id"]),
+            "SELECT a.* FROM assignments a JOIN draft_sessions s ON s.id=a.session_id "
+            "WHERE a.id=? AND a.user_id=? AND s.building_id=? AND s.status='CLOSED'",
+            (row["target_assignment_id"], row["target_user_id"], session["building_id"]),
         ).fetchone()
 
         if not req_assign or not target_assign:

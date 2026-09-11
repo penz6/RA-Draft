@@ -1,31 +1,40 @@
-<section class="card swap-builder-card manager-swap-card">
-  <div class="section-head">
-    <div>
+<details class="card swap-builder-card manager-swap-card manager-swap-menu">
+  <summary class="manager-swap-summary">
+    <span>
       <div class="eyebrow">Manager action</div>
       <h2>Manual duty swap</h2>
-    </div>
-  </div>
+      <small>Choose two people, then select the duty dates they will exchange.</small>
+    </span>
+    <span class="manager-swap-chevron" aria-hidden="true">&#9662;</span>
+  </summary>
 
   {% if manager_picks|length >= 2 %}
-  <form method="post" action="{{ url_for('manager_manual_swap', session_id=draft.id) }}">
+  <form method="post" action="{{ url_for('manager_manual_swap', session_id=draft.id) }}" class="manager-swap-form" data-manager-swap-form>
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <div class="grid-form">
-      <label class="field">First shift
-        <select name="first_assignment_id" required>
-          <option value="">Choose a shift</option>
-          {% for pick in manager_picks %}
-          <option value="{{ pick.id }}" data-duty-date="{{ pick.duty_date }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="field">Second shift
-        <select name="second_assignment_id" required>
-          <option value="">Choose a shift</option>
-          {% for pick in manager_picks %}
-          <option value="{{ pick.id }}" data-duty-date="{{ pick.duty_date }}">{{ pick.name }} — {{ pick.duty_date|date_label }}</option>
-          {% endfor %}
-        </select>
-      </label>
+    <div data-manager-assignment-data hidden>
+      {% for pick in manager_picks %}
+      <span data-manager-assignment data-id="{{ pick.id }}" data-user-id="{{ pick.user_id }}" data-duty-date="{{ pick.duty_date }}" data-label="{{ pick.duty_date|date_label }}" data-session-name="{{ pick.session_name }}"></span>
+      {% endfor %}
+    </div>
+    <div class="manager-swap-columns">
+      {% for side in ('first', 'second') %}
+      <fieldset class="manager-swap-column">
+        <legend>{{ 'First person' if side == 'first' else 'Second person' }}</legend>
+        <label class="field">Person
+          <select data-manager-person="{{ side }}" required>
+            <option value="">Choose a person</option>
+            {% for person in manager_people %}<option value="{{ person.user_id }}">{{ person.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field">Duty date
+          <select name="{{ side }}_assignment_id" data-manager-date="{{ side }}" required disabled>
+            <option value="">Choose a person first</option>
+          </select>
+        </label>
+      </fieldset>
+      {% endfor %}
+    </div>
+    <div class="grid-form manager-swap-confirmation">
       <label class="check full">
         <input type="checkbox" name="google_calendar_updated" value="1" required>
         <span>I updated the shared Google Calendar to match this swap.</span>
@@ -38,4 +47,4 @@
   {% else %}
   <div class="empty-state compact"><h3>Not enough assigned shifts</h3></div>
   {% endif %}
-</section>
+</details>

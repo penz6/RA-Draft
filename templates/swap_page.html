@@ -6,11 +6,10 @@
     <a class="back-link" href="{{ url_for('swap_home') }}">&larr; All duty swaps</a>
     <div class="eyebrow">{{ draft.building_name }}</div>
     <h1>Duty Swaps</h1>
-    <p>{{ draft.name }}</p>
+    <p>All closed-session shifts for today or later in {{ draft.building_name }}</p>
   </div>
   <div class="session-head-actions">
-    <a class="button secondary" href="{{ url_for('view_session', session_id=draft.id) }}">View session</a>
-    <span class="pill large closed">CLOSED</span>
+    <span class="pill large closed">CLOSED SESSIONS</span>
   </div>
 </div>
 
@@ -159,6 +158,7 @@
         data-assignment-id="{{ pick.id }}"
         data-user-id="{{ pick.user_id }}"
         data-date-label="{{ pick.duty_date|date_label }}"
+        data-session-name="{{ pick.session_name }}"
         data-raw-date="{{ pick.duty_date }}"></span>
       {% endfor %}
     </div>
@@ -197,6 +197,7 @@
                 <span class="swap-shift-copy">
                   <small>Your shift</small>
                   <strong>{{ pick.duty_date|date_label }}</strong>
+                  <small>{{ pick.session_name }}</small>
                 </span>
               </label>
               <span class="swap-builder-arrow" aria-hidden="true">&rarr;</span>

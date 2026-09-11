@@ -61,7 +61,7 @@
   {% elif me.role == 'ADMIN' and not buildings %}
   <div class="notice">Please add at least one building in Admin before starting a session.</div>
   {% else %}
-  <form method="post" action="{{ url_for('create_session') }}" class="grid-form" data-session-form>
+  <form method="post" action="{{ url_for('create_session') }}" class="grid-form" data-session-form data-session-ranges='{{ session_date_ranges|tojson }}' data-is-admin="{{ 'true' if me.role == 'ADMIN' else 'false' }}">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
 
     <label class="field{% if me.role != 'ADMIN' %} full{% endif %}">Session name
@@ -80,6 +80,13 @@
     <label class="field">Last duty date
       <input type="date" name="end_date" required>
     </label>
+    <div class="notice full" data-session-overlap-warning hidden role="alert"></div>
+    {% if me.role == 'ADMIN' %}
+    <label class="check full" data-session-overlap-override hidden>
+      <input type="checkbox" name="override_overlap" value="1">
+      <span>Admin override: create this session even though its dates overlap the session(s) listed above.</span>
+    </label>
+    {% endif %}
     <label class="field">RAs per night
       <input type="number" min="1" max="50" name="capacity" value="2" required inputmode="numeric">
     </label>

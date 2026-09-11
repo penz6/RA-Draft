@@ -39,7 +39,8 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn('timeZone: "America/New_York"', script)
         self.assertIn("row.hidden = true", script)
         self.assertIn("isPast(rawDate)", script)
-        self.assertIn('option[data-duty-date]', script)
+        self.assertIn('[data-manager-assignment]', script)
+        self.assertIn("!isPast(item.dataset.dutyDate)", script)
         self.assertIn('data-duty-date="{{ pick.duty_date }}"', manager_template)
 
     def test_home_navigation_opens_dedicated_duty_swap_menu(self):
