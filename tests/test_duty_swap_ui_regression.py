@@ -39,7 +39,8 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn('timeZone: "America/New_York"', script)
         self.assertIn("row.hidden = true", script)
         self.assertIn("isPast(rawDate)", script)
-        self.assertIn('option[data-duty-date]', script)
+        self.assertIn('[data-manager-assignment]', script)
+        self.assertIn("!isPast(item.dataset.dutyDate)", script)
         self.assertIn('data-duty-date="{{ pick.duty_date }}"', manager_template)
 
     def test_home_navigation_opens_dedicated_duty_swap_menu(self):
@@ -51,8 +52,8 @@ class DutySwapUIRegressionTests(unittest.TestCase):
         self.assertIn("url_for('swap_home')", base)
         self.assertNotIn("dashboard') }}#duty-swaps", base)
         self.assertIn("Needs your approval", swap_home)
-        self.assertIn("Available sessions", swap_home)
-        self.assertIn("url_for('swap_page', session_id=s.id)", swap_home)
+        self.assertIn("Choose a building", swap_home)
+        self.assertIn("url_for('building_swap_page', building_id=s.building_id)", swap_home)
 
 
 if __name__ == "__main__":

@@ -472,6 +472,34 @@ class SessionRuleTestCase(unittest.TestCase):
         self.assertIn('name="date_order"', page)
         self.assertIn("draggable=\"true\"", page)
 
+    def test_hra_cannot_create_overlapping_session_but_admin_can_override(self):
+        building_id = self.add_building()
+        hra_id = self.add_user(sub="overlap-hra", email="overlap-hra@rwu.edu", name="HRA", role="HRA", building_id=building_id)
+        admin_id = self.add_user(sub="overlap-admin", email="overlap-admin@rwu.edu", name="Admin", role="ADMIN", building_id=building_id)
+        ra_id = self.add_user(sub="overlap-ra", email="overlap-ra@rwu.edu", name="RA", building_id=building_id)
+        self.create_session_direct(building_id=building_id, creator_id=hra_id, participant_ids=[ra_id], start_date="2027-10-01", end_date="2027-10-31")
+
+        payload = {
+            "name": "Conflicting November Session",
+            "building_id": str(building_id),
+            "start_date": "2027-10-20",
+            "end_date": "2027-11-20",
+            "capacity": "1",
+            "date_order": "CHRONOLOGICAL",
+            "participant_ids": [str(ra_id)],
+        }
+        payload["csrf"] = self.login_as(hra_id)
+        response = self.request("post", "/sessions", data=payload, follow_redirects=True)
+        self.assertIn("Only an admin can override", response.get_data(as_text=True))
+
+        payload["csrf"] = self.login_as(admin_id)
+        payload["override_overlap"] = "1"
+        response = self.request("post", "/sessions", data=payload)
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            count = db().execute("SELECT COUNT(*) AS n FROM draft_sessions WHERE building_id=?", (building_id,)).fetchone()["n"]
+            self.assertEqual(count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

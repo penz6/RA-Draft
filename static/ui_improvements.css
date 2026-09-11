@@ -78,6 +78,7 @@
 
 /* Guided swap request builder. */
 .swap-builder-card{border-color:rgba(59,130,246,.22)}
+.manager-swap-menu{padding:0;overflow:hidden}.manager-swap-summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.2rem 1.4rem;cursor:pointer;list-style:none}.manager-swap-summary::-webkit-details-marker{display:none}.manager-swap-summary h2{margin:.15rem 0}.manager-swap-summary small{color:var(--muted)}.manager-swap-chevron{font-size:1.2rem;transition:transform 160ms ease}.manager-swap-menu[open] .manager-swap-chevron{transform:rotate(180deg)}.manager-swap-form{padding:0 1.4rem 1.4rem;border-top:1px solid var(--line)}.manager-swap-columns{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding-top:1.2rem}.manager-swap-column{display:grid;gap:.8rem;min-width:0;padding:1rem;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.manager-swap-column legend{padding:0 .35rem;color:#bfdbfe;font-weight:850}.manager-swap-confirmation{margin-top:1rem}
 .swap-builder-steps{display:grid;gap:1rem}
 .swap-builder-step{display:grid;grid-template-columns:2.25rem minmax(0,1fr);gap:.8rem;align-items:start}
 .swap-builder-step-number{display:grid;width:2.25rem;height:2.25rem;place-items:center;border-radius:50%;color:#bfdbfe;background:var(--blue-soft);border:1px solid rgba(59,130,246,.3);font-size:.82rem;font-weight:900}
@@ -132,7 +133,7 @@
   .manager-settings>summary{align-items:flex-start}
   .manager-setting-card.full{grid-column:auto}
   .swap-workflow-steps{grid-template-columns:1fr}
-  .swap-builder-step{grid-template-columns:1fr}
+  .swap-builder-step,.manager-swap-columns{grid-template-columns:1fr}
   .swap-builder-step-number{width:2rem;height:2rem}
   .swap-builder-row{grid-template-columns:1fr;padding:.8rem}
   .swap-builder-arrow{transform:rotate(90deg);justify-self:start;margin-left:.15rem}

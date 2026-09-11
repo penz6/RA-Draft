@@ -93,6 +93,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             ).lastrowid
             conn.commit()
             return {
+                "building_id": building_id,
                 "session_id": session_id,
                 "hra_id": hra_id,
                 "admin_id": admin_id,
@@ -132,14 +133,14 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             headers={"X-RA-Draft-Async": "1"},
         )
 
-    def test_duty_swap_tab_has_dedicated_menu_route(self):
+    def test_duty_swap_tab_takes_ra_directly_to_building_wide_swap_page(self):
         self.login_as(self.data["alice_id"])
         response = self.request("get", "/swaps")
-        self.assertEqual(response.status_code, 200)
-        page = response.get_data(as_text=True)
-        self.assertIn("Available sessions", page)
-        self.assertIn("Fall Duty", page)
-        self.assertIn(f"/swaps/session/{self.data['session_id']}", page)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"/swaps/building/{self.data['building_id']}", response.headers["Location"])
+        page = self.request("get", response.headers["Location"]).get_data(as_text=True)
+        self.assertIn("All closed-session shifts for today or later", page)
+        self.assertNotIn("Available sessions", page)
 
     def test_manager_manual_swap_controls_are_manager_only(self):
         self.login_as(self.data["hra_id"])
@@ -148,6 +149,9 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         page = response.get_data(as_text=True)
         self.assertIn("Manual duty swap", page)
         self.assertIn("manager-swap", page)
+        self.assertIn("data-manager-swap-form", page)
+        self.assertIn('data-manager-person="first"', page)
+        self.assertIn('data-manager-date="second"', page)
 
         self.login_as(self.data["alice_id"])
         response = self.request("get", f"/swaps/session/{self.data['session_id']}")

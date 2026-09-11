@@ -153,6 +153,51 @@ class DutySwapTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("Duty Swaps", resp.get_data(as_text=True))
 
+    def test_ra_enters_building_wide_swap_page_without_selecting_session(self):
+        data = self.create_closed_session_with_assignments()
+        self.login_as(data["ra1_id"])
+        response = self.request("get", "/swaps")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"/swaps/building/{data['building_id']}", response.headers["Location"])
+
+        page = self.request("get", response.headers["Location"]).get_data(as_text=True)
+        self.assertIn("All closed-session shifts for today or later in Oak Hall", page)
+        self.assertNotIn("View session", page)
+
+    def test_ra_can_request_swap_between_closed_sessions_in_same_building(self):
+        data = self.create_closed_session_with_assignments()
+        with app.app_context():
+            conn = db()
+            conn.execute("UPDATE assignments SET duty_date='2027-10-15' WHERE id=?", (data["a1"],))
+            second_session_id = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,status,created_by) "
+                "VALUES('November Duty',?,'2027-11-01','2027-11-30','CLOSED',?)",
+                (data["building_id"], data["hra_id"]),
+            ).lastrowid
+            target_id = conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (second_session_id, data["ra2_id"], "2027-11-12", data["hra_id"]),
+            ).lastrowid
+            conn.commit()
+
+        csrf = self.login_as(data["ra1_id"])
+        page = self.request("get", f"/swaps/session/{data['session_id']}").get_data(as_text=True)
+        self.assertIn("November Duty", page)
+        response = self.request(
+            "post",
+            f"/swaps/session/{data['session_id']}/request",
+            data={
+                "csrf": csrf,
+                "my_assignment_ids": [str(data["a1"])],
+                "target_assignment_ids": [str(target_id)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            swap = db().execute("SELECT * FROM duty_swap_requests ORDER BY id DESC").fetchone()
+            self.assertEqual(swap["target_assignment_id"], target_id)
+            self.assertEqual(swap["status"], "PENDING")
+
     def test_full_two_stage_swap_flow(self):
         data = self.create_closed_session_with_assignments()
         session_id = data["session_id"]

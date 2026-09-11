@@ -150,6 +150,28 @@ class EmailNotificationTestCase(unittest.TestCase):
             ).fetchone()["status"]
             self.assertEqual(status, "CLOSED")
 
+    def test_reclosing_session_does_not_send_schedule_notification_again(self):
+        data = self.create_session(status="OPEN")
+        csrf = self.login_as(data["hra_id"])
+
+        with patch.object(session_status_module, "send_session_closed_notifications") as notify:
+            for status in ("CLOSED", "OPEN", "CLOSED"):
+                response = self.request(
+                    "post",
+                    f"/sessions/{data['session_id']}/status",
+                    data={"csrf": csrf, "status": status},
+                )
+                self.assertEqual(response.status_code, 302)
+
+        notify.assert_called_once_with(data["session_id"])
+        with app.app_context():
+            session_item = db().execute(
+                "SELECT status,first_closed_at FROM draft_sessions WHERE id=?",
+                (data["session_id"],),
+            ).fetchone()
+            self.assertEqual(session_item["status"], "CLOSED")
+            self.assertIsNotNone(session_item["first_closed_at"])
+
     def test_swap_hooks_notify_target_hra_and_all_parties(self):
         data = self.create_session(status="CLOSED")
 
