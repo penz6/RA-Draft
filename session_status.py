@@ -36,10 +36,16 @@ def session_status(session_id):
         conn.rollback()
         return redirect(url_for("view_session", session_id=session_id))
 
-    notify_closed = row["status"] != "CLOSED" and status == "CLOSED"
+    notify_closed = (
+        row["status"] != "CLOSED"
+        and status == "CLOSED"
+        and not row["first_closed_at"]
+    )
     conn.execute(
-        "UPDATE draft_sessions SET status=?,picking_paused=0 WHERE id=?",
-        (status, session_id),
+        "UPDATE draft_sessions SET status=?,picking_paused=0,"
+        "first_closed_at=CASE WHEN ?='CLOSED' THEN COALESCE(first_closed_at,CURRENT_TIMESTAMP) "
+        "ELSE first_closed_at END WHERE id=?",
+        (status, status, session_id),
     )
     audit(
         "draft.session.status",

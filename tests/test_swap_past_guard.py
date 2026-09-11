@@ -135,6 +135,37 @@ class SwapPastGuardTestCase(unittest.TestCase):
                 0,
             )
 
+    def test_ra_can_swap_a_shift_on_today_for_a_later_shift(self):
+        data = self.create_fixture()
+        with app.app_context():
+            conn = db()
+            conn.execute(
+                "UPDATE assignments SET duty_date='2026-09-01' WHERE id=?",
+                (data["past_assignment"],),
+            )
+            conn.execute(
+                "UPDATE assignments SET duty_date='2026-09-20' WHERE id=?",
+                (data["future_assignment"],),
+            )
+            conn.commit()
+
+        csrf = self.login_as(data["requester_id"])
+        response = self.request(
+            "post",
+            f"/swaps/session/{data['session_id']}/request",
+            data={
+                "csrf": csrf,
+                "my_assignment_ids": [str(data["past_assignment"])],
+                "target_assignment_ids": [str(data["future_assignment"])],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(
+                db().execute("SELECT COUNT(*) n FROM duty_swap_requests").fetchone()["n"],
+                1,
+            )
+
     def test_manager_cannot_manually_swap_past_shift(self):
         data = self.create_fixture()
         csrf = self.login_as(data["hra_id"])

@@ -122,6 +122,38 @@
     const rows = Array.from(sessionForm.querySelectorAll("[data-participant-row]"));
     const emptyMessage = sessionForm.querySelector("[data-no-participants]");
     const sortable = setupSortableParticipants(participantList);
+    const startInput = sessionForm.querySelector('[name="start_date"]');
+    const endInput = sessionForm.querySelector('[name="end_date"]');
+    const overlapWarning = sessionForm.querySelector("[data-session-overlap-warning]");
+    const overrideField = sessionForm.querySelector("[data-session-overlap-override]");
+    const ranges = JSON.parse(sessionForm.dataset.sessionRanges || "[]");
+
+    const updateOverlapWarning = () => {
+      const buildingId = buildingPicker ? buildingPicker.value : (rows[0]?.dataset.buildingId || "");
+      const start = startInput?.value;
+      const end = endInput?.value;
+      const conflicts = start && end ? ranges.filter((item) => (
+        String(item.building_id) === String(buildingId)
+        && item.start_date <= end
+        && item.end_date >= start
+      )) : [];
+      if (overlapWarning) {
+        overlapWarning.hidden = conflicts.length === 0;
+        overlapWarning.textContent = conflicts.length
+          ? "Warning: these dates are already covered by " + conflicts.map((item) => (
+            item.name + " (" + item.start_date + " to " + item.end_date + ")"
+          )).join(", ") + "."
+          : "";
+      }
+      if (overrideField) {
+        overrideField.hidden = conflicts.length === 0;
+        if (!conflicts.length) overrideField.querySelector("input").checked = false;
+      }
+      return conflicts;
+    };
+
+    startInput?.addEventListener("change", updateOverlapWarning);
+    endInput?.addEventListener("change", updateOverlapWarning);
 
     const syncBuilding = (selectVisible) => {
       const selectedBuilding = buildingPicker ? buildingPicker.value : null;
@@ -142,7 +174,10 @@
     };
 
     if (buildingPicker) {
-      buildingPicker.addEventListener("change", () => syncBuilding(true));
+      buildingPicker.addEventListener("change", () => {
+        syncBuilding(true);
+        updateOverlapWarning();
+      });
       syncBuilding(true);
     } else {
       syncBuilding(false);
@@ -162,6 +197,18 @@
         if (checkbox) checkbox.checked = false;
       });
       sortable?.updateOrders();
+    });
+
+    sessionForm.addEventListener("submit", (event) => {
+      const conflicts = updateOverlapWarning();
+      if (!conflicts.length) return;
+      const override = sessionForm.querySelector('[name="override_overlap"]:checked');
+      if (sessionForm.dataset.isAdmin !== "true" || !override) {
+        event.preventDefault();
+        window.alert(sessionForm.dataset.isAdmin === "true"
+          ? "These dates overlap an existing session. Review the warning and check the admin override to continue."
+          : "These dates overlap an existing session. Only an admin can override this conflict.");
+      }
     });
   }
 

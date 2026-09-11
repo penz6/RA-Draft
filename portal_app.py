@@ -330,6 +330,11 @@ def dashboard():
         buildings=buildings,
         participants=participants,
         upcoming_shifts=upcoming_shifts,
+        session_date_ranges=[
+            {"id": item["id"], "name": item["name"], "building_id": item["building_id"],
+             "start_date": item["start_date"], "end_date": item["end_date"]}
+            for item in sessions
+        ],
         live_version=live_version,
         auto_open_help=bool(session.pop("show_role_help", False)),
     )

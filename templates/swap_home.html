@@ -9,6 +9,15 @@
   <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
 </div>
 
+{% if me.role == 'RA' and not closed_sessions %}
+<section class="card">
+  <div class="empty-state compact">
+    <h2>No shifts available to swap</h2>
+    <p>Your building does not have a closed duty session yet.</p>
+  </div>
+</section>
+{% endif %}
+
 {% if pending_swap_approvals %}
 <section class="card">
   <div class="section-head">
@@ -47,6 +56,7 @@
 </section>
 {% endif %}
 
+{% if me.role != 'RA' %}
 <section class="card">
   <div class="section-head">
     <div>
@@ -77,4 +87,5 @@
     {% endfor %}
   </div>
 </section>
+{% endif %}
 {% endblock %}

@@ -20,12 +20,50 @@
     return Boolean(rawDate && rawDate < today);
   };
 
-  // Manager dropdowns use the same school-date rule as the server. Removing
-  // these choices is only a convenience; the backend independently rejects
-  // any forged request involving an elapsed duty date.
-  document.querySelectorAll(".manager-swap-card option[data-duty-date]").forEach(function (option) {
-    if (isPast(option.dataset.dutyDate)) option.remove();
-  });
+  const managerForm = document.querySelector("[data-manager-swap-form]");
+  if (managerForm) {
+    const assignments = Array.from(managerForm.querySelectorAll("[data-manager-assignment]"))
+      .filter(function (item) { return !isPast(item.dataset.dutyDate); });
+    const personSelects = Array.from(managerForm.querySelectorAll("[data-manager-person]"));
+
+    function rebuildManagerDates(side) {
+      const person = managerForm.querySelector('[data-manager-person="' + side + '"]');
+      const dates = managerForm.querySelector('[data-manager-date="' + side + '"]');
+      if (!person || !dates) return;
+      dates.replaceChildren();
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = person.value ? "Choose a duty date" : "Choose a person first";
+      dates.appendChild(placeholder);
+      assignments.filter(function (item) {
+        return item.dataset.userId === person.value;
+      }).forEach(function (item) {
+        const option = document.createElement("option");
+        option.value = item.dataset.id;
+        option.textContent = item.dataset.label + " — " + item.dataset.sessionName;
+        dates.appendChild(option);
+      });
+      dates.disabled = !person.value || dates.options.length === 1;
+    }
+
+    personSelects.forEach(function (select) {
+      select.addEventListener("change", function () {
+        const side = select.dataset.managerPerson;
+        const otherSide = side === "first" ? "second" : "first";
+        const other = managerForm.querySelector('[data-manager-person="' + otherSide + '"]');
+        if (other) {
+          Array.from(other.options).forEach(function (option) {
+            option.disabled = Boolean(select.value && option.value === select.value);
+          });
+          if (other.value === select.value) {
+            other.value = "";
+            rebuildManagerDates(otherSide);
+          }
+        }
+        rebuildManagerDates(side);
+      });
+    });
+  }
 
   const partnerSelect = document.getElementById("swap-partner-select");
   const form = document.getElementById("swap-request-form");
@@ -69,6 +107,7 @@
       id: item.dataset.assignmentId,
       date: item.dataset.dateLabel,
       rawDate: rawDate,
+      sessionName: item.dataset.sessionName || "",
     });
   });
 
@@ -203,19 +242,19 @@
     const name = partnerName();
 
     if (rows.length === 0) {
-      summaryTitle.textContent = "No future duty shifts to swap";
+      summaryTitle.textContent = "No duty shifts for today or later to swap";
       summaryCopy.textContent = "Past duty shifts cannot be traded.";
       return;
     }
 
     if (!partnerId) {
       summaryTitle.textContent = "Choose a swap partner to begin";
-      summaryCopy.textContent = "Then select one or more of your future shifts and choose what you want in return.";
+      summaryCopy.textContent = "Then select one or more shifts for today or later and choose what you want in return.";
       return;
     }
 
     if (available.length === 0) {
-      summaryTitle.textContent = name + " has no future shifts available to trade";
+      summaryTitle.textContent = name + " has no shifts for today or later available to trade";
       summaryCopy.textContent = "Choose a different RA.";
       return;
     }
@@ -309,7 +348,7 @@
     } else if (partnerBlocksRow) {
       placeholder.textContent = partnerName() + " already works this date";
     } else if (available.length === 0) {
-      placeholder.textContent = "No future shifts available";
+      placeholder.textContent = "No shifts for today or later";
     } else if (eligible.length === 0) {
       placeholder.textContent = "No eligible shifts";
     } else {
@@ -320,7 +359,7 @@
     eligible.forEach(function (pick) {
       const opt = document.createElement("option");
       opt.value = pick.id;
-      opt.textContent = pick.date;
+      opt.textContent = pick.date + (pick.sessionName ? " — " + pick.sessionName : "");
       select.appendChild(opt);
     });
 

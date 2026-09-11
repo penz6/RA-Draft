@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS draft_sessions (
   picking_paused INTEGER NOT NULL DEFAULT 0 CHECK(picking_paused IN (0,1)),
   created_by INTEGER NOT NULL REFERENCES users(id),
   status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN','CLOSED')),
+  first_closed_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS session_order (
@@ -425,6 +426,21 @@ def migrate_schema(conn):
             "ALTER TABLE draft_sessions ADD COLUMN picking_paused INTEGER NOT NULL "
             "DEFAULT 0 CHECK(picking_paused IN (0,1))"
         )
+    if "first_closed_at" not in session_columns:
+        conn.execute("ALTER TABLE draft_sessions ADD COLUMN first_closed_at TEXT")
+        # Preserve the one-time notification state for sessions which were
+        # already closed (or had previously been closed and reopened) before
+        # this column existed.
+        conn.execute(
+            "UPDATE draft_sessions SET first_closed_at=created_at WHERE status='CLOSED'"
+        )
+        if _table_exists(conn, "audit_log"):
+            conn.execute(
+                "UPDATE draft_sessions SET first_closed_at=created_at WHERE first_closed_at IS NULL "
+                "AND EXISTS (SELECT 1 FROM audit_log a WHERE a.target_type='session' "
+                "AND a.target_id=draft_sessions.id AND a.action='draft.session.status' "
+                "AND a.details LIKE '%CLOSED%')"
+            )
     added_turn_position = "current_position" not in session_columns
     if added_turn_position:
         conn.execute(

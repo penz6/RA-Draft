@@ -81,6 +81,25 @@ def create_session():
         conn.rollback()
         abort(400)
 
+    overlaps = conn.execute(
+        "SELECT id,name,start_date,end_date FROM draft_sessions "
+        "WHERE building_id=? AND start_date<=? AND end_date>=? ORDER BY start_date,name",
+        (building_id, end_date.isoformat(), start_date.isoformat()),
+    ).fetchall()
+    if overlaps and not (user["role"] == "ADMIN" and request.form.get("override_overlap") == "1"):
+        conn.rollback()
+        names = ", ".join(
+            f"{item['name']} ({item['start_date']} to {item['end_date']})" for item in overlaps
+        )
+        if user["role"] == "ADMIN":
+            flash(
+                f"Those dates are already covered by: {names}. Check the admin override and submit again to continue.",
+                "error",
+            )
+        else:
+            flash(f"Those dates are already covered by: {names}. Only an admin can override this conflict.", "error")
+        return redirect(url_for("dashboard"))
+
     selected = []
     seen = set()
     for fallback_order, raw_uid in enumerate(raw_participants, start=1):
