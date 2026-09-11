@@ -134,15 +134,24 @@ def swap_home():
         else:
             closed_sessions = []
 
-        if user["role"] == "RA" and closed_sessions:
-            destination = url_for("swap_page", session_id=closed_sessions[0]["id"])
+        if user["role"] != "ADMIN" and closed_sessions:
+            destination = url_for("building_swap_page", building_id=user["building_id"])
             conn.commit()
             return redirect(destination)
+
+        available_buildings = []
+        seen_buildings = set()
+        for session in closed_sessions:
+            if session["building_id"] in seen_buildings:
+                continue
+            seen_buildings.add(session["building_id"])
+            available_buildings.append(session)
 
         page = render_template(
             "swap_home.html",
             me=user,
             closed_sessions=closed_sessions,
+            available_buildings=available_buildings,
         )
     except BaseException:
         if conn.in_transaction:
@@ -150,6 +159,27 @@ def swap_home():
         raise
     conn.commit()
     return page
+
+
+@app.route("/swaps/building/<int:building_id>")
+@login_required
+def building_swap_page(building_id):
+    """Open one building-wide swap workspace without asking for a session."""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    if user["role"] != "ADMIN" and user["building_id"] != building_id:
+        abort(403)
+
+    anchor = db().execute(
+        "SELECT id FROM draft_sessions WHERE building_id=? AND status='CLOSED' "
+        "ORDER BY created_at DESC,id DESC LIMIT 1",
+        (building_id,),
+    ).fetchone()
+    if not anchor:
+        flash("This building does not have any closed sessions available for duty swaps.", "error")
+        return redirect(url_for("swap_home"))
+    return swap_page(anchor["id"])
 
 
 @app.route("/swaps/session/<int:session_id>")

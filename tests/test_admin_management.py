@@ -416,18 +416,18 @@ class AdminManagementTestCase(unittest.TestCase):
         self.assertEqual(oak_live_res.status_code, 200)
         self.assertIn("Oak Fall Draft", oak_live_res.get_json()["fragments"]["heading"])
 
-        # 5. Verify Admin sees all closed sessions in Duty Swaps menu
+        # 5. Verify Admin sees each building with closed sessions in Duty Swaps
         swaps_menu_res = self.request("get", "/swaps")
         self.assertEqual(swaps_menu_res.status_code, 200)
         swaps_menu_html = swaps_menu_res.get_data(as_text=True)
-        self.assertIn("Pine Spring Draft", swaps_menu_html)
         self.assertIn("Pine Hall", swaps_menu_html)
+        self.assertIn(f"/swaps/building/{pine_id}", swaps_menu_html)
 
-        # 6. Verify Admin can access the duty swap page for Pine Hall session
-        pine_swap_res = self.request("get", f"/swaps/session/{session2_id}")
+        # 6. Verify Admin can access the building-wide duty swap page
+        pine_swap_res = self.request("get", f"/swaps/building/{pine_id}")
         self.assertEqual(pine_swap_res.status_code, 200)
         pine_swap_html = pine_swap_res.get_data(as_text=True)
-        self.assertIn("Pine Spring Draft", pine_swap_html)
+        self.assertIn("All closed-session shifts for today or later in Pine Hall", pine_swap_html)
 
         # 7. Verify Admin can export full session calendar for Pine Hall session
         cal_res = self.request("get", f"/calendar/session/{session2_id}.ics")
@@ -447,7 +447,7 @@ class AdminManagementTestCase(unittest.TestCase):
 
         swaps_res2 = self.request("get", "/swaps")
         self.assertEqual(swaps_res2.status_code, 200)
-        self.assertIn("Pine Spring Draft", swaps_res2.get_data(as_text=True))
+        self.assertIn("Pine Hall", swaps_res2.get_data(as_text=True))
 
     def test_admin_can_impersonate_ra_and_view_regular_ra_ui(self):
         maple_id = self.add_building("Maple Hall")

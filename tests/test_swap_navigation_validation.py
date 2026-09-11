@@ -93,6 +93,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
             ).lastrowid
             conn.commit()
             return {
+                "building_id": building_id,
                 "session_id": session_id,
                 "hra_id": hra_id,
                 "admin_id": admin_id,
@@ -136,7 +137,7 @@ class SwapNavigationValidationTestCase(unittest.TestCase):
         self.login_as(self.data["alice_id"])
         response = self.request("get", "/swaps")
         self.assertEqual(response.status_code, 302)
-        self.assertIn(f"/swaps/session/{self.data['session_id']}", response.headers["Location"])
+        self.assertIn(f"/swaps/building/{self.data['building_id']}", response.headers["Location"])
         page = self.request("get", response.headers["Location"]).get_data(as_text=True)
         self.assertIn("All closed-session shifts for today or later", page)
         self.assertNotIn("Available sessions", page)
