@@ -1,10 +1,4 @@
-"""Building personality, icon, and community-meeting settings.
-
-This module keeps the optional residence-hall presentation data separate from the
-core scheduling schema.  It installs an additive SQLite migration on import,
-exposes the current building to templates, and owns the small management routes
-used by admins and HRAs.
-"""
+"""Building appearance and staff event settings."""
 
 from __future__ import annotations
 
@@ -36,7 +30,17 @@ BUILDING_THEME_CHOICES = (
     ("north", "North Campus — cool navy"),
 )
 BUILDING_THEME_KEYS = {key for key, _label in BUILDING_THEME_CHOICES}
+BUILDING_THEME_DEFAULT_ACCENTS = {
+    "rwu": "#1f6f95",
+    "maple": "#9d3f39",
+    "willow": "#287c79",
+    "cedar": "#3f6b52",
+    "stonewall": "#536b86",
+    "bayside": "#2f6f9b",
+    "north": "#304f73",
+}
 MAX_BUILDING_ICON_BYTES = 128 * 1024
+ACCENT_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 _ALLOWED_SVG_TAGS = {
     "svg",
@@ -103,7 +107,6 @@ _SAFE_LOCAL_URL = re.compile(r"^url\(#[A-Za-z0-9_.:-]+\)$")
 
 
 def infer_building_theme(name: str) -> str:
-    """Choose a sensible residence-hall palette from a building name."""
     lowered = str(name or "").strip().lower()
     for needle, theme in (
         ("maple", "maple"),
@@ -119,7 +122,6 @@ def infer_building_theme(name: str) -> str:
 
 
 def normalize_building_theme(value, *, building_name="") -> str:
-    """Return a validated theme key, inferring one when the form leaves it blank."""
     key = str(value or "").strip().lower()
     if not key:
         return infer_building_theme(building_name)
@@ -128,17 +130,20 @@ def normalize_building_theme(value, *, building_name="") -> str:
     return key
 
 
+def normalize_accent_color(value, *, theme_key="rwu") -> str:
+    color = str(value or "").strip()
+    if not color:
+        return BUILDING_THEME_DEFAULT_ACCENTS.get(theme_key, BUILDING_THEME_DEFAULT_ACCENTS["rwu"])
+    if not ACCENT_COLOR_RE.fullmatch(color):
+        raise ValueError("Choose a valid accent color.")
+    return color.lower()
+
+
 def _local_name(value: str) -> str:
     return value.rsplit("}", 1)[-1]
 
 
 def sanitize_building_svg(raw: bytes) -> str:
-    """Validate a small, passive SVG icon and return normalized XML.
-
-    Building marks are rendered through an ``img`` element rather than injected
-    into page HTML.  The allow-list below additionally rejects scripting,
-    embedded HTML, remote references, and inline CSS.
-    """
     if not raw:
         raise ValueError("Choose an SVG file to upload.")
     if len(raw) > MAX_BUILDING_ICON_BYTES:
@@ -183,7 +188,6 @@ def sanitize_building_svg(raw: bytes) -> str:
 
 
 def _ensure_building_profile_schema() -> None:
-    """Install additive building-personality columns for existing deployments."""
     with app.app_context():
         conn = db()
         conn.execute("BEGIN IMMEDIATE")
@@ -193,16 +197,32 @@ def _ensure_building_profile_schema() -> None:
             conn.execute("ALTER TABLE buildings ADD COLUMN theme_key TEXT NOT NULL DEFAULT 'rwu'")
         if "icon_svg" not in columns:
             conn.execute("ALTER TABLE buildings ADD COLUMN icon_svg TEXT")
-        if "community_meeting_at" not in columns:
-            conn.execute("ALTER TABLE buildings ADD COLUMN community_meeting_at TEXT")
-        if "community_meeting_location" not in columns:
-            conn.execute("ALTER TABLE buildings ADD COLUMN community_meeting_location TEXT")
+        if "accent_color" not in columns:
+            conn.execute("ALTER TABLE buildings ADD COLUMN accent_color TEXT")
+        if "staff_meeting_at" not in columns:
+            conn.execute("ALTER TABLE buildings ADD COLUMN staff_meeting_at TEXT")
+        if "staff_meeting_location" not in columns:
+            conn.execute("ALTER TABLE buildings ADD COLUMN staff_meeting_location TEXT")
+        if "staff_dinner_at" not in columns:
+            conn.execute("ALTER TABLE buildings ADD COLUMN staff_dinner_at TEXT")
+        if "staff_dinner_location" not in columns:
+            conn.execute("ALTER TABLE buildings ADD COLUMN staff_dinner_location TEXT")
+
         if added_theme:
             for row in conn.execute("SELECT id,name FROM buildings").fetchall():
                 conn.execute(
                     "UPDATE buildings SET theme_key=? WHERE id=?",
                     (infer_building_theme(row["name"]), row["id"]),
                 )
+
+        # Preserve meetings created by the first version of the theme branch.
+        if "community_meeting_at" in columns and "community_meeting_location" in columns:
+            conn.execute(
+                "UPDATE buildings SET "
+                "staff_meeting_at=COALESCE(staff_meeting_at,community_meeting_at),"
+                "staff_meeting_location=COALESCE(staff_meeting_location,community_meeting_location) "
+                "WHERE community_meeting_at IS NOT NULL OR community_meeting_location IS NOT NULL"
+            )
         conn.commit()
 
 
@@ -219,18 +239,17 @@ def _building_row(building_id):
 
 @app.context_processor
 def inject_building_personality():
-    """Expose the signed-in user's building and theme controls to templates."""
     user = current_user()
     profile = _building_row(user["building_id"]) if user and user["building_id"] else None
     return {
         "building_profile": profile,
         "building_theme_choices": BUILDING_THEME_CHOICES,
+        "building_theme_default_accents": BUILDING_THEME_DEFAULT_ACCENTS,
     }
 
 
-@app.template_filter("meeting_label")
-def meeting_label(value):
-    """Format the stored local meeting date/time for compact dashboard display."""
+@app.template_filter("event_label")
+def event_label(value):
     if not value:
         return ""
     try:
@@ -244,7 +263,6 @@ def meeting_label(value):
 @app.route("/buildings/<int:building_id>/icon.svg")
 @login_required
 def building_icon(building_id):
-    """Serve a validated building mark as an image resource."""
     row = _building_row(building_id)
     if not row or not row["icon_svg"]:
         abort(404)
@@ -254,14 +272,32 @@ def building_icon(building_id):
     return response
 
 
+@app.route("/buildings/<int:building_id>/theme.css")
+@login_required
+def building_theme_css(building_id):
+    row = _building_row(building_id)
+    if not row:
+        abort(404)
+    try:
+        accent = normalize_accent_color(row["accent_color"], theme_key=row["theme_key"] or "rwu")
+    except ValueError:
+        accent = BUILDING_THEME_DEFAULT_ACCENTS["rwu"]
+    response = Response(
+        f":root{{--hall-accent:{accent};--building-accent:{accent};}}",
+        mimetype="text/css",
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.route("/admin/buildings/profiled", methods=["POST"])
 @roles("ADMIN")
 def create_profiled_building():
-    """Create a building with its visual theme and optional SVG mark in one step."""
     require_csrf()
     try:
         name = clean_single_line(request.form.get("name"), max_length=80)
         theme_key = normalize_building_theme(request.form.get("theme_key"), building_name=name)
+        accent_color = normalize_accent_color(request.form.get("accent_color"), theme_key=theme_key)
         upload = request.files.get("icon_svg")
         icon_svg = None
         if upload and upload.filename:
@@ -287,14 +323,19 @@ def create_profiled_building():
         return redirect(url_for("admin"))
 
     cur = conn.execute(
-        "INSERT INTO buildings(name,theme_key,icon_svg) VALUES(?,?,?)",
-        (name, theme_key, icon_svg),
+        "INSERT INTO buildings(name,theme_key,accent_color,icon_svg) VALUES(?,?,?,?)",
+        (name, theme_key, accent_color, icon_svg),
     )
     audit(
         "admin.building.create",
         "building",
         cur.lastrowid,
-        {"name": name, "theme_key": theme_key, "has_icon": bool(icon_svg)},
+        {
+            "name": name,
+            "theme_key": theme_key,
+            "accent_color": accent_color,
+            "has_icon": bool(icon_svg),
+        },
     )
     conn.commit()
     flash("Building added.", "success")
@@ -304,7 +345,6 @@ def create_profiled_building():
 @app.route("/admin/buildings/<int:building_id>/appearance", methods=["POST"])
 @roles("ADMIN")
 def update_building_appearance(building_id):
-    """Update a building palette and optional SVG mark from the admin console."""
     require_csrf()
     existing = _building_row(building_id)
     if not existing:
@@ -313,6 +353,7 @@ def update_building_appearance(building_id):
         theme_key = normalize_building_theme(
             request.form.get("theme_key"), building_name=existing["name"]
         )
+        accent_color = normalize_accent_color(request.form.get("accent_color"), theme_key=theme_key)
         remove_icon = request.form.get("remove_icon") == "1"
         upload = request.files.get("icon_svg")
         replacement = None
@@ -338,8 +379,8 @@ def update_building_appearance(building_id):
     else:
         icon_svg = locked["icon_svg"]
     conn.execute(
-        "UPDATE buildings SET theme_key=?,icon_svg=? WHERE id=?",
-        (theme_key, icon_svg, building_id),
+        "UPDATE buildings SET theme_key=?,accent_color=?,icon_svg=? WHERE id=?",
+        (theme_key, accent_color, icon_svg, building_id),
     )
     audit(
         "admin.building.appearance",
@@ -347,6 +388,7 @@ def update_building_appearance(building_id):
         building_id,
         {
             "theme_key": theme_key,
+            "accent_color": accent_color,
             "icon_changed": bool(has_replacement or remove_icon),
             "has_icon": bool(icon_svg),
         },
@@ -356,43 +398,49 @@ def update_building_appearance(building_id):
     return redirect(url_for("admin", _anchor=f"building-{building_id}"))
 
 
-@app.route("/buildings/<int:building_id>/community-meeting", methods=["POST"])
-@roles("HRA", "ADMIN")
-def update_building_meeting(building_id):
-    """Let an HRA publish or clear the next meeting for their own building."""
-    require_csrf()
-    actor = current_user()
-    if actor["role"] == "HRA" and actor["building_id"] != building_id:
-        abort(403)
-
-    raw_when = str(request.form.get("meeting_at") or "").strip()
-    raw_location = str(request.form.get("meeting_location") or "").strip()
+def _parse_staff_event_form():
+    raw_when = str(request.form.get("event_at") or "").strip()
+    raw_location = str(request.form.get("event_location") or "").strip()
     clearing = not raw_when and not raw_location
     if not clearing and (not raw_when or not raw_location):
-        flash("Set both a meeting time and location, or clear both fields.", "error")
-        return redirect(url_for("dashboard"))
+        raise ValueError("Set both a date/time and location, or clear both fields.")
+    if clearing:
+        return None, None
+    try:
+        parsed = datetime.fromisoformat(raw_when)
+    except ValueError as exc:
+        raise ValueError("Choose a valid date and time.") from exc
+    parsed = parsed.replace(second=0, microsecond=0)
+    try:
+        location = clean_single_line(raw_location, max_length=120)
+    except ValueError as exc:
+        raise ValueError("Location must be 1 to 120 characters.") from exc
+    return parsed.isoformat(timespec="minutes"), location
 
-    meeting_at = None
-    meeting_location = None
-    if not clearing:
-        try:
-            parsed = datetime.fromisoformat(raw_when)
-        except ValueError:
-            flash("Choose a valid meeting date and time.", "error")
-            return redirect(url_for("dashboard"))
-        if parsed.second or parsed.microsecond:
-            parsed = parsed.replace(second=0, microsecond=0)
-        meeting_at = parsed.isoformat(timespec="minutes")
-        try:
-            meeting_location = clean_single_line(raw_location, max_length=120)
-        except ValueError:
-            flash("Meeting location must be 1 to 120 characters.", "error")
-            return redirect(url_for("dashboard"))
+
+def _check_staff_event_access(building_id):
+    actor = current_user()
+    if not actor or actor["role"] not in ("HRA", "ADMIN"):
+        abort(403)
+    if actor["role"] == "HRA" and actor["building_id"] != building_id:
+        abort(403)
+    return actor
+
+
+@app.route("/buildings/<int:building_id>/staff-meeting", methods=["POST"])
+@roles("HRA", "ADMIN")
+def update_staff_meeting(building_id):
+    require_csrf()
+    actor = _check_staff_event_access(building_id)
+    try:
+        event_at, event_location = _parse_staff_event_form()
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("dashboard"))
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    building = conn.execute("SELECT id,name FROM buildings WHERE id=?", (building_id,)).fetchone()
-    if not building:
+    if not conn.execute("SELECT 1 FROM buildings WHERE id=?", (building_id,)).fetchone():
         conn.rollback()
         abort(404)
     if actor["role"] == "HRA":
@@ -401,15 +449,51 @@ def update_building_meeting(building_id):
             conn.rollback()
             abort(403)
     conn.execute(
-        "UPDATE buildings SET community_meeting_at=?,community_meeting_location=? WHERE id=?",
-        (meeting_at, meeting_location, building_id),
+        "UPDATE buildings SET staff_meeting_at=?,staff_meeting_location=? WHERE id=?",
+        (event_at, event_location, building_id),
     )
     audit(
-        "building.community_meeting.update",
+        "building.staff_meeting.update",
         "building",
         building_id,
-        {"meeting_at": meeting_at, "meeting_location": meeting_location},
+        {"event_at": event_at, "event_location": event_location},
     )
     conn.commit()
-    flash("Community meeting cleared." if clearing else "Community meeting updated.", "success")
+    flash("Staff meeting cleared." if event_at is None else "Staff meeting updated.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/buildings/<int:building_id>/staff-dinner", methods=["POST"])
+@roles("HRA", "ADMIN")
+def update_staff_dinner(building_id):
+    require_csrf()
+    actor = _check_staff_event_access(building_id)
+    try:
+        event_at, event_location = _parse_staff_event_form()
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("dashboard"))
+
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    if not conn.execute("SELECT 1 FROM buildings WHERE id=?", (building_id,)).fetchone():
+        conn.rollback()
+        abort(404)
+    if actor["role"] == "HRA":
+        current = conn.execute("SELECT building_id,role FROM users WHERE id=?", (actor["id"],)).fetchone()
+        if not current or current["role"] != "HRA" or current["building_id"] != building_id:
+            conn.rollback()
+            abort(403)
+    conn.execute(
+        "UPDATE buildings SET staff_dinner_at=?,staff_dinner_location=? WHERE id=?",
+        (event_at, event_location, building_id),
+    )
+    audit(
+        "building.staff_dinner.update",
+        "building",
+        building_id,
+        {"event_at": event_at, "event_location": event_location},
+    )
+    conn.commit()
+    flash("Staff dinner cleared." if event_at is None else "Staff dinner updated.", "success")
     return redirect(url_for("dashboard"))
