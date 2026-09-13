@@ -43,7 +43,7 @@ def session_picking(session_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    manager, row = _locked_manager_session(conn, session_id)
+    _manager, row = _locked_manager_session(conn, session_id)
     if not row:
         return redirect(url_for("view_session", session_id=session_id))
 
@@ -90,7 +90,7 @@ def toggle_participant_pause(session_id, user_id):
     require_csrf()
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    manager, row = _locked_manager_session(conn, session_id)
+    _manager, row = _locked_manager_session(conn, session_id)
     if not row:
         return redirect(url_for("view_session", session_id=session_id))
 
@@ -129,7 +129,7 @@ def skip_participant_turn(session_id, user_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    manager, row = _locked_manager_session(conn, session_id)
+    _manager, row = _locked_manager_session(conn, session_id)
     if not row:
         return redirect(url_for("view_session", session_id=session_id))
     if row["picking_paused"]:

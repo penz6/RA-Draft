@@ -67,7 +67,6 @@
 .calendar-dialog form{display:grid;gap:1rem;padding:1.4rem}
 .calendar-dialog h3,.calendar-dialog p{margin:0}
 .dialog-actions{display:flex;justify-content:flex-end;gap:.6rem}
-.manager-section+.manager-section{margin-top:1.6rem;padding-top:1.35rem;border-top:1px solid var(--line)}
 .override-row{display:flex;align-items:center;justify-content:space-between;gap:1rem}
 .override-row>div{display:flex;flex-direction:column}
 .override-list{display:grid;gap:.6rem;margin-top:1rem}
