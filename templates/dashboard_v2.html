@@ -8,13 +8,11 @@
       <h1>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}</h1>
       <p>{{ me.role }}{% if me.building_name %} · {{ me.building_name }}{% endif %}</p>
     </div>
+    {% if building_profile and building_profile.has_icon %}
     <div class="rwu-hero-mark" aria-hidden="true">
-      {% if building_profile and building_profile.has_icon %}
       <img src="{{ url_for('building_icon', building_id=building_profile.id) }}" alt="">
-      {% else %}
-      <span>RWU</span>
-      {% endif %}
     </div>
+    {% endif %}
   </section>
 
   {% if building_profile and (building_profile.community_meeting_at or me.role in ('HRA', 'ADMIN')) %}
@@ -31,19 +29,26 @@
     {% if me.role in ('HRA', 'ADMIN') %}
     <details class="rwu-meeting-editor">
       <summary class="button small secondary">Edit</summary>
-      <form method="post" action="{{ url_for('update_building_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <label class="field compact">Date and time
-          <input type="datetime-local" name="meeting_at" value="{{ building_profile.community_meeting_at or '' }}">
-        </label>
-        <label class="field compact">Location
-          <input name="meeting_location" maxlength="120" value="{{ building_profile.community_meeting_location or '' }}" placeholder="Maple Lounge">
-        </label>
-        <div class="button-group">
+      <div class="rwu-meeting-editor-panel">
+        <form method="post" action="{{ url_for('update_building_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <label class="field compact">Date and time
+            <input type="datetime-local" name="meeting_at" value="{{ building_profile.community_meeting_at or '' }}" required>
+          </label>
+          <label class="field compact">Location
+            <input name="meeting_location" maxlength="120" value="{{ building_profile.community_meeting_location or '' }}" placeholder="Main lounge" required>
+          </label>
           <button class="button small" type="submit">Save</button>
-          <button class="button small ghost" type="submit" name="meeting_at" value="" formnovalidate>Clear</button>
-        </div>
-      </form>
+        </form>
+        {% if building_profile.community_meeting_at or building_profile.community_meeting_location %}
+        <form method="post" action="{{ url_for('update_building_meeting', building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="meeting_at" value="">
+          <input type="hidden" name="meeting_location" value="">
+          <button class="button small ghost" type="submit">Clear meeting</button>
+        </form>
+        {% endif %}
+      </div>
     </details>
     {% endif %}
   </section>
@@ -163,7 +168,7 @@
   </details>
   {% endif %}
 
-  <section class="card" id="duty-swaps">
+  <section class="card" id="sessions">
     <div class="section-head">
       <div><div class="eyebrow">Duty picking</div><h2>Sessions</h2></div>
       <span class="count-badge">{{ sessions|length }}</span>
