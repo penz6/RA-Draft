@@ -41,7 +41,7 @@
       <div class="rwu-building-admin-head">
         <div class="rwu-building-admin-identity">
           <div class="rwu-building-admin-mark">
-            {% if b.has_icon %}<img src="{{ url_for('building_icon', building_id=b.id) }}" alt="">{% else %}<span aria-hidden="true">{{ b.name[:1] }}</span>{% endif %}
+            {% if b.icon_svg %}<img src="{{ url_for('building_icon', building_id=b.id) }}" alt="">{% else %}<span aria-hidden="true">{{ b.name[:1] }}</span>{% endif %}
           </div>
           <div>
             <strong>{{ b.name }}</strong>
@@ -75,7 +75,7 @@
           </label>
           <div class="button-group">
             <button class="button secondary small" type="submit">Save appearance</button>
-            {% if b.has_icon %}<button class="button ghost small" type="submit" name="remove_icon" value="1">Remove mark</button>{% endif %}
+            {% if b.icon_svg %}<button class="button ghost small" type="submit" name="remove_icon" value="1">Remove mark</button>{% endif %}
           </div>
         </form>
       </div>
