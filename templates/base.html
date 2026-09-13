@@ -59,9 +59,7 @@
       {% endif %}
 
       <nav class="rwu-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
-        <a class="rwu-nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">
-          <span aria-hidden="true">⌂</span><span>Dashboard</span>
-        </a>
+        <a class="rwu-nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}"><span aria-hidden="true">⌂</span><span>Dashboard</span></a>
         <a class="rwu-nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">
           <span aria-hidden="true">⇄</span><span>Duty Swaps</span>
           {% if pending_swap_approval_count %}<span class="rwu-nav-count">{{ pending_swap_approval_count }}</span>{% endif %}
@@ -103,8 +101,10 @@
         <span>Menu</span>
       </button>
     </header>
-
     <main id="main-content" class="rwu-main">
+  {% else %}
+    <main id="main-content" class="container">
+  {% endif %}
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
         <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
@@ -112,17 +112,7 @@
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
-  </div>
-  {% else %}
-  <main id="main-content" class="container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-      <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
-    {% block public_content %}{% block content %}{% endblock %}{% endblock %}
-  </main>
-  {% endif %}
+  {% if me %}</div>{% endif %}
 
   {% if me %}{% include 'role_help.html' %}{% endif %}
 </body>
