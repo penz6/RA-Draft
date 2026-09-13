@@ -1,6 +1,7 @@
 import os
 
 from portal_app import app
+import rwu_brand_assets  # noqa: F401,E402
 
 if __name__ == "__main__":
     app.run(
