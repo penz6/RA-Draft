@@ -1,23 +1,59 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard | Duty Shift{% endblock %}
+{% block title %}Dashboard | RWU Residence Life{% endblock %}
 {% block content %}
-<div class="dashboard-page">
-<div class="page-head dashboard-hero" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
-  <div>
-    <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
-    <h1>Dashboard</h1>
-    <p>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}.</p>
-  </div>
-  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>
-</div>
+<div class="dashboard-page rwu-dashboard">
+  <section class="rwu-dashboard-hero" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
+    <div class="rwu-hero-copy">
+      <div class="rwu-hero-kicker">{% if me.building_name %}{{ me.building_name }}{% else %}RWU Residence Life{% endif %}</div>
+      <h1>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}</h1>
+      <p>{{ me.role }}{% if me.building_name %} · {{ me.building_name }}{% endif %}</p>
+    </div>
+    <div class="rwu-hero-mark" aria-hidden="true">
+      {% if building_profile and building_profile.has_icon %}
+      <img src="{{ url_for('building_icon', building_id=building_profile.id) }}" alt="">
+      {% else %}
+      <span>RWU</span>
+      {% endif %}
+    </div>
+  </section>
 
-<div class="dashboard-glance-row">
-  {# ── Side 1: Schedule with next 2-3 dates ── #}
-  <section class="card dashboard-schedule-panel">
+  {% if building_profile and (building_profile.community_meeting_at or me.role in ('HRA', 'ADMIN')) %}
+  <section class="card rwu-meeting-card">
+    <div class="rwu-meeting-info">
+      <div class="eyebrow">Community meeting</div>
+      {% if building_profile.community_meeting_at and building_profile.community_meeting_location %}
+      <h2>{{ building_profile.community_meeting_at|meeting_label }}</h2>
+      <p>{{ building_profile.community_meeting_location }}</p>
+      {% else %}
+      <h2>No meeting scheduled</h2>
+      {% endif %}
+    </div>
+    {% if me.role in ('HRA', 'ADMIN') %}
+    <details class="rwu-meeting-editor">
+      <summary class="button small secondary">Edit</summary>
+      <form method="post" action="{{ url_for('update_building_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <label class="field compact">Date and time
+          <input type="datetime-local" name="meeting_at" value="{{ building_profile.community_meeting_at or '' }}">
+        </label>
+        <label class="field compact">Location
+          <input name="meeting_location" maxlength="120" value="{{ building_profile.community_meeting_location or '' }}" placeholder="Maple Lounge">
+        </label>
+        <div class="button-group">
+          <button class="button small" type="submit">Save</button>
+          <button class="button small ghost" type="submit" name="meeting_at" value="" formnovalidate>Clear</button>
+        </div>
+      </form>
+    </details>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="card dashboard-schedule-panel rwu-duty-panel">
     <div class="section-head compact">
       <div>
-        <div class="eyebrow">Personal Schedule</div>
-        <h2>My upcoming shifts</h2>
+        <div class="eyebrow">Duty schedule</div>
+        <h2>Upcoming shifts</h2>
       </div>
       {% if upcoming_shifts %}
       <div class="session-head-actions">
@@ -29,7 +65,7 @@
     {% if upcoming_shifts %}
     <div class="upcoming-shifts-grid preview-grid">
       {% for shift in upcoming_shifts[:3] %}
-      <div class="shift-card">
+      <article class="shift-card">
         <div class="shift-card-head">
           <span class="shift-date">{{ shift.duty_date|date_label }}</span>
           <span class="pill small time-pill">{{ shift.shift_start|time_label }} &ndash; {{ shift.shift_end|time_label }}</span>
@@ -37,187 +73,128 @@
         <div class="shift-card-body">
           <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
           <span class="shift-partners">
-            {% if shift.partner_names %}
-              On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>
-            {% else %}
-              Solo duty
-            {% endif %}
+            {% if shift.partner_names %}On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>{% else %}Solo duty{% endif %}
           </span>
         </div>
         <div class="shift-card-actions">
-          <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">
-            View Session &rarr;
-          </a>
+          <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">View session &rarr;</a>
         </div>
-      </div>
+      </article>
       {% endfor %}
     </div>
     {% else %}
-    <div class="empty-state compact">
-      <p>No upcoming duty shifts scheduled.</p>
-    </div>
+    <div class="empty-state compact"><p>No upcoming duty shifts.</p></div>
     {% endif %}
   </section>
 
-  {# ── Side 2: Action widgets (Duty swaps + Analytics for HRA/Admin) ── #}
-  <div class="dashboard-actions-panel">
-    <a class="shortcut-card" href="{{ url_for('swap_home') }}">
-      <span class="shortcut-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></svg>
-      </span>
-      <div>
-        <strong>Duty swaps</strong>
-        <small>Request or review swaps</small>
-      </div>
-      <span aria-hidden="true">↗</span>
-    </a>
-    {% if me.role in ('ADMIN', 'HRA') %}
-    <a class="shortcut-card" href="{{ url_for('admin_analytics') if me.role == 'ADMIN' else url_for('hra_analytics') }}">
-      <span class="shortcut-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10m8 10V4m8 16v-7"/></svg>
-      </span>
-      <div>
-        <strong>Analytics</strong>
-        <small>Coverage &amp; team workload</small>
-      </div>
-      <span aria-hidden="true">↗</span>
-    </a>
-    {% endif %}
-  </div>
-</div>
-
-{% if me.role in ['HRA', 'ADMIN'] %}
-<details class="card create-session-card dashboard-create">
-  <summary><span><strong>Create a duty session</strong></span><span class="button secondary small">Create session <span aria-hidden="true">＋</span></span></summary>
-  <div class="dashboard-create-content">
-  <div class="section-head">
-    <div>
-      <h2>Create and open a duty session</h2>
-    </div>
-  </div>
-  {% if me.role == 'HRA' and not me.building_id %}
-  <div class="notice">An administrator needs to assign your building before you can start a session.</div>
-  {% elif me.role == 'ADMIN' and not buildings %}
-  <div class="notice">Please add at least one building in Admin before starting a session.</div>
-  {% else %}
-  <form method="post" action="{{ url_for('create_session') }}" class="grid-form" data-session-form data-session-ranges='{{ session_date_ranges|tojson }}' data-is-admin="{{ 'true' if me.role == 'ADMIN' else 'false' }}">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-
-    <label class="field{% if me.role != 'ADMIN' %} full{% endif %}">Session name
-      <input name="name" maxlength="120" required autocomplete="off" placeholder="Fall duty picking">
-    </label>
-    {% if me.role == 'ADMIN' %}
-    <label class="field">Building
-      <select id="session-building" name="building_id" required data-building-picker>
-        {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-      </select>
-    </label>
-    {% endif %}
-    <label class="field">First duty date
-      <input type="date" name="start_date" required>
-    </label>
-    <label class="field">Last duty date
-      <input type="date" name="end_date" required>
-    </label>
-    <div class="notice full" data-session-overlap-warning hidden role="alert"></div>
-    {% if me.role == 'ADMIN' %}
-    <label class="check full" data-session-overlap-override hidden>
-      <input type="checkbox" name="override_overlap" value="1">
-      <span>Admin override: create this session even though its dates overlap the session(s) listed above.</span>
-    </label>
-    {% endif %}
-    <label class="field">RAs per night
-      <input type="number" min="1" max="50" name="capacity" value="2" required inputmode="numeric">
-    </label>
-    <label class="field">Date selection rule
-      <select name="date_order" required>
-        <option value="WEEKDAYS_FIRST" selected>Fill weekdays before weekends</option>
-        <option value="CHRONOLOGICAL">Allow any open date</option>
-        <option value="WEEKENDS_FIRST">Fill weekends before weekdays</option>
-      </select>
-    </label>
-
-    <fieldset class="full participant-fieldset">
-      <legend>Team members &amp; draft order</legend>
-      <div class="participant-toolbar">
-        <p>Drag to reorder. Use the arrows on mobile or keyboard.</p>
-        <div class="button-group">
-          <button class="button secondary small" type="button" data-participant-select-all>Select all</button>
-          <button class="button ghost small" type="button" data-participant-clear>Clear</button>
-        </div>
-      </div>
-      <div class="participant-list" data-participant-list>
-        {% for participant in participants %}
-        <div class="participant-row draggable-participant" draggable="true" data-participant-row data-building-id="{{ participant.building_id }}">
-          <button class="drag-handle" type="button" aria-label="Drag {{ participant.name }} to change order" title="Drag to reorder">&#8597;</button>
-          <span class="order-number compact" data-order-label>{{ loop.index }}</span>
-          <label class="check participant-name">
-            <input type="checkbox" name="participant_ids" value="{{ participant.id }}" checked data-participant-check>
-            <span>
-              <strong>{{ participant.name }} <span class="inline-role{% if participant.role == 'ADMIN' %} admin-role{% elif participant.role == 'HRA' %} hra-role{% endif %}">{{ participant.role }}</span></strong>
-              <small>{{ participant.email }}{% if me.role == 'ADMIN' and participant.building_name %} - {{ participant.building_name }}{% endif %}</small>
-            </span>
-          </label>
-          <div class="mobile-order-buttons" aria-label="Move {{ participant.name }}">
-            <button class="button ghost small" type="button" data-move-up aria-label="Move {{ participant.name }} up">&#8593;</button>
-            <button class="button ghost small" type="button" data-move-down aria-label="Move {{ participant.name }} down">&#8595;</button>
+  {% if me.role in ['HRA', 'ADMIN'] %}
+  <details class="card create-session-card dashboard-create">
+    <summary><span><strong>Create a duty session</strong></span><span class="button secondary small">Create session <span aria-hidden="true">＋</span></span></summary>
+    <div class="dashboard-create-content">
+      {% if me.role == 'HRA' and not me.building_id %}
+      <div class="notice">An administrator needs to assign your building before you can start a session.</div>
+      {% elif me.role == 'ADMIN' and not buildings %}
+      <div class="notice">Add a building in Admin before starting a session.</div>
+      {% else %}
+      <form method="post" action="{{ url_for('create_session') }}" class="grid-form" data-session-form data-session-ranges='{{ session_date_ranges|tojson }}' data-is-admin="{{ 'true' if me.role == 'ADMIN' else 'false' }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <label class="field{% if me.role != 'ADMIN' %} full{% endif %}">Session name
+          <input name="name" maxlength="120" required autocomplete="off" placeholder="Fall duty picking">
+        </label>
+        {% if me.role == 'ADMIN' %}
+        <label class="field">Building
+          <select id="session-building" name="building_id" required data-building-picker>
+            {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <label class="field">First duty date<input type="date" name="start_date" required></label>
+        <label class="field">Last duty date<input type="date" name="end_date" required></label>
+        <div class="notice full" data-session-overlap-warning hidden role="alert"></div>
+        {% if me.role == 'ADMIN' %}
+        <label class="check full" data-session-overlap-override hidden>
+          <input type="checkbox" name="override_overlap" value="1">
+          <span>Admin override: allow overlapping session dates.</span>
+        </label>
+        {% endif %}
+        <label class="field">RAs per night<input type="number" min="1" max="50" name="capacity" value="2" required inputmode="numeric"></label>
+        <label class="field">Date selection rule
+          <select name="date_order" required>
+            <option value="WEEKDAYS_FIRST" selected>Fill weekdays before weekends</option>
+            <option value="CHRONOLOGICAL">Allow any open date</option>
+            <option value="WEEKENDS_FIRST">Fill weekends before weekdays</option>
+          </select>
+        </label>
+        <fieldset class="full participant-fieldset">
+          <legend>Team members &amp; draft order</legend>
+          <div class="participant-toolbar">
+            <p>Drag to reorder. Use the arrows on mobile or keyboard.</p>
+            <div class="button-group">
+              <button class="button secondary small" type="button" data-participant-select-all>Select all</button>
+              <button class="button ghost small" type="button" data-participant-clear>Clear</button>
+            </div>
           </div>
-          <input type="hidden" name="order_{{ participant.id }}" value="{{ loop.index }}" data-order-input>
-        </div>
-        {% else %}
-        <p class="empty-copy">No users are assigned to this building yet.</p>
-        {% endfor %}
-      </div>
-      <p class="empty-copy" data-no-participants hidden>No team members are assigned to this building yet.</p>
-    </fieldset>
-
-    <div class="form-actions full">
-      <button class="button" type="submit">Create and open session</button>
+          <div class="participant-list" data-participant-list>
+            {% for participant in participants %}
+            <div class="participant-row draggable-participant" draggable="true" data-participant-row data-building-id="{{ participant.building_id }}">
+              <button class="drag-handle" type="button" aria-label="Drag {{ participant.name }} to change order" title="Drag to reorder">&#8597;</button>
+              <span class="order-number compact" data-order-label>{{ loop.index }}</span>
+              <label class="check participant-name">
+                <input type="checkbox" name="participant_ids" value="{{ participant.id }}" checked data-participant-check>
+                <span>
+                  <strong>{{ participant.name }} <span class="inline-role{% if participant.role == 'ADMIN' %} admin-role{% elif participant.role == 'HRA' %} hra-role{% endif %}">{{ participant.role }}</span></strong>
+                  <small>{{ participant.email }}{% if me.role == 'ADMIN' and participant.building_name %} - {{ participant.building_name }}{% endif %}</small>
+                </span>
+              </label>
+              <div class="mobile-order-buttons" aria-label="Move {{ participant.name }}">
+                <button class="button ghost small" type="button" data-move-up aria-label="Move {{ participant.name }} up">&#8593;</button>
+                <button class="button ghost small" type="button" data-move-down aria-label="Move {{ participant.name }} down">&#8595;</button>
+              </div>
+              <input type="hidden" name="order_{{ participant.id }}" value="{{ loop.index }}" data-order-input>
+            </div>
+            {% else %}<p class="empty-copy">No users are assigned to this building yet.</p>{% endfor %}
+          </div>
+          <p class="empty-copy" data-no-participants hidden>No team members are assigned to this building yet.</p>
+        </fieldset>
+        <div class="form-actions full"><button class="button" type="submit">Create and open session</button></div>
+      </form>
+      {% endif %}
     </div>
-  </form>
+  </details>
   {% endif %}
-</div>
-</details>
-{% endif %}
 
-<section class="card" id="duty-swaps">
-  <div class="section-head">
-    <div><h2>Sessions</h2></div>
-    <span class="count-badge">{{ sessions|length }}</span>
-  </div>
-  <div class="session-list">
-    {% for s in sessions %}
-    <div class="session-item-row">
-      <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}">
-        <div class="session-card-main">
-          <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
-          <p>{{ s.building_name }}</p>
-        </div>
-        <dl class="session-meta">
-          <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
-          <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
-          <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
-        </dl>
-        <span class="session-arrow" aria-hidden="true">&rarr;</span>
-      </a>
-      {% if s.status == 'CLOSED' %}
-      <div class="session-row-actions">
-        <a class="button small secondary" href="{{ url_for('swap_page', session_id=s.id) }}">Duty Swaps</a>
-      </div>
-      {% endif %}
-      {% if me.role == 'ADMIN' %}
-      <div class="session-admin-actions">
-        <form method="post" action="{{ url_for('delete_session', session_id=s.id) }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <button type="submit" class="button danger small" data-confirm="Permanently delete session '{{ s.name }}' and all its assignments? This cannot be undone.">Delete session</button>
-        </form>
-      </div>
-      {% endif %}
+  <section class="card" id="duty-swaps">
+    <div class="section-head">
+      <div><div class="eyebrow">Duty picking</div><h2>Sessions</h2></div>
+      <span class="count-badge">{{ sessions|length }}</span>
     </div>
-    {% else %}
-    <div class="empty-state compact"><h3>No sessions yet</h3></div>
-    {% endfor %}
-  </div>
-</section>
+    <div class="session-list">
+      {% for s in sessions %}
+      <div class="session-item-row">
+        <a class="session-card" href="{{ url_for('view_session', session_id=s.id) }}">
+          <div class="session-card-main">
+            <div class="session-card-title"><h3>{{ s.name }}</h3><span class="pill {{ s.status|lower }}">{{ s.status }}</span></div>
+            <p>{{ s.building_name }}</p>
+          </div>
+          <dl class="session-meta">
+            <div><dt>Dates</dt><dd>{{ s.start_date|date_label }} - {{ s.end_date|date_label }}</dd></div>
+            <div><dt>Capacity</dt><dd>{{ s.capacity }} per date</dd></div>
+            <div><dt>Selection</dt><dd>{{ s.date_order|date_order_label }}</dd></div>
+          </dl>
+          <span class="session-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        {% if s.status == 'CLOSED' %}<div class="session-row-actions"><a class="button small secondary" href="{{ url_for('swap_page', session_id=s.id) }}">Duty Swaps</a></div>{% endif %}
+        {% if me.role == 'ADMIN' %}
+        <div class="session-admin-actions">
+          <form method="post" action="{{ url_for('delete_session', session_id=s.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <button type="submit" class="button danger small" data-confirm="Permanently delete session '{{ s.name }}' and all its assignments? This cannot be undone.">Delete session</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}<div class="empty-state compact"><h3>No sessions yet</h3></div>{% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}
