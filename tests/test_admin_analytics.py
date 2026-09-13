@@ -64,6 +64,59 @@ class AdminAnalyticsTests(unittest.TestCase):
         self.assertIn(b'<h1>Dashboard</h1>', dashboard.data)
         self.assertIn(b'<details class="card create-session-card', dashboard.data)
 
+    def test_logins_per_week(self):
+        admin = self.add_admin()
+        with app.app_context():
+            conn = db()
+            conn.execute(
+                "INSERT INTO audit_log(actor_user_id,action,target_type,target_id,created_at) "
+                "VALUES(?,'auth.login','user',?,'2026-09-10 12:00:00')",
+                (admin, admin),
+            )
+            conn.commit()
+        self.login_as(admin)
+        response = self.request('get', '/admin/analytics')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Logins per week', response.data)
+        self.assertIn(b'Logins this week', response.data)
+
+    def test_hra_analytics_and_dashboard_widgets(self):
+        building = self.add_building('Willow')
+        other_bldg = self.add_building('Oak')
+        hra = self.add_user(sub='hra_user', email='hra@rwu.edu', name='Willow HRA', role='HRA', building_id=building)
+        ra = self.add_user(sub='ra_user', email='ra@rwu.edu', name='Willow RA', role='RA', building_id=building)
+        unassigned_hra = self.add_user(sub='hra_no_bldg', email='hra2@rwu.edu', name='No Bldg HRA', role='HRA')
+
+        # RA cannot access HRA analytics
+        self.login_as(ra)
+        self.assertEqual(self.request('get', '/hra/analytics').status_code, 403)
+
+        # RA dashboard does not have the Duty Sessions shortcut link on the left
+        ra_dash = self.request('get', '/dashboard')
+        self.assertEqual(ra_dash.status_code, 200)
+        self.assertNotIn(b'href="#duty-swaps"', ra_dash.data.split(b'class="dashboard-shortcuts"')[1].split(b'</div>')[0])
+
+        # HRA dashboard has the Duty Sessions shortcut link and the HRA badge in red
+        self.login_as(hra)
+        hra_dash = self.request('get', '/dashboard')
+        self.assertEqual(hra_dash.status_code, 200)
+        self.assertIn(b'href="#duty-swaps"', hra_dash.data.split(b'class="dashboard-shortcuts"')[1].split(b'</div>')[0])
+        self.assertIn(b'hra-role', hra_dash.data)
+        self.assertIn(b'href="/hra/analytics"', hra_dash.data)
+
+        # HRA can access HRA analytics
+        hra_analytics_resp = self.request('get', '/hra/analytics')
+        self.assertEqual(hra_analytics_resp.status_code, 200)
+        self.assertIn(b'Assigned shifts by status', hra_analytics_resp.data)
+        self.assertIn(b'Duty swap status', hra_analytics_resp.data)
+        self.assertIn(b'Assigned shifts by person', hra_analytics_resp.data)
+        self.assertIn(b'Willow', hra_analytics_resp.data)
+
+        # Unassigned HRA gets redirected to dashboard
+        self.login_as(unassigned_hra)
+        resp = self.request('get', '/hra/analytics')
+        self.assertEqual(resp.status_code, 302)
+
 
 # Keep the imported fixture class out of unittest's module discovery.
 del AdminManagementTestCase

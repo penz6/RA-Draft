@@ -15,6 +15,7 @@
   <div class="overview-stat"><span>Upcoming open slots</span><strong>{{ metrics.upcoming_open }}</strong><small>Unfilled slots from today onward</small></div>
   <div class="overview-stat"><span>Assigned shifts</span><strong>{{ metrics.assignments }}</strong><small>Across {{ reports|length }} sessions</small></div>
   <div class="overview-stat"><span>Open sessions</span><strong>{{ metrics.open_sessions }}</strong><small>Currently open for drafting</small></div>
+  <div class="overview-stat"><span>Logins this week</span><strong>{{ logins_per_week[0].logins if logins_per_week else 0 }}</strong><small>Across all users</small></div>
 </div>
 <section class="card">
   <div class="section-head"><div><h2>Coverage by session</h2><p>Uses each date’s capacity override and excludes no-duty dates. Extra assignments do not offset gaps on other dates.</p></div></div>
@@ -23,12 +24,19 @@
   </tbody></table></div>{% else %}<div class="empty-state"><h3>No sessions to report yet</h3><p>Coverage appears after a session is created.</p><a class="button secondary" href="{{ url_for('dashboard') }}">Go to sessions</a></div>{% endif %}
 </section>
 <div class="analytics-columns">
-<section class="card"><div class="section-head"><div><h2>Assigned shifts by person</h2><p>All dates in the selected buildings’ sessions. Includes roster members with no shifts and historical assignments to disabled accounts.</p></div></div>
+<section class="card"><div class="section-head"><div><h2>Assigned shifts by person</h2><p>All dates in the selected buildings' sessions. Includes roster members with no shifts and historical assignments to disabled accounts.</p></div></div>
 <div class="workload-list">{% for person in workload %}<div class="workload-row"><div><span>{{ person.name }}{% if person.disabled %} <small>(disabled)</small>{% endif %}</span><strong>{{ person.shifts }}</strong></div><meter min="0" max="{{ max_shifts or 1 }}" value="{{ person.shifts }}" aria-label="Assigned shifts for {{ person.name }}">{{ person.shifts }}</meter></div>{% else %}<p class="empty-copy">No participants or assignments yet.</p>{% endfor %}</div>
 </section>
+<div style="display:flex;flex-direction:column;gap:1.4rem">
 <section class="card"><div class="section-head"><div><h2>Duty swap status</h2><p>Each multi-date request counts as one swap. Pending requests may be blocked by past dates or a reopened session.</p></div></div>
 <dl class="swap-totals">{% for status,label in [('PENDING','Awaiting teammate'),('TARGET_APPROVED','Awaiting manager'),('APPROVED','Approved'),('REJECTED','Rejected'),('CANCELLED','Cancelled')] %}<div><dt>{{ label }}</dt><dd>{{ swap_counts.get(status,0) }}</dd></div>{% endfor %}</dl>
 <a class="button secondary" href="{{ url_for('swap_home') }}">Open duty swaps &rarr;</a>
 </section>
+<section class="card"><div class="section-head"><div><h2>Logins per week</h2><p>Authentication events from the audit log (most recent 12 weeks).</p></div></div>
+{% if logins_per_week %}<div class="table-wrap"><table><thead><tr><th scope="col">Week</th><th scope="col">Logins</th></tr></thead><tbody>
+{% for row in logins_per_week %}<tr><td>{{ row.week }}</td><td><strong>{{ row.logins }}</strong></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="empty-copy">No login data recorded yet.</p>{% endif %}
+</section>
+</div>
 </div>
 {% endblock %}
