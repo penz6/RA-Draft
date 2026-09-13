@@ -35,9 +35,6 @@
   {% endif %}
   <header class="topbar">
     <div class="topbar-inner">
-      <a href="{{ url_for('dashboard') if me else url_for('index') }}" class="brand">
-        <span>Duty Shift</span>
-      </a>
       {% if me %}
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
         <span class="nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>

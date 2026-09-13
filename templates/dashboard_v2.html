@@ -11,53 +11,80 @@
   <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>
 </div>
 
-<div class="dashboard-shortcuts">
-  {% if me.role in ['HRA', 'ADMIN'] %}
-  <a class="shortcut-card" href="#duty-swaps"><span class="shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg></span><div><strong>Duty sessions</strong><small>{{ sessions|selectattr('status', 'equalto', 'OPEN')|list|length }} open · {{ sessions|length }} total</small></div><span aria-hidden="true">↗</span></a>
-  {% endif %}
-  <a class="shortcut-card" href="{{ url_for('upcoming_duty_shifts') }}"><span class="shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><strong>My schedule</strong><small>Upcoming duty shifts</small></div><span aria-hidden="true">↗</span></a>
-  <a class="shortcut-card" href="{{ url_for('admin_analytics') if me.role == 'ADMIN' else (url_for('hra_analytics') if me.role == 'HRA' else url_for('swap_home')) }}"><span class="shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{% if me.role in ('ADMIN', 'HRA') %}<path d="M4 20V10m8 10V4m8 16v-7"/>{% else %}<path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/>{% endif %}</svg></span><div><strong>{{ 'Analytics' if me.role in ('ADMIN', 'HRA') else 'Duty swaps' }}</strong><small>{{ 'Coverage & team workload' if me.role in ('ADMIN', 'HRA') else 'Request or review swaps' }}</small></div><span aria-hidden="true">↗</span></a>
-</div>
+<div class="dashboard-glance-row">
+  {# ── Side 1: Schedule with next 2-3 dates ── #}
+  <section class="card dashboard-schedule-panel">
+    <div class="section-head compact">
+      <div>
+        <div class="eyebrow">Personal Schedule</div>
+        <h2>My upcoming shifts</h2>
+      </div>
+      {% if upcoming_shifts %}
+      <div class="session-head-actions">
+        <span class="count-badge">{{ upcoming_shifts|length }}</span>
+        <a class="button small ghost" href="{{ url_for('upcoming_duty_shifts') }}">View all</a>
+      </div>
+      {% endif %}
+    </div>
+    {% if upcoming_shifts %}
+    <div class="upcoming-shifts-grid preview-grid">
+      {% for shift in upcoming_shifts[:3] %}
+      <div class="shift-card">
+        <div class="shift-card-head">
+          <span class="shift-date">{{ shift.duty_date|date_label }}</span>
+          <span class="pill small time-pill">{{ shift.shift_start|time_label }} &ndash; {{ shift.shift_end|time_label }}</span>
+        </div>
+        <div class="shift-card-body">
+          <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
+          <span class="shift-partners">
+            {% if shift.partner_names %}
+              On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>
+            {% else %}
+              Solo duty
+            {% endif %}
+          </span>
+        </div>
+        <div class="shift-card-actions">
+          <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">
+            View Session &rarr;
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state compact">
+      <p>No upcoming duty shifts scheduled.</p>
+    </div>
+    {% endif %}
+  </section>
 
-{% if upcoming_shifts %}
-<section class="card upcoming-shifts-card">
-  <div class="section-head">
-    <div>
-      <div class="eyebrow">Personal Schedule</div>
-      <h2>My upcoming duty shifts</h2>
-    </div>
-    <div class="session-head-actions">
-      <span class="count-badge">{{ upcoming_shifts|length }}</span>
-      <a class="button small ghost" href="{{ url_for('upcoming_duty_shifts') }}">View all</a>
-    </div>
+  {# ── Side 2: Action widgets (Duty swaps + Analytics for HRA/Admin) ── #}
+  <div class="dashboard-actions-panel">
+    <a class="shortcut-card" href="{{ url_for('swap_home') }}">
+      <span class="shortcut-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></svg>
+      </span>
+      <div>
+        <strong>Duty swaps</strong>
+        <small>Request or review swaps</small>
+      </div>
+      <span aria-hidden="true">↗</span>
+    </a>
+    {% if me.role in ('ADMIN', 'HRA') %}
+    <a class="shortcut-card" href="{{ url_for('admin_analytics') if me.role == 'ADMIN' else url_for('hra_analytics') }}">
+      <span class="shortcut-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10m8 10V4m8 16v-7"/></svg>
+      </span>
+      <div>
+        <strong>Analytics</strong>
+        <small>Coverage &amp; team workload</small>
+      </div>
+      <span aria-hidden="true">↗</span>
+    </a>
+    {% endif %}
   </div>
-  <div class="upcoming-shifts-grid">
-    {% for shift in upcoming_shifts[:3] %}
-    <div class="shift-card">
-      <div class="shift-card-head">
-        <span class="shift-date">{{ shift.duty_date|date_label }}</span>
-        <span class="pill small time-pill">{{ shift.shift_start|time_label }} &ndash; {{ shift.shift_end|time_label }}</span>
-      </div>
-      <div class="shift-card-body">
-        <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
-        <span class="shift-partners">
-          {% if shift.partner_names %}
-            On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>
-          {% else %}
-            Solo duty
-          {% endif %}
-        </span>
-      </div>
-      <div class="shift-card-actions">
-        <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">
-          View Session &rarr;
-        </a>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
+</div>
 
 {% if me.role in ['HRA', 'ADMIN'] %}
 <details class="card create-session-card dashboard-create">

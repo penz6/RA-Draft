@@ -5,7 +5,7 @@
       <h2 id="session-manager-heading">Session manager</h2>
       <p>Use the common controls here. Less-frequent scheduling rules and date exceptions are grouped below.</p>
     </div>
-    <span class="role-badge">{{ me.role }}</span>
+    <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>
   </div>
 
   <div class="manager-quick-grid">

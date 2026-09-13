@@ -200,7 +200,8 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 .inline-role{display:inline-flex;align-items:center;justify-content:center;margin-left:.35rem;padding:.12rem .42rem;border-radius:999px;color:#93c5fd;background:var(--blue-soft);font-size:.65rem;font-weight:850;letter-spacing:.04em;vertical-align:middle;line-height:1.2}
 .admin-role{position:relative;color:#7fa88c !important;background:rgba(46,94,68,0.28) !important;border:1px solid rgba(75,140,100,0.45) !important;box-shadow:none !important;animation:none !important}
 .admin-role::before,.admin-role::after{display:none !important;content:none !important;animation:none !important}
-.hra-role{color:#f87171 !important;background:rgba(239,68,68,.2) !important;border:1px solid rgba(239,68,68,.45) !important}
+.hra-role{position:relative;color:#f87171 !important;background:rgba(239,68,68,.2) !important;border:1px solid rgba(239,68,68,.45) !important;box-shadow:none !important;animation:none !important}
+.hra-role::before,.hra-role::after{display:none !important;content:none !important;animation:none !important}
 .manager-rule-form{align-items:end;flex-wrap:wrap}
 .capacity-input{flex:0 1 150px}
 .override-list{display:grid;gap:.55rem;margin-top:1rem}

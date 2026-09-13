@@ -27,7 +27,7 @@
               <strong>{{ a.name }}</strong>
             </div>
           </td>
-          <td data-label="Role"><span class="inline-role{% if a.role == 'ADMIN' %} admin-role{% endif %}">{{ a.role }}</span></td>
+          <td data-label="Role"><span class="inline-role{% if a.role == 'ADMIN' %} admin-role{% elif a.role == 'HRA' %} hra-role{% endif %}">{{ a.role }}</span></td>
           <td data-label="Duty date">{{ a.duty_date|date_label }}</td>
           <td data-label="Actions">
             <div class="button-group">

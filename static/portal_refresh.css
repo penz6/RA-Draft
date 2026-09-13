@@ -1,11 +1,17 @@
 /* Authenticated portal: a calmer workspace with clear entry points. */
 :root{--shadow:0 8px 28px rgba(0,0,0,.18);--surface-card:#141f32;--line:rgba(167,193,222,.13)}
 body{background:radial-gradient(ellipse at 85% 12%,rgba(45,158,167,.09),transparent 40rem),var(--background)}
-.brand::before{content:'D';display:grid;place-items:center;width:2rem;height:2rem;border-radius:9px;background:#b6eedc;color:#102a2c;font-size:1rem;font-weight:900}
+.topbar-inner{justify-content:flex-end}
 .dashboard-hero{position:relative;overflow:hidden;align-items:center;padding:clamp(1rem,2.5vw,1.8rem);border:1px solid rgba(130,213,202,.23);border-radius:22px;background:radial-gradient(ellipse at 100% 0,rgba(74,183,162,.19),transparent 65%),linear-gradient(120deg,#172a3b,#102030);min-height:140px}
 .dashboard-hero::after{content:'';position:absolute;right:-65px;bottom:-140px;width:340px;height:340px;border:1px solid rgba(171,232,216,.12);border-radius:50%;box-shadow:0 0 0 45px rgba(171,232,216,.035),0 0 0 90px rgba(171,232,216,.025);pointer-events:none}
 .dashboard-hero>*{position:relative;z-index:1}.dashboard-hero h1{font-size:clamp(2rem,4vw,3.3rem);max-width:760px}.dashboard-hero .eyebrow{color:#a2e6d6}.dashboard-hero p{color:#b8cbda;max-width:580px}
 .dashboard-shortcuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin:0 0 1.6rem}
+.dashboard-glance-row{display:grid;grid-template-columns:1.6fr 1fr;gap:1.4rem;margin:0 0 1.8rem;align-items:stretch}
+.dashboard-schedule-panel{margin-bottom:0;display:flex;flex-direction:column;border-color:rgba(123,225,191,.25);background:linear-gradient(135deg,rgba(123,225,191,.065),transparent 65%),var(--surface-card)}
+.dashboard-schedule-panel .preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.8rem;flex:1}
+.dashboard-actions-panel{display:flex;flex-direction:column;gap:1rem}
+.dashboard-actions-panel .shortcut-card{flex:1;display:flex;align-items:center;margin:0}
+@media(max-width:900px){.dashboard-glance-row{grid-template-columns:1fr;gap:1rem}}
 .shortcut-card{display:flex;align-items:center;gap:1rem;min-width:0;padding:1.2rem;border:1px solid var(--line);border-radius:15px;color:var(--ink);background:var(--surface-card);text-decoration:none;transition:border-color 140ms ease,background 140ms ease}
 .shortcut-card:hover{color:#fff;background:#1b2b40;border-color:#598c91}.shortcut-card>div{flex:1;min-width:0}.shortcut-card strong,.shortcut-card small{display:block}.shortcut-card small{margin-top:.25rem;font-size:.78rem}.shortcut-icon{display:grid;place-items:center;flex:0 0 2.35rem;height:2.35rem;border-radius:11px;background:rgba(122,217,196,.1);color:#a2e6d6;font-size:.8rem;font-weight:800}
 .dashboard-create{padding:0;box-shadow:none}.dashboard-create>summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.2rem 1.5rem;cursor:pointer;list-style:none}.dashboard-create>summary::-webkit-details-marker{display:none}.dashboard-create>summary .eyebrow{display:block;margin:0 0 .25rem}.dashboard-create>summary strong{font-size:1.1rem}.dashboard-create[open]>summary{border-bottom:1px solid var(--line)}.dashboard-create-content{padding:1.5rem}
@@ -34,14 +40,13 @@ body{background:radial-gradient(ellipse at 85% 12%,rgba(45,158,167,.09),transpar
 }
 .dashboard-page .dashboard-hero::after{border-color:rgba(163,235,218,.3);box-shadow:0 0 0 45px rgba(171,232,216,.065),0 0 0 90px rgba(171,232,216,.04)}
 .dashboard-page .shortcut-card{
-  --shortcut-accent:133,191,255;
+  --shortcut-accent:123,225,191;
   border-top:2px solid rgba(var(--shortcut-accent),.7);
   background:linear-gradient(135deg,rgba(var(--shortcut-accent),.1),transparent 85%),var(--surface-card);
   box-shadow:0 6px 20px rgba(0,0,0,.14);
   transition:transform 160ms ease,border-color 160ms ease,box-shadow 160ms ease;
 }
-.dashboard-page .shortcut-card:nth-child(2){--shortcut-accent:123,225,191}
-.dashboard-page .shortcut-card:nth-child(3){--shortcut-accent:202,177,255}
+.dashboard-page .shortcut-card:nth-child(2){--shortcut-accent:202,177,255}
 .dashboard-page .shortcut-icon{
   display:grid;flex-basis:2.6rem;height:2.6rem;color:rgb(var(--shortcut-accent));
   background:rgba(var(--shortcut-accent),.12);border:1px solid rgba(var(--shortcut-accent),.2);
