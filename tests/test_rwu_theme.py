@@ -14,6 +14,7 @@ class RWUThemeRegressionTests(unittest.TestCase):
         cls.admin = (ROOT / "templates" / "admin.html").read_text(encoding="utf-8")
         cls.theme = (ROOT / "static" / "rwu_theme.css").read_text(encoding="utf-8")
         cls.banner = (ROOT / "static" / "rwu_banner.css").read_text(encoding="utf-8")
+        cls.polish = (ROOT / "static" / "rwu_polish.css").read_text(encoding="utf-8")
         cls.settings = (ROOT / "building_settings.py").read_text(encoding="utf-8")
 
     def test_sidebar_has_requested_links_and_no_search(self):
@@ -25,7 +26,13 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertNotIn('placeholder="Search', self.base)
         self.assertNotIn('type="search"', self.base)
 
-    def test_official_rwu_brand_assets_are_used(self):
+    def test_navigation_uses_house_and_calendar_icons(self):
+        self.assertIn('class="rwu-nav-icon"', self.base)
+        self.assertIn('M3 10.8 12 3l9 7.8', self.base)
+        self.assertIn('M7 2v3M17 2v3M3.5 9h17', self.base)
+        self.assertNotIn('<span aria-hidden="true">▣</span><span>My Schedule</span>', self.base)
+
+    def test_official_rwu_brand_assets_are_used_until_local_brand_files_are_added(self):
         self.assertIn("www.rwu.edu/themes/custom/rwu", self.base)
         self.assertIn("rwuhawks.com/images/logos", self.base)
         self.assertIn("import rwu_brand_assets", (ROOT / "main.py").read_text(encoding="utf-8"))
@@ -39,19 +46,28 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertNotIn("Quick Actions", self.dashboard)
         self.assertNotIn("Need help", self.dashboard)
 
-    def test_meeting_controls_are_building_scoped(self):
-        self.assertIn("update_building_meeting", self.dashboard)
-        self.assertIn('name="meeting_at"', self.dashboard)
-        self.assertIn('name="meeting_location"', self.dashboard)
-        self.assertIn("actor[\"building_id\"] != building_id", self.settings)
+    def test_staff_event_controls_are_building_scoped(self):
+        self.assertIn("Staff dinner", self.dashboard)
+        self.assertIn("Staff meeting", self.dashboard)
+        self.assertNotIn("Community meeting", self.dashboard)
+        self.assertIn("update_staff_dinner", self.dashboard)
+        self.assertIn("update_staff_meeting", self.dashboard)
+        self.assertIn('name="event_at"', self.dashboard)
+        self.assertIn('name="event_location"', self.dashboard)
+        self.assertIn('actor["building_id"] != building_id', self.settings)
+        self.assertIn('@roles("HRA", "ADMIN")', self.settings)
 
     def test_building_appearance_is_admin_managed(self):
         self.assertIn('enctype="multipart/form-data"', self.admin)
         self.assertIn('name="icon_svg"', self.admin)
         self.assertIn('name="theme_key"', self.admin)
+        self.assertIn('name="accent_color"', self.admin)
+        self.assertIn('type="color"', self.admin)
         self.assertIn("update_building_appearance", self.admin)
         self.assertNotIn("update_building_appearance", self.dashboard)
         self.assertIn("sanitize_building_svg", self.settings)
+        self.assertIn("normalize_accent_color", self.settings)
+        self.assertIn("building_theme_css", self.settings)
 
     def test_building_themes_and_uploaded_banner_are_present(self):
         self.assertIn(".theme-maple", self.theme)
@@ -61,6 +77,9 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertIn(".theme-bayside", self.theme)
         self.assertIn("data:image/jpeg;base64,", self.banner)
         self.assertIn("rwu_banner.css", self.base)
+        self.assertIn("rwu_polish.css", self.base)
+        self.assertIn("background:transparent", self.polish)
+        self.assertIn("--hall-accent", self.settings)
 
     def test_new_python_modules_parse(self):
         ast.parse(self.settings)
