@@ -48,6 +48,16 @@
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (!target) return;
 
+    const rosterToggle = target.closest("[data-roster-toggle]");
+    if (rosterToggle) {
+      const expanded = rosterToggle.getAttribute("aria-expanded") !== "true";
+      rosterToggle.setAttribute("aria-expanded", String(expanded));
+      rosterToggle.closest("[data-turn-order]")?.classList.toggle("roster-expanded", expanded);
+      rosterToggle.dataset.closedLabel ||= rosterToggle.textContent;
+      rosterToggle.textContent = expanded ? "Show less" : rosterToggle.dataset.closedLabel;
+      return;
+    }
+
     const managerPick = target.closest("[data-manager-pick]");
     if (managerPick) {
       const calendar = activeCalendar();

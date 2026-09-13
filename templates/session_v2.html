@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ draft.name }} | RA Duty Picking{% endblock %}
 {% block content %}
+<div class="session-page">
 <a class="back-link" href="{{ url_for('dashboard') }}">&larr; Back to duty sessions</a>
 <div class="page-head session-heading" data-live-refresh data-live-state-url="{{ url_for('live_state', session_id=draft.id) }}" data-live-events-url="{{ url_for('live_events', session_id=draft.id) }}" data-live-partial-url="{{ url_for('session_live_fragments', session_id=draft.id) }}" data-live-version="{{ live_version }}">
   {% include 'session_heading_live_v2.html' %}
@@ -13,5 +14,9 @@
   {% include 'session_order_v2.html' %}
   {% include 'session_dates_v2.html' %}
 </div>
-{% include 'session_assignments_v2.html' %}
+<details class="session-assignments-panel">
+  <summary><span>Assignments</span><span class="assignments-chevron" aria-hidden="true">⌄</span></summary>
+  {% include 'session_assignments_v2.html' %}
+</details>
+</div>
 {% endblock %}

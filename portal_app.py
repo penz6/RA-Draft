@@ -384,6 +384,7 @@ def dashboard_live_fragments():
 import round_robin  # noqa: E402,F401
 from live_updates import dashboard_state_version  # noqa: E402
 import admin_routes  # noqa: E402,F401
+import admin_analytics  # noqa: E402,F401
 import calendar_routes  # noqa: E402,F401
 import hra_assign  # noqa: E402,F401
 import hra_pause  # noqa: E402,F401

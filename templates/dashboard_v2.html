@@ -1,12 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}Duty sessions | Duty Shift{% endblock %}
+{% block title %}Dashboard | Duty Shift{% endblock %}
 {% block content %}
-<div class="page-head" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
+<div class="dashboard-page">
+<div class="page-head dashboard-hero" data-live-refresh data-live-state-url="{{ url_for('live_state') }}" data-live-events-url="{{ url_for('live_events') }}" data-live-version="{{ live_version }}">
   <div>
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
-    <h1>Duty sessions</h1>
+    <h1>Dashboard</h1>
+    <p>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}.</p>
   </div>
   <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
+</div>
+
+<div class="dashboard-shortcuts">
+  <a class="shortcut-card" href="#duty-swaps"><span class="shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg></span><div><strong>Duty sessions</strong><small>{{ sessions|selectattr('status', 'equalto', 'OPEN')|list|length }} open · {{ sessions|length }} total</small></div><span aria-hidden="true">↗</span></a>
+  <a class="shortcut-card" href="{{ url_for('upcoming_duty_shifts') }}"><span class="shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><strong>My schedule</strong><small>Upcoming duty shifts</small></div><span aria-hidden="true">↗</span></a>
+  <a class="shortcut-card" href="{{ url_for('admin_analytics') if me.role == 'ADMIN' else url_for('swap_home') }}"><span class="shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{% if me.role == 'ADMIN' %}<path d="M4 20V10m8 10V4m8 16v-7"/>{% else %}<path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/>{% endif %}</svg></span><div><strong>{{ 'Analytics' if me.role == 'ADMIN' else 'Duty swaps' }}</strong><small>{{ 'Coverage &amp; team workload' if me.role == 'ADMIN' else 'Request or review swaps' }}</small></div><span aria-hidden="true">↗</span></a>
 </div>
 
 {% if upcoming_shifts %}
@@ -50,7 +58,9 @@
 {% endif %}
 
 {% if me.role in ['HRA', 'ADMIN'] %}
-<section class="card create-session-card">
+<details class="card create-session-card dashboard-create">
+  <summary><span><strong>Create a duty session</strong></span><span class="button secondary small">Create session <span aria-hidden="true">＋</span></span></summary>
+  <div class="dashboard-create-content">
   <div class="section-head">
     <div>
       <h2>Create and open a duty session</h2>
@@ -137,7 +147,8 @@
     </div>
   </form>
   {% endif %}
-</section>
+</div>
+</details>
 {% endif %}
 
 <section class="card" id="duty-swaps">
@@ -179,4 +190,5 @@
     {% endfor %}
   </div>
 </section>
+</div>
 {% endblock %}

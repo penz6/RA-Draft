@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='live_stream.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='ui_improvements.css') }}">
+  {% if me %}<link rel="stylesheet" href="{{ url_for('static', filename='portal_refresh.css') }}">{% endif %}
   <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
@@ -48,6 +49,7 @@
           Duty Swaps{% if pending_swap_approval_count %} <span class="pill small pending" aria-label="{{ pending_swap_approval_count }} pending swap approval{{ 's' if pending_swap_approval_count != 1 else '' }}">{{ pending_swap_approval_count }}</span>{% endif %}
         </a>
         {% if me.role == 'ADMIN' %}
+        <a class="nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">Analytics</a>
         <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
         {% endif %}
         <button class="nav-link nav-button" type="button" data-help-open>How it works</button>

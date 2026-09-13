@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Analytics | Duty Shift{% endblock %}
+{% block content %}
+<div class="page-head dashboard-hero">
+  <div><div class="eyebrow">Administration</div><h1>Analytics</h1><p>Staffing coverage, assignments, and duty swaps.</p></div>
+  <a class="button secondary" href="{{ url_for('admin') }}">Manage users &amp; buildings</a>
+</div>
+<form method="get" class="analytics-filter card">
+  <label class="field">Building<select name="building_id"><option value="">All buildings</option>{% for b in buildings %}<option value="{{ b.id }}" {% if building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label>
+  <button class="button" type="submit">Apply filter</button>
+  <p>All recorded sessions · Snapshot on {{ today|date_label }}. Refresh for the latest data.</p>
+</form>
+<div class="overview-grid">
+  <div class="overview-stat"><span>Staffing coverage</span><strong>{{ metrics.coverage|string + '%' if metrics.coverage is not none else '—' }}</strong><small>{{ metrics.filled }} of {{ metrics.required }} required slots filled</small></div>
+  <div class="overview-stat"><span>Upcoming open slots</span><strong>{{ metrics.upcoming_open }}</strong><small>Unfilled slots from today onward</small></div>
+  <div class="overview-stat"><span>Assigned shifts</span><strong>{{ metrics.assignments }}</strong><small>Across {{ reports|length }} sessions</small></div>
+  <div class="overview-stat"><span>Open sessions</span><strong>{{ metrics.open_sessions }}</strong><small>Currently open for drafting</small></div>
+</div>
+<section class="card">
+  <div class="section-head"><div><h2>Coverage by session</h2><p>Uses each date’s capacity override and excludes no-duty dates. Extra assignments do not offset gaps on other dates.</p></div></div>
+  {% if reports %}<div class="table-wrap"><table><thead><tr><th scope="col">Session</th><th scope="col">Status</th><th scope="col">Coverage</th><th scope="col">Upcoming open slots</th></tr></thead><tbody>
+  {% for r in reports %}<tr><td><a href="{{ url_for('view_session', session_id=r.id) }}">{{ r.name }}</a><br><small>{{ r.building_name }} · {{ r.start_date|date_label }} – {{ r.end_date|date_label }}</small></td><td><span class="pill {{ r.status|lower }}">{{ r.status }}</span></td><td><div class="coverage-cell"><span>{{ r.coverage|string + '%' if r.coverage is not none else 'No required slots' }} · {{ r.filled }}/{{ r.required }}</span>{% if r.required %}<meter min="0" max="{{ r.required }}" value="{{ r.filled }}" aria-label="Staffing coverage for {{ r.name }}">{{ r.coverage }}%</meter>{% endif %}</div></td><td>{{ r.upcoming_open }}</td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="empty-state"><h3>No sessions to report yet</h3><p>Coverage appears after a session is created.</p><a class="button secondary" href="{{ url_for('dashboard') }}">Go to sessions</a></div>{% endif %}
+</section>
+<div class="analytics-columns">
+<section class="card"><div class="section-head"><div><h2>Assigned shifts by person</h2><p>All dates in the selected buildings’ sessions. Includes roster members with no shifts and historical assignments to disabled accounts.</p></div></div>
+<div class="workload-list">{% for person in workload %}<div class="workload-row"><div><span>{{ person.name }}{% if person.disabled %} <small>(disabled)</small>{% endif %}</span><strong>{{ person.shifts }}</strong></div><meter min="0" max="{{ max_shifts or 1 }}" value="{{ person.shifts }}" aria-label="Assigned shifts for {{ person.name }}">{{ person.shifts }}</meter></div>{% else %}<p class="empty-copy">No participants or assignments yet.</p>{% endfor %}</div>
+</section>
+<section class="card"><div class="section-head"><div><h2>Duty swap status</h2><p>Each multi-date request counts as one swap. Pending requests may be blocked by past dates or a reopened session.</p></div></div>
+<dl class="swap-totals">{% for status,label in [('PENDING','Awaiting teammate'),('TARGET_APPROVED','Awaiting manager'),('APPROVED','Approved'),('REJECTED','Rejected'),('CANCELLED','Cancelled')] %}<div><dt>{{ label }}</dt><dd>{{ swap_counts.get(status,0) }}</dd></div>{% endfor %}</dl>
+<a class="button secondary" href="{{ url_for('swap_home') }}">Open duty swaps &rarr;</a>
+</section>
+</div>
+{% endblock %}
