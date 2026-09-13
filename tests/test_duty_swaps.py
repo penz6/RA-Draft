@@ -68,8 +68,6 @@ class DutySwapTestCase(unittest.TestCase):
         with self.client.session_transaction() as sess:
             return sess.get("csrf") or "test-swap-csrf"
 
-
-
     def create_closed_session_with_assignments(self):
         building_id = self.add_building("Oak Hall")
         hra_id = self.add_user(
@@ -381,7 +379,6 @@ class DutySwapTestCase(unittest.TestCase):
             swaps = db().execute("SELECT * FROM duty_swap_requests WHERE session_id=?", (session_id,)).fetchall()
             self.assertEqual(len(swaps), 0)
 
-
     def test_requester_can_cancel_pending_swap(self):
         data = self.create_closed_session_with_assignments()
         session_id = data["session_id"]
@@ -421,7 +418,6 @@ class DutySwapTestCase(unittest.TestCase):
                 "SELECT * FROM duty_swap_requests WHERE batch_id=?", (batch_id,)
             ).fetchone()
             self.assertEqual(swap["status"], "CANCELLED")
-
 
     def test_target_rejection_flow(self):
         data = self.create_closed_session_with_assignments()
@@ -495,7 +491,7 @@ class DutySwapTestCase(unittest.TestCase):
         data = self.create_closed_session_with_assignments()
         session_id = data["session_id"]
         building_id = data["building_id"]
-        ra1_id, ra2_id = data["ra1_id"], data["ra2_id"]
+        ra1_id = data["ra1_id"]
         a1, a2, b1 = data["a1"], data["a2"], data["b1"]
 
         ra3_id = self.add_user(
@@ -528,7 +524,7 @@ class DutySwapTestCase(unittest.TestCase):
     def test_async_swap_action_response(self):
         data = self.create_closed_session_with_assignments()
         session_id = data["session_id"]
-        ra1_id, ra2_id = data["ra1_id"], data["ra2_id"]
+        ra1_id = data["ra1_id"]
         a1, b1 = data["a1"], data["b1"]
 
         self.login_as(ra1_id)

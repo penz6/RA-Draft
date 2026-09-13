@@ -59,9 +59,6 @@
     calendarScrolls: Array.from(document.querySelectorAll(".calendar-scroll"))
       .map((element) => element.scrollLeft),
     hadTurnAlert: Boolean(document.querySelector("[data-your-turn-alert]")),
-    managerPanelOpen: Boolean(
-      document.querySelector("[data-session-assignments] .manager-panel[open]")
-    ),
   });
 
   const saveViewState = () => {
@@ -138,10 +135,6 @@
           const left = Number(calendarScrolls[index]);
           if (Number.isFinite(left)) element.scrollLeft = left;
         });
-        if (state.managerPanelOpen) {
-          const panel = document.querySelector("[data-session-assignments] .manager-panel");
-          if (panel) panel.open = true;
-        }
 
         const hasTurnAlert = Boolean(document.querySelector("[data-your-turn-alert]"));
         if (playNewTurnDing && hasTurnAlert && !state.hadTurnAlert) playTurnDing();

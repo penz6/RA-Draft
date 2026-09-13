@@ -195,12 +195,11 @@ class SecurityTestCase(unittest.TestCase):
                 ("Draft\r\nBEGIN:VALARM", building_id, "2026-09-01", "2026-09-01", user_id),
             )
             session_id = cur.lastrowid
-            assignment = conn.execute(
+            conn.execute(
                 "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
                 (session_id, user_id, "2026-09-01", user_id),
             )
             conn.commit()
-            assignment_id = assignment.lastrowid
         self.login_as(user_id)
         response = self.request("get", f"/calendar/session/{session_id}.ics")
         body = response.get_data(as_text=True)

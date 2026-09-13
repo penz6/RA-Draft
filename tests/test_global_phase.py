@@ -14,7 +14,6 @@ os.environ.setdefault(
     str(Path(tempfile.gettempdir()) / "ra-draft-global-phase-tests.db"),
 )
 
-import portal_app  # noqa: E402,F401
 from core import app, db, next_picker, selectable_dates, session_row  # noqa: E402
 
 

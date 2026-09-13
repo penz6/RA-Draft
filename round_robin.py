@@ -6,10 +6,9 @@ those date-aware rules so older imports continue to use the active behavior.
 """
 
 import core
-from date_exceptions import next_picker, selectable_dates
+from date_exceptions import selectable_dates
 
 core.selectable_dates = selectable_dates
-core.next_picker = next_picker
 
 # This additive module installs the session-wide pause migration and replaces
 # legacy participant-deferral turn helpers with the active session-level model.

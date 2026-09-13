@@ -674,12 +674,6 @@ def safe_display_name(value, fallback):
     return cleaned or fallback
 
 
-def normalize_time(value):
-    """Validate and format a 24-hour HH:MM time string."""
-    text = str(value or "")
-    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", text):
-        raise ValueError("Time must use 24-hour HH:MM format.")
-    return text
 
 
 def normalize_date_order(value):
@@ -1086,63 +1080,6 @@ def user_assignment_dates(session_id, user_id):
     }
 
 
-def _precompute_session_selection_context(row):
-    """Precompute session dates, capacities, and assignment state to avoid N+1 queries."""
-    session_id = _session_id(row)
-    if session_id is None:
-        return None
-    counts = assignment_counts(session_id)
-    capacities = capacities_for(row)
-    kinds = date_kinds_for(row)
-
-    rows = db().execute(
-        "SELECT user_id, duty_date FROM assignments WHERE session_id=?",
-        (session_id,),
-    ).fetchall()
-    user_assignments = defaultdict(set)
-    for r in rows:
-        user_assignments[r["user_id"]].add(r["duty_date"])
-
-    globally_open = [
-        duty_date
-        for duty_date in dates_for(row)
-        if capacities[duty_date] > 0
-        and counts.get(duty_date, 0) < capacities[duty_date]
-    ]
-
-    order = normalize_date_order(row["date_order"])
-    if order == DATE_ORDER_WEEKDAYS_FIRST:
-        weekday_phase = [
-            duty_date
-            for duty_date in globally_open
-            if kinds[duty_date] == DATE_KIND_WEEKDAY
-        ]
-        if weekday_phase:
-            globally_open = weekday_phase
-    elif order == DATE_ORDER_WEEKENDS_FIRST:
-        weekend_phase = [
-            duty_date
-            for duty_date in globally_open
-            if kinds[duty_date] == DATE_KIND_WEEKEND
-        ]
-        if weekend_phase:
-            globally_open = weekend_phase
-
-    is_complete = all(
-        counts.get(duty_date, 0) >= capacity
-        for duty_date, capacity in capacities.items()
-    )
-
-    return {
-        "counts": counts,
-        "capacities": capacities,
-        "kinds": kinds,
-        "user_assignments": user_assignments,
-        "globally_open": globally_open,
-        "is_complete": is_complete,
-    }
-
-
 def selectable_dates(row, user_id, *, _precomputed=None):
     """Return dates open and eligible for selection by a specific participant."""
     session_id = _session_id(row)
@@ -1223,11 +1160,7 @@ def selection_phase_label(row):
 def next_picker(session_id):
     """Identify the participant whose turn it is to pick a shift in the round robin."""
     row = session_row(session_id)
-    if not row:
-        return None
-
-    precomputed = _precompute_session_selection_context(row)
-    if not precomputed or precomputed["is_complete"] or not precomputed["globally_open"]:
+    if not row or session_complete(row):
         return None
 
     active = db().execute(
@@ -1334,69 +1267,3 @@ def session_swap_requests(session_id):
         "ORDER BY CASE sr.status WHEN 'PENDING' THEN 0 WHEN 'TARGET_APPROVED' THEN 1 ELSE 2 END, sr.created_at DESC",
         (session_id,),
     ).fetchall()
-
-
-def pending_target_swaps(user_id):
-    """Retrieve swap batches awaiting target user approval."""
-    return db().execute(
-        "SELECT sr.*, "
-        "u1.name AS requester_name, a1.duty_date AS requester_date, "
-        "u2.name AS target_name, a2.duty_date AS target_date, "
-        "s.name AS session_name, b.name AS building_name "
-        "FROM duty_swap_requests sr "
-        "JOIN users u1 ON u1.id=sr.requester_user_id "
-        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
-        "JOIN users u2 ON u2.id=sr.target_user_id "
-        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
-        "JOIN draft_sessions s ON s.id=sr.session_id "
-        "JOIN buildings b ON b.id=s.building_id "
-        "WHERE sr.target_user_id=? AND sr.status='PENDING' "
-        "ORDER BY sr.created_at DESC",
-        (user_id,),
-    ).fetchall()
-
-
-def hra_pending_swaps(building_id):
-    """Retrieve swap batches awaiting HRA approval for a building."""
-    return db().execute(
-        "SELECT sr.*, "
-        "u1.name AS requester_name, a1.duty_date AS requester_date, "
-        "u2.name AS target_name, a2.duty_date AS target_date, "
-        "s.name AS session_name "
-        "FROM duty_swap_requests sr "
-        "JOIN users u1 ON u1.id=sr.requester_user_id "
-        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
-        "JOIN users u2 ON u2.id=sr.target_user_id "
-        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
-        "JOIN draft_sessions s ON s.id=sr.session_id "
-        "WHERE s.building_id=? AND sr.status='TARGET_APPROVED' "
-        "ORDER BY sr.created_at DESC",
-        (building_id,),
-    ).fetchall()
-
-
-def swap_batch_details(batch_id):
-    """Retrieve all swap request rows belonging to a batch."""
-    return db().execute(
-        "SELECT sr.*, "
-        "u1.name AS requester_name, a1.duty_date AS requester_date, "
-        "u2.name AS target_name, a2.duty_date AS target_date "
-        "FROM duty_swap_requests sr "
-        "JOIN users u1 ON u1.id=sr.requester_user_id "
-        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
-        "JOIN users u2 ON u2.id=sr.target_user_id "
-        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
-        "WHERE sr.batch_id=? "
-        "ORDER BY a1.duty_date",
-        (batch_id,),
-    ).fetchall()
-
-
-def user_pending_swap_count(user_id):
-    """Count pending incoming swap requests for a user (for badge display)."""
-    row = db().execute(
-        "SELECT COUNT(DISTINCT batch_id) AS n FROM duty_swap_requests "
-        "WHERE target_user_id=? AND status='PENDING'",
-        (user_id,),
-    ).fetchone()
-    return row["n"] if row else 0

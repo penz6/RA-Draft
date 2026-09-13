@@ -250,31 +250,6 @@ def selection_phase_label(row):
     return "Every required duty slot is filled."
 
 
-def next_picker(session_id):
-    row = session_row(session_id)
-    if not row or session_complete(row):
-        return None
-
-    active = db().execute(
-        "SELECT u.*,o.position FROM session_order o "
-        "JOIN users u ON u.id=o.user_id "
-        "LEFT JOIN session_deferrals d "
-        "ON d.session_id=o.session_id AND d.user_id=o.user_id "
-        "WHERE o.session_id=? AND d.user_id IS NULL ORDER BY o.position",
-        (session_id,),
-    ).fetchall()
-    if not active:
-        return None
-
-    start_position = row["current_position"] or 1
-    rotated = [item for item in active if item["position"] >= start_position]
-    rotated.extend(item for item in active if item["position"] < start_position)
-    for participant in rotated:
-        if selectable_dates(row, participant["id"]):
-            return participant
-    return None
-
-
 # Install one effective implementation for every route and test that imports
 # these helpers from core after portal_app begins loading route modules.
 core.DATE_KIND_AUTO = DATE_KIND_AUTO
@@ -293,4 +268,3 @@ core.total_slots = total_slots
 core.session_complete = session_complete
 core.selectable_dates = selectable_dates
 core.selection_phase_label = selection_phase_label
-core.next_picker = next_picker
