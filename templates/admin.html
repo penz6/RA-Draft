@@ -14,7 +14,7 @@
   <div class="section-head">
     <div>
       <h2>Buildings</h2>
-      <p>Set the name, dashboard theme, and building mark.</p>
+      <p>Set the name, theme, accent color, and building mark.</p>
     </div>
     <span class="count-badge">{{ buildings|length }}</span>
   </div>
@@ -28,6 +28,9 @@
       <select name="theme_key">
         {% for key,label in building_theme_choices %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
       </select>
+    </label>
+    <label class="field rwu-color-field">Accent
+      <input type="color" name="accent_color" value="{{ building_theme_default_accents['rwu'] }}" required>
     </label>
     <label class="field">Building mark (SVG)
       <input type="file" name="icon_svg" accept="image/svg+xml,.svg">
@@ -69,6 +72,9 @@
             <select name="theme_key">
               {% for key,label in building_theme_choices %}<option value="{{ key }}" {% if (b.theme_key or 'rwu') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
             </select>
+          </label>
+          <label class="field compact rwu-color-field">Accent
+            <input type="color" name="accent_color" value="{{ b.accent_color or building_theme_default_accents.get(b.theme_key or 'rwu', '#1f6f95') }}" required>
           </label>
           <label class="field compact">Replace mark
             <input type="file" name="icon_svg" accept="image/svg+xml,.svg">
