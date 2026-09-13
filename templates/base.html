@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='ui_improvements.css') }}">
   {% if me %}<link rel="stylesheet" href="{{ url_for('static', filename='portal_refresh.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme.css') }}">
+  {% if me %}<link rel="stylesheet" href="{{ url_for('static', filename='rwu_banner.css') }}">{% endif %}
   <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
@@ -40,30 +41,18 @@
   <div class="rwu-shell">
     <aside class="rwu-sidebar" aria-label="Portal navigation">
       <a class="rwu-brand" href="{{ url_for('dashboard') }}" aria-label="Roger Williams University Residence Life">
-        <img src="https://www.rwu.edu/themes/custom/rwu/assets/img/footer-logo-transparent.svg" alt="Roger Williams University">
+        <img src="https://www.rwu.edu/themes/custom/rwu/assets/img/footer-logo-transparent.svg" alt="Roger Williams University" referrerpolicy="no-referrer">
         <span>Residence Life</span>
       </a>
 
-      {% if me.building_name %}
-      <div class="rwu-building-chip">
-        {% if building_profile and building_profile.has_icon %}
-        <img src="{{ url_for('building_icon', building_id=building_profile.id) }}" alt="">
-        {% else %}
-        <span class="rwu-building-initial" aria-hidden="true">{{ me.building_name[:1] }}</span>
-        {% endif %}
-        <div>
-          <strong>{{ me.building_name }}</strong>
-          <small>{{ me.role }}</small>
-        </div>
-      </div>
-      {% endif %}
-
       <nav class="rwu-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
         <a class="rwu-nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}"><span aria-hidden="true">⌂</span><span>Dashboard</span></a>
+        <a class="rwu-nav-link{% if request.endpoint == 'upcoming_duty_shifts' %} is-active{% endif %}" href="{{ url_for('upcoming_duty_shifts') }}"><span aria-hidden="true">▣</span><span>My Schedule</span></a>
         <a class="rwu-nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">
           <span aria-hidden="true">⇄</span><span>Duty Swaps</span>
           {% if pending_swap_approval_count %}<span class="rwu-nav-count">{{ pending_swap_approval_count }}</span>{% endif %}
         </a>
+        <a class="rwu-nav-link" href="{{ url_for('dashboard') }}#sessions"><span aria-hidden="true">≡</span><span>Sessions</span></a>
         {% if me.role == 'ADMIN' %}
         <a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}"><span aria-hidden="true">▥</span><span>Analytics</span></a>
         <a class="rwu-nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}"><span aria-hidden="true">⚙</span><span>Admin</span></a>
@@ -76,6 +65,10 @@
       <div class="rwu-external-links">
         <a href="https://rwu.housing.cloud" target="_blank" rel="noopener noreferrer">Housing Cloud <span aria-hidden="true">↗</span></a>
         <a href="https://cm.maxient.com/reportingform.php?RogerWilliamsUniv&layout_id=0" target="_blank" rel="noopener noreferrer">Maxient <span aria-hidden="true">↗</span></a>
+      </div>
+
+      <div class="rwu-hawk" aria-label="RWU Hawks">
+        <img src="https://rwuhawks.com/images/logos/site/site.png?width=200" alt="RWU Hawks" referrerpolicy="no-referrer">
       </div>
 
       <div class="rwu-sidebar-account">
