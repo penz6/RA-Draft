@@ -10,12 +10,10 @@ from core import (
     can_view_session,
     current_user,
     db,
-    hra_pending_swaps,
     login_required,
     require_csrf,
     session_row,
     session_swap_requests,
-    swap_batch_details,
 )
 from runtime_policy import school_today
 
@@ -32,7 +30,7 @@ def _swap_action_response(session_id, message, *, category="success", status=200
     return redirect(url_for("swap_page", session_id=session_id))
 
 
-def _swap_date_collision(conn, session_id, requester_user_id, target_user_id, validated_pairs):
+def _swap_date_collision(conn, requester_user_id, target_user_id, validated_pairs):
     """Return True if the final batch would leave either RA assigned twice on one date."""
     requester_dates = {
         row["duty_date"]
@@ -387,7 +385,6 @@ def manager_manual_swap(session_id):
     resolved_pairs = [(first, second)]
     if _swap_date_collision(
         conn,
-        session_id,
         first["user_id"],
         second["user_id"],
         resolved_pairs,
@@ -559,7 +556,7 @@ def request_swap_batch(session_id):
 
         validated_pairs.append((my_assign, target_assign))
 
-    if _swap_date_collision(conn, session_id, user["id"], target_user_id, validated_pairs):
+    if _swap_date_collision(conn, user["id"], target_user_id, validated_pairs):
         conn.rollback()
         return _swap_action_response(
             session_id,
@@ -759,7 +756,7 @@ def hra_review_swap(batch_id):
             )
         resolved_pairs.append((req_assign, target_assign))
 
-    if _swap_date_collision(conn, session_id, requester_user_id, target_user_id, resolved_pairs):
+    if _swap_date_collision(conn, requester_user_id, target_user_id, resolved_pairs):
         conn.rollback()
         return _swap_action_response(
             session_id,

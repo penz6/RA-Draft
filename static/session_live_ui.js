@@ -5,10 +5,6 @@
 
   const activeCalendar = () => document.querySelector("[data-duty-calendar]");
 
-  const inPatchedRegion = (element) => Boolean(
-    element?.closest?.('[data-live-patched="true"]')
-  );
-
   const showDialog = (dialog) => {
     if (!dialog) return;
     if (typeof dialog.showModal === "function") dialog.showModal();
@@ -51,18 +47,6 @@
   document.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     if (!target) return;
-
-    const swapTrigger = target.closest("[data-swap-trigger]");
-    if (swapTrigger) {
-      const dialog = document.querySelector("[data-swap-dialog]");
-      if (!dialog) return;
-      const myIdInput = dialog.querySelector("[data-swap-my-id]");
-      const myDateLabel = dialog.querySelector("[data-swap-my-date]");
-      if (myIdInput) myIdInput.value = swapTrigger.dataset.assignmentId;
-      if (myDateLabel) myDateLabel.textContent = swapTrigger.dataset.dutyDate;
-      showDialog(dialog);
-      return;
-    }
 
     const managerPick = target.closest("[data-manager-pick]");
     if (managerPick) {
