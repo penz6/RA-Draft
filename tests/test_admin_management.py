@@ -469,11 +469,11 @@ class AdminManagementTestCase(unittest.TestCase):
                 "VALUES('Maple Fall Draft',?,'2026-09-01','2026-09-05',?,'OPEN')",
                 (maple_id, admin_id),
             ).lastrowid
-            oak_session_id = conn.execute(
+            conn.execute(
                 "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
                 "VALUES('Oak Fall Draft',?,'2026-09-01','2026-09-05',?,'OPEN')",
                 (oak_id, admin_id),
-            ).lastrowid
+            )
             conn.execute(
                 "INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,1)",
                 (maple_session_id, ra_id),
