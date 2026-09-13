@@ -109,7 +109,7 @@
             <div class="user-identity-text">
               <div class="user-name-line">
                 <strong>{{ u.name }}</strong>
-                {% if u.role == 'ADMIN' %}<span class="inline-role admin-role">ADMIN</span>{% else %}<span class="inline-role">{{ u.role }}</span>{% endif %}
+                {% if u.role == 'ADMIN' %}<span class="inline-role admin-role">ADMIN</span>{% elif u.role == 'HRA' %}<span class="inline-role hra-role">HRA</span>{% else %}<span class="inline-role">{{ u.role }}</span>{% endif %}
               </div>
               <span class="user-email-text">{{ u.email }}</span>
               <div class="user-meta-line">

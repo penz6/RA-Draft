@@ -14,7 +14,7 @@
           {% else %}
           <span class="user-avatar small" aria-hidden="true">{{ p.name[:1] }}</span>
           {% endif %}
-          <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% endif %}">{{ p.role }}</span></strong>
+          <strong>{{ p.name }} <span class="inline-role{% if p.role == 'ADMIN' %} admin-role{% elif p.role == 'HRA' %} hra-role{% endif %}">{{ p.role }}</span></strong>
         </div>
         {% if p.disabled %}
         <span class="status-text disabled-user-status">Account disabled · {{ p.assignment_count }} assigned</span>
@@ -51,7 +51,7 @@
       {% else %}
       <span class="user-avatar small" aria-hidden="true">{{ next.name[:1] }}</span>
       {% endif %}
-      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong>
+      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% elif next.role == 'HRA' %} hra-role{% endif %}">{{ next.role }}</span></strong>
     </div>
   </div>
   {% elif draft.picking_paused and next %}
@@ -63,7 +63,7 @@
       {% else %}
       <span class="user-avatar small" aria-hidden="true">{{ next.name[:1] }}</span>
       {% endif %}
-      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong>
+      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% elif next.role == 'HRA' %} hra-role{% endif %}">{{ next.role }}</span></strong>
     </div>
   </div>
   {% elif next %}
@@ -75,7 +75,7 @@
       {% else %}
       <span class="user-avatar small" aria-hidden="true">{{ next.name[:1] }}</span>
       {% endif %}
-      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% endif %}">{{ next.role }}</span></strong>
+      <strong>{{ next.name }} · <span class="inline-role{% if next.role == 'ADMIN' %} admin-role{% elif next.role == 'HRA' %} hra-role{% endif %}">{{ next.role }}</span></strong>
     </div>
   </div>
   {% elif schedule_complete %}

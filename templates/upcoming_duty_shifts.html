@@ -7,7 +7,7 @@
     <div class="eyebrow">Personal Schedule</div>
     <h1>My upcoming duty shifts</h1>
   </div>
-  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>
+  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>
 </div>
 
 <section class="card upcoming-shifts-card">
