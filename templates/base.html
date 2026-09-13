@@ -13,12 +13,14 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='live_stream.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='ui_improvements.css') }}">
   {% if me %}<link rel="stylesheet" href="{{ url_for('static', filename='portal_refresh.css') }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme.css') }}">
   <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
 </head>
-<body>
+<body class="{% if me %}rwu-portal{% else %}rwu-public{% endif %}{% if building_profile %} theme-{{ building_profile.theme_key or 'rwu' }}{% endif %}">
   <a class="skip-link" href="#main-content">Skip to main content</a>
+
   {% if impersonator %}
   <div class="impersonation-bar" role="region" aria-label="Impersonation notice">
     <div class="impersonation-bar-inner">
@@ -33,50 +35,94 @@
     </div>
   </div>
   {% endif %}
-  <header class="topbar">
-    <div class="topbar-inner">
-      {% if me %}
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
-        <span class="nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span>Menu</span>
-      </button>
-      <nav class="primary-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
-        <a class="nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">Sessions</a>
-        <a class="nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">
-          Duty Swaps{% if pending_swap_approval_count %} <span class="pill small pending" aria-label="{{ pending_swap_approval_count }} pending swap approval{{ 's' if pending_swap_approval_count != 1 else '' }}">{{ pending_swap_approval_count }}</span>{% endif %}
+
+  {% if me %}
+  <div class="rwu-shell">
+    <aside class="rwu-sidebar" aria-label="Portal navigation">
+      <a class="rwu-brand" href="{{ url_for('dashboard') }}" aria-label="Roger Williams University Residence Life">
+        <img src="https://www.rwu.edu/themes/custom/rwu/assets/img/footer-logo-transparent.svg" alt="Roger Williams University">
+        <span>Residence Life</span>
+      </a>
+
+      {% if me.building_name %}
+      <div class="rwu-building-chip">
+        {% if building_profile and building_profile.has_icon %}
+        <img src="{{ url_for('building_icon', building_id=building_profile.id) }}" alt="">
+        {% else %}
+        <span class="rwu-building-initial" aria-hidden="true">{{ me.building_name[:1] }}</span>
+        {% endif %}
+        <div>
+          <strong>{{ me.building_name }}</strong>
+          <small>{{ me.role }}</small>
+        </div>
+      </div>
+      {% endif %}
+
+      <nav class="rwu-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
+        <a class="rwu-nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">
+          <span aria-hidden="true">⌂</span><span>Dashboard</span>
+        </a>
+        <a class="rwu-nav-link{% if request.endpoint and request.endpoint.startswith('swap') %} is-active{% endif %}" href="{{ url_for('swap_home') }}">
+          <span aria-hidden="true">⇄</span><span>Duty Swaps</span>
+          {% if pending_swap_approval_count %}<span class="rwu-nav-count">{{ pending_swap_approval_count }}</span>{% endif %}
         </a>
         {% if me.role == 'ADMIN' %}
-        <a class="nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">Analytics</a>
-        <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
+        <a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}"><span aria-hidden="true">▥</span><span>Analytics</span></a>
+        <a class="rwu-nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}"><span aria-hidden="true">⚙</span><span>Admin</span></a>
         {% elif me.role == 'HRA' %}
-        <a class="nav-link{% if request.endpoint == 'hra_analytics' %} is-active{% endif %}" href="{{ url_for('hra_analytics') }}">Analytics</a>
+        <a class="rwu-nav-link{% if request.endpoint == 'hra_analytics' %} is-active{% endif %}" href="{{ url_for('hra_analytics') }}"><span aria-hidden="true">▥</span><span>Analytics</span></a>
         {% endif %}
-        <button class="nav-link nav-button" type="button" data-help-open>How it works</button>
+        <button class="rwu-nav-link rwu-nav-button" type="button" data-help-open><span aria-hidden="true">?</span><span>How it works</span></button>
+      </nav>
+
+      <div class="rwu-external-links">
+        <a href="https://rwu.housing.cloud" target="_blank" rel="noopener noreferrer">Housing Cloud <span aria-hidden="true">↗</span></a>
+        <a href="https://cm.maxient.com/reportingform.php?RogerWilliamsUniv&layout_id=0" target="_blank" rel="noopener noreferrer">Maxient <span aria-hidden="true">↗</span></a>
+      </div>
+
+      <div class="rwu-sidebar-account">
         <span class="user-chip" title="{{ me.email }}">
           {% if me.picture_url %}
           <img class="user-avatar user-pfp" src="{{ me.picture_url }}" alt="" referrerpolicy="no-referrer">
           {% else %}
           <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
           {% endif %}
-          <span class="user-copy"><strong>{{ me.name }}</strong><small><span class="inline-role{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
+          <span class="user-copy"><strong>{{ me.name }}</strong><small>{{ me.email }}</small></span>
         </span>
         <form class="nav-form" method="post" action="{{ url_for('logout') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <button class="button ghost small" type="submit">Sign out</button>
         </form>
-      </nav>
-      {% endif %}
-    </div>
-  </header>
+      </div>
+    </aside>
 
+    <header class="rwu-mobile-bar">
+      <a class="rwu-mobile-brand" href="{{ url_for('dashboard') }}">RWU Residence Life</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
+        <span class="nav-toggle-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>Menu</span>
+      </button>
+    </header>
+
+    <main id="main-content" class="rwu-main">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% else %}
   <main id="main-content" class="container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
       <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
       {% endfor %}
     {% endwith %}
-    {% block content %}{% endblock %}
+    {% block public_content %}{% block content %}{% endblock %}{% endblock %}
   </main>
+  {% endif %}
 
   {% if me %}{% include 'role_help.html' %}{% endif %}
 </body>
