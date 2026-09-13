@@ -51,6 +51,8 @@
         {% if me.role == 'ADMIN' %}
         <a class="nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">Analytics</a>
         <a class="nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
+        {% elif me.role == 'HRA' %}
+        <a class="nav-link{% if request.endpoint == 'hra_analytics' %} is-active{% endif %}" href="{{ url_for('hra_analytics') }}">Analytics</a>
         {% endif %}
         <button class="nav-link nav-button" type="button" data-help-open>How it works</button>
         <span class="user-chip" title="{{ me.email }}">
@@ -59,7 +61,7 @@
           {% else %}
           <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
           {% endif %}
-          <span class="user-copy"><strong>{{ me.name }}</strong><small><span class="inline-role{% if me.role == 'ADMIN' %} admin-role{% endif %}">{{ me.role }}</span>{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
+          <span class="user-copy"><strong>{{ me.name }}</strong><small><span class="inline-role{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>{% if me.building_name %} - {{ me.building_name }}{% endif %}</small></span>
         </span>
         <form class="nav-form" method="post" action="{{ url_for('logout') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
