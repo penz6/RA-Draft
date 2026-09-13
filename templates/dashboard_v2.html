@@ -15,41 +15,84 @@
     {% endif %}
   </section>
 
-  {% if building_profile and (building_profile.community_meeting_at or me.role in ('HRA', 'ADMIN')) %}
-  <section class="card rwu-meeting-card">
-    <div class="rwu-meeting-info">
-      <div class="eyebrow">Community meeting</div>
-      {% if building_profile.community_meeting_at and building_profile.community_meeting_location %}
-      <h2>{{ building_profile.community_meeting_at|meeting_label }}</h2>
-      <p>{{ building_profile.community_meeting_location }}</p>
-      {% else %}
-      <h2>No meeting scheduled</h2>
-      {% endif %}
-    </div>
-    {% if me.role in ('HRA', 'ADMIN') %}
-    <details class="rwu-meeting-editor">
-      <summary class="button small secondary">Edit</summary>
-      <div class="rwu-meeting-editor-panel">
-        <form method="post" action="{{ url_for('update_building_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <label class="field compact">Date and time
-            <input type="datetime-local" name="meeting_at" value="{{ building_profile.community_meeting_at or '' }}" required>
-          </label>
-          <label class="field compact">Location
-            <input name="meeting_location" maxlength="120" value="{{ building_profile.community_meeting_location or '' }}" placeholder="Main lounge" required>
-          </label>
-          <button class="button small" type="submit">Save</button>
-        </form>
-        {% if building_profile.community_meeting_at or building_profile.community_meeting_location %}
-        <form method="post" action="{{ url_for('update_building_meeting', building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="meeting_at" value="">
-          <input type="hidden" name="meeting_location" value="">
-          <button class="button small ghost" type="submit">Clear meeting</button>
-        </form>
+  {% if building_profile and (building_profile.staff_dinner_at or building_profile.staff_meeting_at or me.role in ('HRA', 'ADMIN')) %}
+  <section class="rwu-staff-events" aria-label="Staff events">
+    {% if building_profile.staff_dinner_at or me.role in ('HRA', 'ADMIN') %}
+    <article class="card rwu-staff-event-card">
+      <div class="rwu-meeting-info">
+        <div class="eyebrow">Staff dinner</div>
+        {% if building_profile.staff_dinner_at and building_profile.staff_dinner_location %}
+        <h2>{{ building_profile.staff_dinner_at|event_label }}</h2>
+        <p>{{ building_profile.staff_dinner_location }}</p>
+        {% else %}
+        <h2>Not scheduled</h2>
         {% endif %}
       </div>
-    </details>
+      {% if me.role in ('HRA', 'ADMIN') %}
+      <details class="rwu-meeting-editor">
+        <summary class="button small secondary">Edit</summary>
+        <div class="rwu-meeting-editor-panel">
+          <form method="post" action="{{ url_for('update_staff_dinner', building_id=building_profile.id) }}" class="rwu-meeting-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <label class="field compact">Date and time
+              <input type="datetime-local" name="event_at" value="{{ building_profile.staff_dinner_at or '' }}" required>
+            </label>
+            <label class="field compact">Location
+              <input name="event_location" maxlength="120" value="{{ building_profile.staff_dinner_location or '' }}" placeholder="Location" required>
+            </label>
+            <button class="button small" type="submit">Save</button>
+          </form>
+          {% if building_profile.staff_dinner_at or building_profile.staff_dinner_location %}
+          <form method="post" action="{{ url_for('update_staff_dinner', building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="event_at" value="">
+            <input type="hidden" name="event_location" value="">
+            <button class="button small ghost" type="submit">Clear</button>
+          </form>
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
+    </article>
+    {% endif %}
+
+    {% if building_profile.staff_meeting_at or me.role in ('HRA', 'ADMIN') %}
+    <article class="card rwu-staff-event-card">
+      <div class="rwu-meeting-info">
+        <div class="eyebrow">Staff meeting</div>
+        {% if building_profile.staff_meeting_at and building_profile.staff_meeting_location %}
+        <h2>{{ building_profile.staff_meeting_at|event_label }}</h2>
+        <p>{{ building_profile.staff_meeting_location }}</p>
+        {% else %}
+        <h2>Not scheduled</h2>
+        {% endif %}
+      </div>
+      {% if me.role in ('HRA', 'ADMIN') %}
+      <details class="rwu-meeting-editor">
+        <summary class="button small secondary">Edit</summary>
+        <div class="rwu-meeting-editor-panel">
+          <form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <label class="field compact">Date and time
+              <input type="datetime-local" name="event_at" value="{{ building_profile.staff_meeting_at or '' }}" required>
+            </label>
+            <label class="field compact">Location
+              <input name="event_location" maxlength="120" value="{{ building_profile.staff_meeting_location or '' }}" placeholder="Location" required>
+            </label>
+            <button class="button small" type="submit">Save</button>
+          </form>
+          {% if building_profile.staff_meeting_at or building_profile.staff_meeting_location %}
+          <form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="event_at" value="">
+            <input type="hidden" name="event_location" value="">
+            <button class="button small ghost" type="submit">Clear</button>
+          </form>
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
+    </article>
     {% endif %}
   </section>
   {% endif %}
