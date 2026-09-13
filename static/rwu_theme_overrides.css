@@ -42,6 +42,24 @@
 }
 .rwu-hero-mark img{width:78%;height:78%}
 
+.rwu-staff-events{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:1rem;
+}
+.rwu-staff-event-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  min-height:112px;
+  border-left:4px solid var(--hall-accent)!important;
+}
+.rwu-meeting-info h2{margin:0;font-size:1.12rem}
+.rwu-meeting-info p{margin:.22rem 0 0;color:var(--rwu-muted)}
+.rwu-meeting-editor{position:relative}
+.rwu-meeting-editor>summary{list-style:none}
+.rwu-meeting-editor>summary::-webkit-details-marker{display:none}
 .rwu-meeting-editor-panel{
   position:absolute;
   right:0;
@@ -74,18 +92,189 @@
 .rwu-dashboard .dashboard-schedule-panel>.section-head{margin-bottom:1rem}
 .rwu-dashboard .shift-card{min-height:230px}
 
+.rwu-building-create{
+  grid-template-columns:minmax(170px,1.2fr) minmax(155px,.9fr) 92px minmax(210px,1.2fr) auto;
+}
+.rwu-building-appearance-form{
+  grid-template-columns:minmax(150px,.9fr) 92px minmax(180px,1fr);
+}
+.rwu-color-field input[type="color"]{
+  width:100%;
+  min-width:72px;
+  min-height:42px;
+  padding:.25rem;
+  cursor:pointer;
+}
 .rwu-building-create input[type="file"],
 .rwu-building-appearance-form input[type="file"]{
   min-height:42px;
   padding:.45rem;
 }
 
+/* Session pages ----------------------------------------------------------- */
+.rwu-portal .session-page{
+  display:grid;
+  gap:1rem;
+}
+.rwu-portal .session-page>.back-link{
+  width:max-content;
+  margin-bottom:-.2rem;
+  color:#496879;
+  font-weight:750;
+}
+.rwu-portal .session-heading{
+  margin:0;
+  padding:1.25rem 1.35rem;
+  border:1px solid var(--rwu-line);
+  border-top:4px solid var(--hall-accent);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(17,49,68,.06);
+}
+.rwu-portal .session-heading h1{margin:.12rem 0 .2rem}
+.rwu-portal .session-heading p{margin:0;color:var(--rwu-muted)}
+.rwu-portal .session-export-popover{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:var(--rwu-line);
+  box-shadow:0 16px 36px rgba(17,49,68,.14);
+}
+.rwu-portal .session-export-popover a{color:var(--rwu-text)}
+.rwu-portal .session-export-popover a:hover{background:#f2f7f9}
+.rwu-portal .turn-order-card,
+.rwu-portal .duty-calendar-card{box-shadow:0 8px 24px rgba(17,49,68,.05)}
+.rwu-portal .turn-order-card{border-top:3px solid var(--hall-accent)}
+.rwu-portal .draft-person{
+  color:var(--rwu-text);
+  background:#f8fafb;
+  border-color:#dce5e9;
+}
+.rwu-portal .draft-person.is-current{
+  background:color-mix(in srgb,var(--hall-accent) 8%,#fff);
+  border-color:color-mix(in srgb,var(--hall-accent) 42%,#d8e2e7);
+}
+.rwu-portal .draft-person.is-self{box-shadow:inset 3px 0 0 var(--hall-accent)}
+.rwu-portal .status-text{color:var(--rwu-muted)}
+.rwu-portal .status-text.current{color:var(--hall-accent)}
+.rwu-portal .current-picker{
+  color:var(--rwu-text);
+  background:var(--hall-soft);
+  border-color:color-mix(in srgb,var(--hall-accent) 24%,#d8e2e7);
+}
+.rwu-portal .your-turn-alert{
+  color:var(--hall-ink);
+  background:var(--hall-soft);
+  border-color:color-mix(in srgb,var(--hall-accent) 38%,#d7e2e6);
+}
+.rwu-portal .duty-calendar-card{border-top:3px solid var(--hall-accent)}
+.rwu-portal .calendar-month{
+  color:var(--rwu-text);
+  background:#f9fbfc;
+  border-color:#dbe5e9;
+}
+.rwu-portal .calendar-month-head{border-color:#dbe5e9}
+.rwu-portal .calendar-month-head span,
+.rwu-portal .calendar-weekdays{color:var(--rwu-muted)}
+.rwu-portal .calendar-day{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:#dbe4e9;
+  box-shadow:none;
+}
+.rwu-portal .calendar-day:hover:not(:disabled){background:#f4f8fa;border-color:#adc3ce}
+.rwu-portal .calendar-day.is-weekend{background:#f7fafc}
+.rwu-portal .calendar-day.is-self-selectable{
+  background:color-mix(in srgb,var(--hall-accent) 8%,#fff);
+  border-color:var(--hall-accent);
+  box-shadow:inset 0 0 0 1px var(--hall-accent);
+}
+.rwu-portal .calendar-day.is-full{background:#f2f4f5;color:#71808a}
+.rwu-portal .calendar-day.is-no-duty{background:#f6f6f3;color:#7b8077}
+.rwu-portal .calendar-assignee{background:#eef4f7;border-color:#d3e0e6}
+.rwu-portal .calendar-capacity,.rwu-portal .calendar-empty,.rwu-portal .calendar-more{color:var(--rwu-muted)}
+.rwu-portal .session-assignments-panel{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:var(--rwu-line);
+  box-shadow:0 8px 24px rgba(17,49,68,.05);
+}
+.rwu-portal .session-assignments-panel>summary{color:#24475c}
+
+/* Swap pages -------------------------------------------------------------- */
+.rwu-portal .swap-page-head{
+  margin-bottom:1rem;
+  padding:1.2rem 1.3rem;
+  border:1px solid var(--rwu-line);
+  border-top:4px solid var(--hall-accent);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(17,49,68,.05);
+}
+.rwu-portal .swap-workflow-card{border-left:4px solid var(--hall-accent)}
+.rwu-portal .swap-workflow-step{
+  color:var(--rwu-text);
+  background:#f8fafb;
+  border-color:#dbe5e9;
+}
+.rwu-portal .swap-step-number,
+.rwu-portal .swap-builder-step-number{
+  color:#fff;
+  background:var(--hall-accent);
+}
+.rwu-portal .swap-review-card,
+.rwu-portal .swap-status-card,
+.rwu-portal .swap-builder-step{
+  color:var(--rwu-text);
+  background:#f9fbfc;
+  border-color:#dbe5e9;
+  box-shadow:none;
+}
+.rwu-portal .swap-review-card p,
+.rwu-portal .swap-status-card p,
+.rwu-portal .swap-builder-step-head p,
+.rwu-portal .swap-card-label{color:var(--rwu-muted)}
+.rwu-portal .swap-pair{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:#d9e4e9;
+}
+.rwu-portal .swap-arrow,.rwu-portal .swap-builder-arrow{color:var(--hall-accent)}
+.rwu-portal .swap-builder-row{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:#dbe5e9;
+}
+.rwu-portal .swap-builder-summary{
+  color:var(--rwu-text);
+  background:var(--hall-soft);
+  border-color:color-mix(in srgb,var(--hall-accent) 28%,#d7e2e6);
+}
+.rwu-portal .swap-history-card{border-color:var(--rwu-line)}
+.rwu-portal .swap-history-summary{color:var(--rwu-text)}
+
+@media(max-width:1100px){
+  .rwu-building-create{grid-template-columns:1fr 1fr 100px}
+  .rwu-building-create .field:nth-of-type(4){grid-column:1/3}
+  .rwu-building-create>.button{height:42px}
+  .rwu-building-appearance-form{grid-template-columns:1fr 100px}
+  .rwu-building-appearance-form .field:nth-of-type(3){grid-column:1/-1}
+}
+@media(max-width:900px){
+  .rwu-staff-events{grid-template-columns:1fr}
+}
 @media(max-width:760px){
   .rwu-hawk{display:none}
   .rwu-sidebar-account{margin-top:auto}
   .rwu-dashboard-hero{min-height:170px;align-items:flex-end}
   .rwu-hero-copy{max-width:none;padding:.7rem .8rem}
+  .rwu-staff-event-card{align-items:flex-start;flex-direction:column}
+  .rwu-meeting-editor{width:100%}
+  .rwu-meeting-editor>summary{width:100%}
   .rwu-meeting-editor-panel{position:static;width:100%;margin-top:.55rem;box-shadow:none}
+  .rwu-building-create,.rwu-building-appearance-form{grid-template-columns:1fr}
+  .rwu-building-create .field:nth-of-type(4),.rwu-building-appearance-form .field:nth-of-type(3){grid-column:auto}
+  .rwu-building-create>.button{width:100%}
+  .rwu-portal .session-heading,.rwu-portal .swap-page-head{padding:1rem}
 }
 
 @media(max-width:480px){
