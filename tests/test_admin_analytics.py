@@ -91,18 +91,25 @@ class AdminAnalyticsTests(unittest.TestCase):
         self.login_as(ra)
         self.assertEqual(self.request('get', '/hra/analytics').status_code, 403)
 
-        # RA dashboard does not have the Duty Sessions shortcut link on the left
+        # RA dashboard has side-by-side glance row with Duty swaps, no Analytics, and no upper-left brand
         ra_dash = self.request('get', '/dashboard')
         self.assertEqual(ra_dash.status_code, 200)
-        self.assertNotIn(b'href="#duty-swaps"', ra_dash.data.split(b'class="dashboard-shortcuts"')[1].split(b'</div>')[0])
+        self.assertIn(b'dashboard-glance-row', ra_dash.data)
+        actions_html = ra_dash.data.split(b'class="dashboard-actions-panel"')[1].split(b'</div>\n</div>')[0]
+        self.assertIn(b'Duty swaps', actions_html)
+        self.assertNotIn(b'Analytics', actions_html)
+        self.assertNotIn(b'class="brand"', ra_dash.data)
 
-        # HRA dashboard has the Duty Sessions shortcut link and the HRA badge in red
+        # HRA dashboard has Duty swaps and Analytics in the glance row, red HRA badge, and no brand
         self.login_as(hra)
         hra_dash = self.request('get', '/dashboard')
         self.assertEqual(hra_dash.status_code, 200)
-        self.assertIn(b'href="#duty-swaps"', hra_dash.data.split(b'class="dashboard-shortcuts"')[1].split(b'</div>')[0])
+        self.assertIn(b'dashboard-glance-row', hra_dash.data)
+        hra_actions = hra_dash.data.split(b'class="dashboard-actions-panel"')[1].split(b'</div>\n</div>')[0]
+        self.assertIn(b'Duty swaps', hra_actions)
+        self.assertIn(b'href="/hra/analytics"', hra_actions)
         self.assertIn(b'hra-role', hra_dash.data)
-        self.assertIn(b'href="/hra/analytics"', hra_dash.data)
+        self.assertNotIn(b'class="brand"', hra_dash.data)
 
         # HRA can access HRA analytics
         hra_analytics_resp = self.request('get', '/hra/analytics')
