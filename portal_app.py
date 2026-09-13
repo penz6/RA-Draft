@@ -276,13 +276,6 @@ def dashboard():
 
     conn = db()
     conn.execute("BEGIN")
-    user = current_user()
-    if not user:
-        conn.rollback()
-        return redirect(url_for("login"))
-    if user["role"] == "RA" and user["building_id"] is None:
-        conn.rollback()
-        return redirect(url_for("onboarding"))
 
     if user["role"] == "ADMIN":
         sessions = conn.execute(
@@ -352,10 +345,6 @@ def dashboard_live_fragments():
 
     conn = db()
     conn.execute("BEGIN")
-    user = current_user()
-    if not user:
-        conn.rollback()
-        abort(401)
 
     if user["role"] == "ADMIN":
         sessions = conn.execute(

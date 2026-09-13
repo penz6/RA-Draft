@@ -1,17 +1,14 @@
 """Additional session management routes (non-swap)."""
 
 import secrets
-import sqlite3
 from flask import abort, flash, redirect, render_template, request, url_for
 
 from core import (
     app,
     audit,
     can_manage,
-    can_view_session,
     current_user,
     db,
-    login_required,
     next_picker,
     ordered_people,
     selectable_dates,
@@ -19,7 +16,6 @@ from core import (
     roles,
     session_row,
 )
-from session_action_response import session_action_response
 from session_pause import pause_for_phase_confirmation
 
 
@@ -71,7 +67,7 @@ def begin_picking_order_edit(session_id):
     require_csrf()
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    manager, row = _locked_manager_session(conn, session_id)
+    _manager, row = _locked_manager_session(conn, session_id)
     if row["status"] != "OPEN":
         conn.rollback()
         abort(409, "Reopen the session before editing the picking order.")

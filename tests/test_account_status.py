@@ -44,12 +44,12 @@ class AccountStatusTestCase(unittest.TestCase):
 
     def add_building(self, name="Maple"):
         with app.app_context():
-            user_id = db().execute(
+            building_id = db().execute(
                 "INSERT INTO buildings(name) VALUES(?)",
                 (name,),
             ).lastrowid
             db().commit()
-            return user_id
+            return building_id
 
     def add_user(
         self,
