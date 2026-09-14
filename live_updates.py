@@ -10,6 +10,7 @@ import time
 from flask import Response, abort, g, request, session, stream_with_context
 
 from core import app, can_view_session, current_user, db, session_row
+from staff_event_schedule import next_occurrence, school_now
 
 SSE_HEARTBEAT_SECONDS = 15
 SSE_MAX_CONNECTION_SECONDS = 300
@@ -174,7 +175,6 @@ def _topics_for_committed_request():
         topics.add("dashboard:all")
     elif endpoint in {
         "create_profiled_building",
-        "update_building_appearance",
         "update_staff_meeting",
         "update_staff_dinner",
     }:
@@ -282,27 +282,27 @@ def _rows(query, parameters, columns):
 
 
 def _building_profile_state(building_id=None):
-    """Return compact, deterministic building state for dashboard invalidation."""
+    """Include recurrence edits and the next occurrence without writing dates."""
     query = (
-        "SELECT id,name,theme_key,accent_color,icon_svg,staff_meeting_at,"
-        "staff_meeting_location,staff_dinner_at,staff_dinner_location FROM buildings"
+        "SELECT id,name,staff_meeting_at,staff_meeting_location,"
+        "staff_meeting_repeat_weeks,staff_dinner_at,staff_dinner_location,"
+        "staff_dinner_repeat_weeks FROM buildings"
     )
     parameters = ()
     if building_id is not None:
         query += " WHERE id=?"
         parameters = (building_id,)
     query += " ORDER BY id"
+    now = school_now()
     return [
         [
-            row["id"],
-            row["name"],
-            row["theme_key"],
-            row["accent_color"],
-            hashlib.sha256((row["icon_svg"] or "").encode("utf-8")).hexdigest(),
-            row["staff_meeting_at"],
-            row["staff_meeting_location"],
-            row["staff_dinner_at"],
-            row["staff_dinner_location"],
+            row["id"], row["name"],
+            row["staff_meeting_at"], row["staff_meeting_location"],
+            row["staff_meeting_repeat_weeks"],
+            next_occurrence(row["staff_meeting_at"], row["staff_meeting_repeat_weeks"], now=now),
+            row["staff_dinner_at"], row["staff_dinner_location"],
+            row["staff_dinner_repeat_weeks"],
+            next_occurrence(row["staff_dinner_at"], row["staff_dinner_repeat_weeks"], now=now),
         ]
         for row in db().execute(query, parameters).fetchall()
     ]
@@ -310,16 +310,8 @@ def _building_profile_state(building_id=None):
 
 def dashboard_state_version(user):
     session_columns = (
-        "id",
-        "name",
-        "building_id",
-        "building_name",
-        "start_date",
-        "end_date",
-        "capacity",
-        "date_order",
-        "status",
-        "created_at",
+        "id", "name", "building_id", "building_name", "start_date", "end_date",
+        "capacity", "date_order", "status", "created_at",
     )
     if user["role"] == "ADMIN":
         sessions = _rows(
@@ -327,8 +319,7 @@ def dashboard_state_version(user):
             "s.start_date,s.end_date,s.capacity,s.date_order,s.status,s.created_at "
             "FROM draft_sessions s JOIN buildings b ON b.id=s.building_id "
             "ORDER BY s.id",
-            (),
-            session_columns,
+            (), session_columns,
         )
     elif user["building_id"] is not None:
         sessions = _rows(
@@ -336,26 +327,16 @@ def dashboard_state_version(user):
             "s.start_date,s.end_date,s.capacity,s.date_order,s.status,s.created_at "
             "FROM draft_sessions s JOIN buildings b ON b.id=s.building_id "
             "WHERE s.building_id=? ORDER BY s.id",
-            (user["building_id"],),
-            session_columns,
+            (user["building_id"],), session_columns,
         )
     else:
         sessions = []
-
-    participant_columns = (
-        "id",
-        "name",
-        "email",
-        "role",
-        "building_id",
-        "building_name",
-    )
+    participant_columns = ("id", "name", "email", "role", "building_id", "building_name")
     if user["role"] == "ADMIN":
         participants = _rows(
             "SELECT u.id,u.name,u.email,u.role,u.building_id,b.name building_name "
             "FROM users u JOIN buildings b ON b.id=u.building_id ORDER BY u.id",
-            (),
-            participant_columns,
+            (), participant_columns,
         )
         buildings = _building_profile_state()
     elif user["role"] == "HRA" and user["building_id"] is not None:
@@ -363,38 +344,20 @@ def dashboard_state_version(user):
             "SELECT u.id,u.name,u.email,u.role,u.building_id,b.name building_name "
             "FROM users u JOIN buildings b ON b.id=u.building_id "
             "WHERE u.building_id=? ORDER BY u.id",
-            (user["building_id"],),
-            participant_columns,
+            (user["building_id"],), participant_columns,
         )
         buildings = _building_profile_state(user["building_id"])
     else:
         participants = []
-        buildings = (
-            _building_profile_state(user["building_id"])
-            if user["building_id"] is not None
-            else []
-        )
-
-    return _digest(
-        {
-            "viewer": [
-                user["id"],
-                user["name"],
-                user["email"],
-                user["role"],
-                user["building_id"],
-                user["building_name"],
-            ],
-            "sessions": sessions,
-            "participants": participants,
-            "buildings": buildings,
-        }
-    )
+        buildings = _building_profile_state(user["building_id"]) if user["building_id"] is not None else []
+    return _digest({
+        "viewer": [user["id"], user["name"], user["email"], user["role"], user["building_id"], user["building_name"]],
+        "sessions": sessions, "participants": participants, "buildings": buildings,
+    })
 
 
 def session_state_version(row, viewer):
     """Return the viewer-aware session fingerprint used by HTML and SSE."""
-
     session_id = row["id"]
     people = _rows(
         "SELECT u.id,u.name,u.email,u.role,u.picture_url,o.position,"
@@ -405,16 +368,7 @@ def session_state_version(row, viewer):
         "FROM session_order o JOIN users u ON u.id=o.user_id "
         "WHERE o.session_id=? ORDER BY o.position",
         (session_id,),
-        (
-            "id",
-            "name",
-            "email",
-            "role",
-            "picture_url",
-            "position",
-            "assignment_count",
-            "deferred",
-        ),
+        ("id", "name", "email", "role", "picture_url", "position", "assignment_count", "deferred"),
     )
     assignments = _rows(
         "SELECT a.id,a.user_id,u.name user_name,u.role user_role,"
@@ -422,66 +376,20 @@ def session_state_version(row, viewer):
         "a.duty_date,a.created_by,a.created_at FROM assignments a "
         "JOIN users u ON u.id=a.user_id WHERE a.session_id=? ORDER BY a.id",
         (session_id,),
-        (
-            "id",
-            "user_id",
-            "user_name",
-            "user_role",
-            "user_picture_url",
-            "duty_date",
-            "created_by",
-            "created_at",
-        ),
+        ("id", "user_id", "user_name", "user_role", "user_picture_url", "duty_date", "created_by", "created_at"),
     )
-    viewer_state = [
-        viewer["id"],
-        viewer["name"],
-        viewer["email"],
-        viewer["role"],
-        viewer["building_id"],
-        viewer["building_name"],
-        viewer["picture_url"],
-    ]
-
-    return _digest(
-        {
-            "viewer": viewer_state,
-            "session": [
-                row["id"],
-                row["name"],
-                row["building_id"],
-                row["building_name"],
-                row["start_date"],
-                row["end_date"],
-                row["capacity"],
-                row["date_order"],
-                row["current_position"],
-                row["status"],
-                row["created_by"],
-                row["creator_name"],
-                row["created_at"],
-            ],
-            "people": people,
-            "assignments": assignments,
-            "capacities": _rows(
-                "SELECT duty_date,capacity FROM session_date_capacities "
-                "WHERE session_id=? ORDER BY duty_date",
-                (session_id,),
-                ("duty_date", "capacity"),
-            ),
-            "date_treatments": _rows(
-                "SELECT duty_date,date_kind FROM session_date_overrides "
-                "WHERE session_id=? ORDER BY duty_date",
-                (session_id,),
-                ("duty_date", "date_kind"),
-            ),
-        }
-    )
+    viewer_state = [viewer["id"], viewer["name"], viewer["email"], viewer["role"], viewer["building_id"], viewer["building_name"], viewer["picture_url"]]
+    return _digest({
+        "viewer": viewer_state,
+        "session": [row["id"], row["name"], row["building_id"], row["building_name"], row["start_date"], row["end_date"], row["capacity"], row["date_order"], row["current_position"], row["status"], row["created_by"], row["creator_name"], row["created_at"]],
+        "people": people, "assignments": assignments,
+        "capacities": _rows("SELECT duty_date,capacity FROM session_date_capacities WHERE session_id=? ORDER BY duty_date", (session_id,), ("duty_date", "capacity")),
+        "date_treatments": _rows("SELECT duty_date,date_kind FROM session_date_overrides WHERE session_id=? ORDER BY duty_date", (session_id,), ("duty_date", "date_kind")),
+    })
 
 
 def _read_snapshot(callback):
     """Run a live-state calculation on one SQLite read snapshot."""
-
     connection = db()
     owns_transaction = not connection.in_transaction
     if owns_transaction:
@@ -514,14 +422,12 @@ def _authorized_version(session_id):
             abort(401)
         if session_id is None:
             return dashboard_state_version(user)
-
         row = session_row(session_id)
         if not row:
             abort(404)
         if not can_view_session(user, row):
             abort(403)
         return session_state_version(row, user)
-
     return _read_snapshot(calculate)
 
 
@@ -532,12 +438,10 @@ def _stream_version(session_id):
             return None
         if session_id is None:
             return dashboard_state_version(user)
-
         row = session_row(session_id)
         if not row or not can_view_session(user, row):
             return None
         return session_state_version(row, user)
-
     return _read_snapshot(calculate)
 
 
@@ -572,7 +476,6 @@ def live_events():
     user = current_user()
     if not user:
         abort(401)
-
     row = None
     if session_id is not None:
         row = session_row(session_id)
@@ -580,15 +483,9 @@ def live_events():
             abort(404)
         if not can_view_session(user, row):
             abort(403)
-
     stream_lease = live_stream_admission.acquire(user["id"])
     if stream_lease is None:
-        return Response(
-            "Too many live update connections.\n",
-            status=429,
-            headers={"Retry-After": "5"},
-        )
-
+        return Response("Too many live update connections.\n", status=429, headers={"Retry-After": "5"})
     subscriber = live_event_broker.subscribe(_subscription_topics(user, row))
     try:
         initial_version = _authorized_version(session_id)
@@ -609,19 +506,25 @@ def live_events():
                 if remaining <= 0:
                     yield _event("reconnect", {"version": version})
                     return
-
                 try:
-                    changed_topics = subscriber.get(
-                        timeout=min(SSE_HEARTBEAT_SECONDS, remaining)
-                    )
+                    changed_topics = subscriber.get(timeout=min(SSE_HEARTBEAT_SECONDS, remaining))
                 except queue.Empty:
+                    # Dashboard event dates can roll forward without a database
+                    # write. Recheck only dashboard streams on the heartbeat;
+                    # duty-session streams keep their existing event-driven path.
+                    if session_id is None:
+                        refreshed_version = _stream_version(session_id)
+                        if refreshed_version is None:
+                            yield _event("reload", {"reason": "access-changed"})
+                            return
+                        if refreshed_version != version:
+                            version = refreshed_version
+                            yield _event("update", {"version": version})
                     yield ": keep-alive\n\n"
                     continue
-
                 if _topic("logout", viewer_id) in changed_topics:
                     yield _event("reload", {"reason": "signed-out"})
                     return
-
                 refreshed_version = _stream_version(session_id)
                 if refreshed_version is None:
                     yield _event("reload", {"reason": "access-changed"})
@@ -634,15 +537,9 @@ def live_events():
         finally:
             live_event_broker.unsubscribe(subscriber)
             stream_lease.release()
-
     response = Response(
-        generate(),
-        content_type="text/event-stream; charset=utf-8",
-        headers={
-            "Cache-Control": "private, no-cache, no-store, no-transform",
-            "X-Accel-Buffering": "no",
-            "Content-Encoding": "identity",
-        },
+        generate(), content_type="text/event-stream; charset=utf-8",
+        headers={"Cache-Control": "private, no-cache, no-store, no-transform", "X-Accel-Buffering": "no", "Content-Encoding": "identity"},
     )
     response.call_on_close(lambda: live_event_broker.unsubscribe(subscriber))
     response.call_on_close(stream_lease.release)

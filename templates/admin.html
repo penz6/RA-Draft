@@ -9,26 +9,18 @@
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
-
 <section class="card">
   <div class="section-head">
-    <div>
-      <h2>Buildings</h2>
-    </div>
+    <div><h2>Buildings</h2></div>
     <span class="count-badge">{{ buildings|length }}</span>
   </div>
-
   <form method="post" action="{{ url_for('create_profiled_building') }}" class="rwu-building-create">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <label class="field">Building name
       <input name="name" maxlength="80" required autocomplete="off" placeholder="Maple Hall">
     </label>
-    <label class="field rwu-color-field">Accent color
-      <input type="color" name="accent_color" value="{{ building_theme_default_accents['rwu'] }}" required>
-    </label>
     <button class="button" type="submit">Add building</button>
   </form>
-
   <div class="rwu-building-admin-list">
     {% for b in buildings %}
     <article class="rwu-building-admin-card" id="building-{{ b.id }}">
@@ -44,7 +36,6 @@
           <button class="button danger small" type="submit" data-confirm="Delete {{ b.name }}? Team members assigned to it will become unassigned." {% if b.session_count %}disabled aria-disabled="true" title="Buildings with duty sessions cannot be deleted"{% endif %}>Delete</button>
         </form>
       </div>
-
       <div class="rwu-building-controls">
         <form class="rwu-building-rename-form" method="post" action="{{ url_for('rename_building', building_id=b.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -53,116 +44,67 @@
           </label>
           <button class="button secondary small" type="submit">Save name</button>
         </form>
-
-        <form class="rwu-building-appearance-form" method="post" action="{{ url_for('update_building_appearance', building_id=b.id) }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <label class="field compact rwu-color-field">Accent color
-            <input type="color" name="accent_color" value="{{ b.accent_color or building_theme_default_accents['rwu'] }}" required>
-          </label>
-          <div class="button-group">
-            <button class="button secondary small" type="submit">Save color</button>
-          </div>
-        </form>
       </div>
-
       <details class="rwu-building-events">
         <summary>Staff events</summary>
         <div class="rwu-building-event-grid">
+          {% for title, endpoint, start, location, repeat_weeks in [
+            ('Staff dinner', 'update_staff_dinner', b.staff_dinner_at, b.staff_dinner_location, b.staff_dinner_repeat_weeks),
+            ('Staff meeting', 'update_staff_meeting', b.staff_meeting_at, b.staff_meeting_location, b.staff_meeting_repeat_weeks)
+          ] %}
+          {% set next_at = start|next_event(repeat_weeks) %}
           <section>
             <div class="rwu-building-event-head">
-              <strong>Staff dinner</strong>
-              <small>{% if b.staff_dinner_at and b.staff_dinner_location %}{{ b.staff_dinner_at|event_label }} · {{ b.staff_dinner_location }}{% else %}Not scheduled{% endif %}</small>
+              <strong>{{ title }}</strong>
+              <small>{% if next_at and location %}{{ next_at|event_label }} · {{ location }}{% else %}Not scheduled{% endif %}</small>
+              {% if repeat_weeks and start %}<small class="rwu-event-repeat">{{ repeat_weeks|repeat_label }}</small>{% endif %}
             </div>
-            <form method="post" action="{{ url_for('update_staff_dinner', building_id=b.id) }}" class="rwu-building-event-form">
+            <form method="post" action="{{ url_for(endpoint, building_id=b.id) }}" class="rwu-building-event-form">
               <input type="hidden" name="csrf" value="{{ csrf_token() }}">
               <input type="hidden" name="return_to" value="admin">
-              <label class="field compact">Date and time
-                <input type="datetime-local" name="event_at" value="{{ b.staff_dinner_at or '' }}" required>
+              <label class="field compact">First date and time
+                <input type="datetime-local" name="event_at" value="{{ start or '' }}" required>
               </label>
               <label class="field compact">Location
-                <input name="event_location" maxlength="120" value="{{ b.staff_dinner_location or '' }}" required>
+                <input name="event_location" maxlength="120" value="{{ location or '' }}" required>
               </label>
-              <button class="button secondary small" type="submit">Save dinner</button>
+              {% include 'staff_event_repeat.html' %}
+              <button class="button secondary small" type="submit">Save</button>
             </form>
-            {% if b.staff_dinner_at or b.staff_dinner_location %}
-            <form method="post" action="{{ url_for('update_staff_dinner', building_id=b.id) }}" class="rwu-building-event-clear-form">
+            {% if start or location %}
+            <form method="post" action="{{ url_for(endpoint, building_id=b.id) }}" class="rwu-building-event-clear-form">
               <input type="hidden" name="csrf" value="{{ csrf_token() }}">
               <input type="hidden" name="return_to" value="admin">
               <input type="hidden" name="event_at" value="">
               <input type="hidden" name="event_location" value="">
-              <button class="button ghost small" type="submit">Clear dinner</button>
+              <button class="button ghost small" type="submit">Clear {{ title|lower }}</button>
             </form>
             {% endif %}
           </section>
-
-          <section>
-            <div class="rwu-building-event-head">
-              <strong>Staff meeting</strong>
-              <small>{% if b.staff_meeting_at and b.staff_meeting_location %}{{ b.staff_meeting_at|event_label }} · {{ b.staff_meeting_location }}{% else %}Not scheduled{% endif %}</small>
-            </div>
-            <form method="post" action="{{ url_for('update_staff_meeting', building_id=b.id) }}" class="rwu-building-event-form">
-              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-              <input type="hidden" name="return_to" value="admin">
-              <label class="field compact">Date and time
-                <input type="datetime-local" name="event_at" value="{{ b.staff_meeting_at or '' }}" required>
-              </label>
-              <label class="field compact">Location
-                <input name="event_location" maxlength="120" value="{{ b.staff_meeting_location or '' }}" required>
-              </label>
-              <button class="button secondary small" type="submit">Save meeting</button>
-            </form>
-            {% if b.staff_meeting_at or b.staff_meeting_location %}
-            <form method="post" action="{{ url_for('update_staff_meeting', building_id=b.id) }}" class="rwu-building-event-clear-form">
-              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-              <input type="hidden" name="return_to" value="admin">
-              <input type="hidden" name="event_at" value="">
-              <input type="hidden" name="event_location" value="">
-              <button class="button ghost small" type="submit">Clear meeting</button>
-            </form>
-            {% endif %}
-          </section>
+          {% endfor %}
         </div>
       </details>
     </article>
-    {% else %}
-    <div class="empty-state compact"><p>No buildings yet.</p></div>
-    {% endfor %}
+    {% else %}<div class="empty-state compact"><p>No buildings yet.</p></div>{% endfor %}
   </div>
 </section>
-
 <section class="card">
   <div class="section-head">
-    <div>
-      <h2>Team Members</h2>
-      <p>Add team members, assign their role and building, or manage account access.</p>
-    </div>
+    <div><h2>Team Members</h2><p>Add team members, assign their role and building, or manage account access.</p></div>
     <span class="count-badge">{{ users|length }}</span>
   </div>
-
   <form class="admin-create-user grid-form" method="post" action="{{ url_for('add_user') }}">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <label class="field">Name
-      <input name="name" maxlength="120" required autocomplete="off" placeholder="Taylor Smith">
-    </label>
-    <label class="field">RWU Google email
-      <input type="email" name="email" maxlength="254" required autocomplete="off" placeholder="taylor@g.rwu.edu">
-    </label>
+    <label class="field">Name<input name="name" maxlength="120" required autocomplete="off" placeholder="Taylor Smith"></label>
+    <label class="field">RWU Google email<input type="email" name="email" maxlength="254" required autocomplete="off" placeholder="taylor@g.rwu.edu"></label>
     <label class="field">Role
-      <select name="role" required>
-        <option value="RA" selected>RA</option>
-        <option value="HRA">HRA</option>
-        <option value="ADMIN">ADMIN</option>
-      </select>
+      <select name="role" required><option value="RA" selected>RA</option><option value="HRA">HRA</option><option value="ADMIN">ADMIN</option></select>
     </label>
     <label class="field">Building
-      <select name="building_id">
-        <option value="">No building</option>
-        {% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-      </select>
+      <select name="building_id"><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select>
     </label>
     <div class="form-actions full"><button class="button" type="submit">Create user</button></div>
   </form>
-
   <div class="user-admin-list">
     {% for u in users %}
     <div class="user-admin-entry{% if u.disabled %} is-disabled{% endif %}">
@@ -198,7 +140,6 @@
           </form>
         </div>
       </div>
-
       <form class="user-access-form" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
         <div class="user-access-controls">
@@ -216,7 +157,6 @@
   </div>
   <p class="admin-policy-note">Disabling an account preserves duty history but blocks sign-in. Team members with assigned shifts cannot be deleted.</p>
 </section>
-
 <section class="card">
   <div class="section-head"><div><h2>Recent activity</h2></div></div>
   <div class="table-wrap">

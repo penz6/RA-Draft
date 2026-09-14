@@ -14,10 +14,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='ui_improvements.css') }}">
   {% if me %}<link rel="stylesheet" href="{{ url_for('static', filename='portal_refresh.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme.css') }}">
-  {% if me %}<link rel="stylesheet" href="{{ url_for('static', filename='rwu_banner.css') }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme_overrides.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_polish.css') }}">
-  {% if building_profile %}<link rel="stylesheet" href="{{ url_for('building_theme_css', building_id=building_profile.id) }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal_navy.css') }}">
   <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
@@ -46,7 +45,6 @@
       <a class="rwu-brand rwu-brand-text" href="{{ url_for('dashboard') }}" aria-label="RWU Residence Life">
         <strong>Residence Life</strong>
       </a>
-
       <nav class="rwu-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
         <a class="rwu-nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.2a1 1 0 0 1-1 1h-5.2v-6.1H9.2V21H4a1 1 0 0 1-1-1z"/></svg>
@@ -60,10 +58,6 @@
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-2.8-2.8M17 17H6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>Duty Swaps</span>
           {% if pending_swap_approval_count %}<span class="rwu-nav-count">{{ pending_swap_approval_count }}</span>{% endif %}
-        </a>
-        <a class="rwu-nav-link" href="{{ url_for('dashboard') }}#sessions">
-          <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5h14M5 12h14M5 17.5h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-          <span>Sessions</span>
         </a>
         {% if me.role == 'ADMIN' %}
         <a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">
@@ -85,19 +79,13 @@
           <span>How it works</span>
         </button>
       </nav>
-
       <div class="rwu-external-links">
         <a href="https://rwu.housing.cloud" target="_blank" rel="noopener noreferrer">Housing Cloud <span aria-hidden="true">↗</span></a>
         <a href="https://cm.maxient.com/reportingform.php?RogerWilliamsUniv&layout_id=0" target="_blank" rel="noopener noreferrer">Maxient <span aria-hidden="true">↗</span></a>
       </div>
-
       <div class="rwu-sidebar-account">
         <span class="user-chip" title="{{ me.email }}">
-          {% if me.picture_url %}
-          <img class="user-avatar user-pfp" src="{{ me.picture_url }}" alt="" referrerpolicy="no-referrer">
-          {% else %}
-          <span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>
-          {% endif %}
+          {% if me.picture_url %}<img class="user-avatar user-pfp" src="{{ me.picture_url }}" alt="" referrerpolicy="no-referrer">{% else %}<span class="user-avatar" aria-hidden="true">{{ me.name[:1] }}</span>{% endif %}
           <span class="user-copy"><strong>{{ me.name }}</strong><small>{{ me.email }}</small></span>
         </span>
         <form class="nav-form" method="post" action="{{ url_for('logout') }}">
@@ -106,7 +94,6 @@
         </form>
       </div>
     </aside>
-
     <header class="rwu-mobile-bar">
       <a class="rwu-mobile-brand" href="{{ url_for('dashboard') }}">RWU Residence Life</a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
@@ -126,7 +113,6 @@
       {% block content %}{% endblock %}
     </main>
   {% if me %}</div>{% endif %}
-
   {% if me %}{% include 'role_help.html' %}{% endif %}
 </body>
 </html>
