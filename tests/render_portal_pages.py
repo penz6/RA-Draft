@@ -45,7 +45,7 @@ def render_pages(destination):
                 conn.execute('INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,?)', (session_id, user, position))
         for user, day in ((admin,'2026-10-01'), (ra,'2026-10-01'), (admin,'2026-10-02'), (partner,'2026-10-02'), (hra,'2026-10-03')):
             conn.execute('INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)', (closed, user, day, admin))
-        conn.execute("INSERT INTO session_date_overrides(session_id,duty_date,date_kind) VALUES(?,?,'NO_DUTY')", (opened,'2026-09-10'))
+        conn.execute("INSERT INTO session_date_overrides(session_id,duty_date,date_kind,updated_by) VALUES(?,?,'NO_DUTY',?)", (opened,'2026-09-10',admin))
         conn.commit()
     def save(name, endpoint, user=None, **values):
         with fixture.client.session_transaction() as session:

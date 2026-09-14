@@ -5,14 +5,14 @@
   <div><div class="eyebrow">{{ building.name }}</div><h1>Analytics</h1><p>Shift coverage, assignments, and duty swaps for your building.</p></div>
   <a class="button secondary" href="{{ url_for('dashboard') }}">&larr; Dashboard</a>
 </div>
-<div class="overview-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+<div class="overview-grid">
   <div class="overview-stat"><span>Staffing coverage</span><strong>{{ metrics.coverage|string + '%' if metrics.coverage is not none else '—' }}</strong><small>{{ metrics.filled }} of {{ metrics.required }} required slots filled</small></div>
   <div class="overview-stat"><span>Upcoming open slots</span><strong>{{ metrics.upcoming_open }}</strong><small>Unfilled slots from today onward</small></div>
   <div class="overview-stat"><span>Assigned shifts</span><strong>{{ metrics.assignments }}</strong><small>Across {{ reports|length }} sessions</small></div>
   <div class="overview-stat"><span>Open sessions</span><strong>{{ metrics.open_sessions }}</strong><small>Currently open for drafting</small></div>
 </div>
 
-{# ── Assigned Shifts by Status ── #}
+{# Assigned shifts by status #}
 <section class="card">
   <div class="section-head"><div><h2>Assigned shifts by status</h2><p>Per-session coverage breakdown for {{ building.name }}.</p></div></div>
   {% if reports %}<div class="table-wrap"><table><thead><tr><th scope="col">Session</th><th scope="col">Status</th><th scope="col">Coverage</th><th scope="col">Upcoming open slots</th></tr></thead><tbody>
@@ -20,7 +20,6 @@
   </tbody></table></div>{% else %}<div class="empty-state"><h3>No sessions to report yet</h3><p>Coverage appears after a session is created.</p></div>{% endif %}
 </section>
 
-{# ── Two-column: Duty Swaps + Shifts by Person ── #}
 <div class="analytics-columns">
 <section class="card"><div class="section-head"><div><h2>Duty swap status</h2><p>Swaps for {{ building.name }}. Each multi-date request counts as one swap.</p></div></div>
 <dl class="swap-totals">{% for status,label in [('PENDING','Awaiting teammate'),('TARGET_APPROVED','Awaiting manager'),('APPROVED','Approved'),('REJECTED','Rejected'),('CANCELLED','Cancelled')] %}<div><dt>{{ label }}</dt><dd>{{ swap_counts.get(status,0) }}</dd></div>{% endfor %}</dl>
