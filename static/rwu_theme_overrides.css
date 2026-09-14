@@ -1,20 +1,21 @@
 /* Final shell details layered after the base RWU theme. */
-.rwu-hawk{
-  display:grid;
-  place-items:center;
-  margin-top:auto;
-  padding:.8rem .5rem .35rem;
-  border-top:1px solid rgba(255,255,255,.12);
+.rwu-sidebar-account{margin-top:auto}
+
+/* Keep legacy semantic states inside the RWU palette instead of leaking green. */
+.rwu-portal .admin-role,
+.rwu-portal .pill.open,
+.rwu-portal .pill.approved{
+  color:#235f86;
+  background:#eaf4fa;
+  border-color:#c9e1ed;
 }
-.rwu-hawk img{
-  display:block;
-  width:112px;
-  max-width:75%;
-  max-height:96px;
-  object-fit:contain;
-  filter:drop-shadow(0 5px 12px rgba(0,0,0,.18));
+.rwu-portal .status-text.success{color:var(--rwu-blue)}
+.rwu-portal .notice.success,
+.rwu-portal .flash.success{
+  color:#245e82;
+  background:#edf6fa;
+  border-color:#c6dfea;
 }
-.rwu-sidebar-account{margin-top:0}
 
 .rwu-dashboard-hero{
   min-height:205px;
@@ -291,8 +292,6 @@
   .rwu-staff-events,.rwu-building-event-grid{grid-template-columns:1fr}
 }
 @media(max-width:760px){
-  .rwu-hawk{display:none}
-  .rwu-sidebar-account{margin-top:auto}
   .rwu-dashboard-hero{min-height:170px;align-items:flex-end}
   .rwu-hero-copy{max-width:none;padding:.7rem .8rem}
   .rwu-staff-event-card{align-items:flex-start;flex-direction:column}
