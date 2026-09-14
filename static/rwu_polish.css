@@ -81,6 +81,13 @@ body.rwu-portal,body.rwu-public{
   border-color:var(--rwu-line);
   border-top-color:var(--hall-accent);
 }
+/* Shared shift-card text: the full schedule has no dashboard wrapper. */
+.rwu-portal .shift-card .shift-date,
+.rwu-portal .shift-card .shift-location strong,
+.rwu-portal .shift-card .shift-partners strong{color:var(--rwu-text)}
+.rwu-portal .shift-card .shift-location,
+.rwu-portal .shift-card .shift-partners{color:var(--rwu-muted)}
+
 .rwu-portal .rwu-building-rename-form,
 .rwu-portal .rwu-building-appearance-form,
 .rwu-portal .rwu-building-event-grid>section,
@@ -112,11 +119,13 @@ body.rwu-portal,body.rwu-public{
 .rwu-portal fieldset,.rwu-portal .drag-handle{background:var(--rwu-inset)}
 .rwu-portal .button.secondary,.rwu-portal .button.ghost{background:var(--rwu-control)}
 .rwu-portal .button.secondary:hover,.rwu-portal .button.ghost:hover,
+.rwu-portal .help-close:hover,
 .rwu-portal .session-card:hover,.rwu-portal .session-export-popover a:hover,
 .rwu-portal .manager-settings>summary:hover,.rwu-portal .dashboard-create>summary:hover{
   color:var(--rwu-text);
   background:var(--rwu-hover);
 }
+.rwu-portal .your-turn-copy strong,
 .rwu-portal .summary-item strong,
 .rwu-portal .manager-settings-summary strong,
 .rwu-portal .swap-shift-copy strong,
@@ -131,7 +140,7 @@ body.rwu-portal,body.rwu-public{
 .rwu-portal .status-text.current,.rwu-portal .swap-arrow,
 .rwu-portal .swap-builder-arrow{color:var(--hall-accent)}
 .rwu-nav-link.is-active{box-shadow:inset 3px 0 0 var(--hall-accent)}
-.rwu-portal .rwu-duty-panel .shift-card-actions .button{color:var(--hall-accent);background:var(--rwu-control)}
+.rwu-portal .shift-card .shift-card-actions .button{color:var(--rwu-blue);background:var(--rwu-control)}
 .rwu-portal .current-picker{border-left-color:var(--hall-accent)}
 .rwu-portal .session-page .draft-person.is-current .order-number,
 .rwu-portal .session-page .your-turn-icon{
