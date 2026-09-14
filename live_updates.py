@@ -172,6 +172,13 @@ def _topics_for_committed_request():
 
     if endpoint == "create_session":
         topics.add("dashboard:all")
+    elif endpoint in {
+        "create_profiled_building",
+        "update_building_appearance",
+        "update_staff_meeting",
+        "update_staff_dinner",
+    }:
+        topics.add("dashboard:all")
     elif endpoint in {"session_status", "update_date_order", "delete_session"}:
         topics.add("dashboard:all")
     elif endpoint in {"request_swap_batch", "target_review_swap", "hra_review_swap", "cancel_swap_batch"}:
@@ -274,6 +281,33 @@ def _rows(query, parameters, columns):
     ]
 
 
+def _building_profile_state(building_id=None):
+    """Return compact, deterministic building state for dashboard invalidation."""
+    query = (
+        "SELECT id,name,theme_key,accent_color,icon_svg,staff_meeting_at,"
+        "staff_meeting_location,staff_dinner_at,staff_dinner_location FROM buildings"
+    )
+    parameters = ()
+    if building_id is not None:
+        query += " WHERE id=?"
+        parameters = (building_id,)
+    query += " ORDER BY id"
+    return [
+        [
+            row["id"],
+            row["name"],
+            row["theme_key"],
+            row["accent_color"],
+            hashlib.sha256((row["icon_svg"] or "").encode("utf-8")).hexdigest(),
+            row["staff_meeting_at"],
+            row["staff_meeting_location"],
+            row["staff_dinner_at"],
+            row["staff_dinner_location"],
+        ]
+        for row in db().execute(query, parameters).fetchall()
+    ]
+
+
 def dashboard_state_version(user):
     session_columns = (
         "id",
@@ -323,11 +357,7 @@ def dashboard_state_version(user):
             (),
             participant_columns,
         )
-        buildings = _rows(
-            "SELECT id,name FROM buildings ORDER BY id",
-            (),
-            ("id", "name"),
-        )
+        buildings = _building_profile_state()
     elif user["role"] == "HRA" and user["building_id"] is not None:
         participants = _rows(
             "SELECT u.id,u.name,u.email,u.role,u.building_id,b.name building_name "
@@ -336,10 +366,14 @@ def dashboard_state_version(user):
             (user["building_id"],),
             participant_columns,
         )
-        buildings = []
+        buildings = _building_profile_state(user["building_id"])
     else:
         participants = []
-        buildings = []
+        buildings = (
+            _building_profile_state(user["building_id"])
+            if user["building_id"] is not None
+            else []
+        )
 
     return _digest(
         {

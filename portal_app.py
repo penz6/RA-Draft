@@ -67,12 +67,7 @@ def disabled_account_failure(conn):
 
 @app.route("/auth/callback")
 def auth_callback():
-    """
-    Authenticate a user from the Google OAuth callback and synchronize their account profile.
-    
-    Returns:
-        A redirect response to the dashboard after successful authentication or to the landing page when authentication fails.
-    """
+    """Authenticate a user from the Google OAuth callback and synchronize their profile."""
     try:
         token = oauth.google.authorize_access_token()
         info = token.get("userinfo")
@@ -383,6 +378,7 @@ def dashboard_live_fragments():
 
 import round_robin  # noqa: E402,F401
 from live_updates import dashboard_state_version  # noqa: E402
+import building_settings  # noqa: E402,F401
 import admin_routes  # noqa: E402,F401
 import admin_analytics  # noqa: E402,F401
 import calendar_routes  # noqa: E402,F401

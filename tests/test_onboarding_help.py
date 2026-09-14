@@ -187,7 +187,7 @@ class OnboardingHelpTestCase(unittest.TestCase):
         response = self.request("get", "/dashboard")
         page = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Create and open a duty session", page)
+        self.assertIn("Create a duty session", page)
         self.assertIn("Create and open session", page)
         self.assertIn('data-auto-open="true"', page)
         self.assertIn("data-help-open", page)

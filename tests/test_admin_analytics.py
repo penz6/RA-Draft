@@ -61,7 +61,8 @@ class AdminAnalyticsTests(unittest.TestCase):
         self.assertNotIn(b'Zero Shift RA', other_response.data)
         dashboard = self.request('get', '/dashboard')
         self.assertEqual(dashboard.status_code, 200)
-        self.assertIn(b'<h1>Dashboard</h1>', dashboard.data)
+        self.assertIn(b'rwu-dashboard-hero', dashboard.data)
+        self.assertIn(b'<h1>Welcome, Admin</h1>', dashboard.data)
         self.assertIn(b'<details class="card create-session-card', dashboard.data)
 
     def test_logins_per_week(self):
@@ -87,29 +88,25 @@ class AdminAnalyticsTests(unittest.TestCase):
         ra = self.add_user(sub='ra_user', email='ra@rwu.edu', name='Willow RA', role='RA', building_id=building)
         unassigned_hra = self.add_user(sub='hra_no_bldg', email='hra2@rwu.edu', name='No Bldg HRA', role='HRA')
 
-        # RA cannot access HRA analytics
+        # RA cannot access HRA analytics. Dashboard actions live in the sidebar.
         self.login_as(ra)
         self.assertEqual(self.request('get', '/hra/analytics').status_code, 403)
-
-        # RA dashboard has side-by-side glance row with Duty swaps, no Analytics, and no upper-left brand
         ra_dash = self.request('get', '/dashboard')
         self.assertEqual(ra_dash.status_code, 200)
-        self.assertIn(b'dashboard-glance-row', ra_dash.data)
-        actions_html = ra_dash.data.split(b'class="dashboard-actions-panel"')[1].split(b'</div>\n</div>')[0]
-        self.assertIn(b'Duty swaps', actions_html)
-        self.assertNotIn(b'Analytics', actions_html)
-        self.assertNotIn(b'class="brand"', ra_dash.data)
+        self.assertIn(b'class="rwu-sidebar"', ra_dash.data)
+        self.assertIn(b'<span>Duty Swaps</span>', ra_dash.data)
+        self.assertNotIn(b'href="/hra/analytics"', ra_dash.data)
+        self.assertNotIn(b'dashboard-actions-panel', ra_dash.data)
 
-        # HRA dashboard has Duty swaps and Analytics in the glance row, red HRA badge, and no brand
+        # HRA gets the same compact shell plus building-scoped analytics.
         self.login_as(hra)
         hra_dash = self.request('get', '/dashboard')
         self.assertEqual(hra_dash.status_code, 200)
-        self.assertIn(b'dashboard-glance-row', hra_dash.data)
-        hra_actions = hra_dash.data.split(b'class="dashboard-actions-panel"')[1].split(b'</div>\n</div>')[0]
-        self.assertIn(b'Duty swaps', hra_actions)
-        self.assertIn(b'href="/hra/analytics"', hra_actions)
+        self.assertIn(b'class="rwu-sidebar"', hra_dash.data)
+        self.assertIn(b'<span>Duty Swaps</span>', hra_dash.data)
+        self.assertIn(b'href="/hra/analytics"', hra_dash.data)
         self.assertIn(b'hra-role', hra_dash.data)
-        self.assertNotIn(b'class="brand"', hra_dash.data)
+        self.assertNotIn(b'dashboard-actions-panel', hra_dash.data)
 
         # HRA can access HRA analytics
         hra_analytics_resp = self.request('get', '/hra/analytics')
@@ -127,6 +124,3 @@ class AdminAnalyticsTests(unittest.TestCase):
 
 # Keep the imported fixture class out of unittest's module discovery.
 del AdminManagementTestCase
-
-if __name__ == '__main__':
-    unittest.main()

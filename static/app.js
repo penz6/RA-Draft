@@ -6,9 +6,11 @@
   const navToggle = document.querySelector("[data-nav-toggle]");
   const primaryNav = document.querySelector("[data-primary-nav]");
   if (navToggle && primaryNav) {
+    const navContainer = primaryNav.closest(".rwu-sidebar");
     const setNavOpen = (open) => {
       navToggle.setAttribute("aria-expanded", String(open));
       primaryNav.classList.toggle("is-open", open);
+      navContainer?.classList.toggle("is-open", open);
     };
 
     navToggle.addEventListener("click", () => {
