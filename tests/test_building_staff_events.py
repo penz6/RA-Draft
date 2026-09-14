@@ -1,3 +1,4 @@
+import io
 import unittest
 from unittest.mock import patch
 
@@ -22,11 +23,7 @@ class BuildingStaffEventTests(unittest.TestCase):
         response = self.request(
             "post",
             f"/admin/buildings/{building}/appearance",
-            data={
-                "csrf": csrf,
-                "theme_key": "maple",
-                "accent_color": "#7b1f2b",
-            },
+            data={"csrf": csrf, "accent_color": "#7b1f2b"},
         )
         self.assertEqual(response.status_code, 302)
 
@@ -35,12 +32,37 @@ class BuildingStaffEventTests(unittest.TestCase):
                 "SELECT theme_key,accent_color FROM buildings WHERE id=?",
                 (building,),
             ).fetchone()
-            self.assertEqual(row["theme_key"], "maple")
+            self.assertEqual(row["theme_key"], "rwu")
             self.assertEqual(row["accent_color"], "#7b1f2b")
 
         css = self.request("get", f"/buildings/{building}/theme.css")
         self.assertEqual(css.status_code, 200)
         self.assertIn(b"--hall-accent:#7b1f2b", css.data)
+
+    def test_retired_preset_and_upload_cannot_change_building_appearance(self):
+        building = self.add_building("Maple")
+        csrf = self.login_as(self.add_admin())
+        response = self.request(
+            "post",
+            f"/admin/buildings/{building}/appearance",
+            data={
+                "csrf": csrf,
+                "accent_color": "#345678",
+                "theme_key": "maple",
+                "icon_svg": (io.BytesIO(b'<svg xmlns="http://www.w3.org/2000/svg"/>'), "mark.svg"),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            row = db().execute("SELECT * FROM buildings WHERE id=?", (building,)).fetchone()
+            self.assertEqual(row["theme_key"], "rwu")
+            self.assertEqual(row["accent_color"], "#345678")
+            self.assertIsNone(row["icon_svg"])
+        self.assertEqual(self.request("get", f"/buildings/{building}/icon.svg").status_code, 404)
+        page = self.request("get", "/admin")
+        self.assertEqual(page.status_code, 200)
+        self.assertNotIn(b'type="file"', page.data)
+        self.assertNotIn(b'name="theme_key"', page.data)
 
     def test_invalid_accent_color_is_rejected(self):
         building = self.add_building("Maple")
@@ -51,7 +73,6 @@ class BuildingStaffEventTests(unittest.TestCase):
             f"/admin/buildings/{building}/appearance",
             data={
                 "csrf": csrf,
-                "theme_key": "maple",
                 "accent_color": "red;body{display:none}",
             },
         )
@@ -197,7 +218,9 @@ class BuildingStaffEventTests(unittest.TestCase):
         admin = self.add_admin()
         csrf = self.login_as(admin)
 
-        def demote_before_lock(_value, *, theme_key):
+        # Simulate a role change between initial authorization and the write.
+        # The assertion below must still reject the request after locking.
+        def demote_before_lock(_value):
             conn = db()
             conn.execute("UPDATE users SET role='RA' WHERE id=?", (admin,))
             conn.commit()
@@ -210,11 +233,7 @@ class BuildingStaffEventTests(unittest.TestCase):
             response = self.request(
                 "post",
                 f"/admin/buildings/{building}/appearance",
-                data={
-                    "csrf": csrf,
-                    "theme_key": "maple",
-                    "accent_color": "#7b1f2b",
-                },
+                data={"csrf": csrf, "accent_color": "#7b1f2b"},
             )
         self.assertEqual(response.status_code, 403)
         with app.app_context():

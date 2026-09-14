@@ -5,7 +5,7 @@
   <div>
     <div class="eyebrow">Administration</div>
     <h1>Users &amp; Buildings</h1>
-    <p>Manage access, buildings, appearance, and staff events.</p>
+    <p>Manage users and buildings.</p>
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
@@ -14,26 +14,17 @@
   <div class="section-head">
     <div>
       <h2>Buildings</h2>
-      <p>Set each building's identity and building-scoped staff events.</p>
     </div>
     <span class="count-badge">{{ buildings|length }}</span>
   </div>
 
-  <form method="post" action="{{ url_for('create_profiled_building') }}" class="rwu-building-create" enctype="multipart/form-data">
+  <form method="post" action="{{ url_for('create_profiled_building') }}" class="rwu-building-create">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <label class="field">Building name
       <input name="name" maxlength="80" required autocomplete="off" placeholder="Maple Hall">
     </label>
-    <label class="field">Theme
-      <select name="theme_key">
-        {% for key,label in building_theme_choices %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
-      </select>
-    </label>
-    <label class="field rwu-color-field">Accent
+    <label class="field rwu-color-field">Accent color
       <input type="color" name="accent_color" value="{{ building_theme_default_accents['rwu'] }}" required>
-    </label>
-    <label class="field">Building mark (SVG)
-      <input type="file" name="icon_svg" accept="image/svg+xml,.svg">
     </label>
     <button class="button" type="submit">Add building</button>
   </form>
@@ -43,9 +34,6 @@
     <article class="rwu-building-admin-card" id="building-{{ b.id }}">
       <div class="rwu-building-admin-head">
         <div class="rwu-building-admin-identity">
-          <div class="rwu-building-admin-mark">
-            {% if b.icon_svg %}<img src="{{ url_for('building_icon', building_id=b.id) }}" alt="">{% else %}<span aria-hidden="true">{{ b.name[:1] }}</span>{% endif %}
-          </div>
           <div>
             <strong>{{ b.name }}</strong>
             <small>{{ b.user_count }} user{{ '' if b.user_count == 1 else 's' }} · {{ b.session_count }} session{{ '' if b.session_count == 1 else 's' }}</small>
@@ -66,22 +54,13 @@
           <button class="button secondary small" type="submit">Save name</button>
         </form>
 
-        <form class="rwu-building-appearance-form" method="post" action="{{ url_for('update_building_appearance', building_id=b.id) }}" enctype="multipart/form-data">
+        <form class="rwu-building-appearance-form" method="post" action="{{ url_for('update_building_appearance', building_id=b.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <label class="field compact">Theme
-            <select name="theme_key">
-              {% for key,label in building_theme_choices %}<option value="{{ key }}" {% if (b.theme_key or 'rwu') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
-            </select>
-          </label>
-          <label class="field compact rwu-color-field">Accent
-            <input type="color" name="accent_color" value="{{ b.accent_color or building_theme_default_accents.get(b.theme_key or 'rwu', '#1f6f95') }}" required>
-          </label>
-          <label class="field compact">Replace mark
-            <input type="file" name="icon_svg" accept="image/svg+xml,.svg">
+          <label class="field compact rwu-color-field">Accent color
+            <input type="color" name="accent_color" value="{{ b.accent_color or building_theme_default_accents['rwu'] }}" required>
           </label>
           <div class="button-group">
-            <button class="button secondary small" type="submit">Save appearance</button>
-            {% if b.icon_svg %}<button class="button ghost small" type="submit" name="remove_icon" value="1">Remove mark</button>{% endif %}
+            <button class="button secondary small" type="submit">Save color</button>
           </div>
         </form>
       </div>

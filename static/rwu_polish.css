@@ -1,49 +1,221 @@
-/* Small visual refinements that sit above the RWU shell. */
-.rwu-nav-icon{
-  display:block;
-  width:1.22rem;
-  height:1.22rem;
-  color:currentColor;
-  fill:currentColor;
-  overflow:visible;
-}
-
-/* Keep the campus photo + gradient, without putting the welcome copy in a box. */
-.rwu-dashboard-hero{
-  min-height:190px;
-  padding:1.8rem clamp(1.4rem,4vw,2.6rem);
-}
-.rwu-hero-copy{
-  max-width:620px;
-  padding:0;
-  border:0;
-  border-radius:0;
-  background:transparent;
-  backdrop-filter:none;
-  box-shadow:none;
-  text-shadow:0 2px 14px rgba(3,30,43,.45);
-}
-.rwu-dashboard-hero h1{
-  font-size:clamp(2rem,4vw,3rem);
-  line-height:1.02;
-}
+/* Final portal colors and small layout refinements. */
+.rwu-nav-icon{display:block;width:1.22rem;height:1.22rem;color:currentColor;fill:currentColor;overflow:visible}
+.rwu-dashboard-hero{min-height:190px;padding:1.8rem clamp(1.4rem,4vw,2.6rem)}
+.rwu-hero-copy{max-width:620px;padding:0;border:0;border-radius:0;background:transparent;backdrop-filter:none;box-shadow:none;text-shadow:0 2px 14px rgba(3,30,43,.45)}
+.rwu-dashboard-hero h1{font-size:clamp(2rem,4vw,3rem);line-height:1.02}
 .rwu-dashboard-hero p{font-weight:650}
 .rwu-hero-kicker{color:#eef9fc}
 
-/* Make the chosen building accent visible without using it for body copy. */
-.rwu-portal .eyebrow,
-.rwu-portal .session-arrow,
-.rwu-portal .status-text.current,
-.rwu-portal .swap-arrow,
+/* Light surfaces without large pure-white panels. Map the old component
+   tokens too, so manager tools and summary cards cannot fall back to navy. */
+body.rwu-portal,body.rwu-public{
+  --rwu-canvas:#e4ebf0;
+  --rwu-paper:#f2f5f7;
+  --rwu-inset:#e9eff3;
+  --rwu-control:#f7f9fa;
+  --rwu-hover:#e0e8ee;
+  --rwu-text:#173247;
+  --rwu-muted:#536879;
+  --rwu-line:#c7d3dc;
+  --ink:var(--rwu-text);
+  --muted:var(--rwu-muted);
+  --line:var(--rwu-line);
+  --line-strong:#adbfcc;
+  --surface:var(--rwu-paper);
+  --surface-2:var(--rwu-inset);
+  --surface-card:var(--rwu-paper);
+  --background:var(--rwu-canvas);
+  --blue:var(--rwu-blue);
+  --blue-dark:#123f60;
+  --blue-soft:#e1edf5;
+  --blue-glow:rgba(23,78,119,.14);
+  --success:var(--rwu-blue);
+  --success-soft:#e1edf5;
+  --gold:#795b19;
+  --gold-soft:#f3ead4;
+  --danger:#a03636;
+  --danger-soft:#f5e7e7;
+  --shadow:0 6px 20px rgba(17,49,68,.07);
+  --hall-soft:color-mix(in srgb,var(--hall-accent) 7%,var(--rwu-paper));
+  --hall-ink:var(--rwu-text);
+  color-scheme:light;
+  color:var(--rwu-text);
+  background:var(--rwu-canvas);
+}
+.rwu-portal .card,
+.rwu-portal .session-heading,
+.rwu-portal .swap-page-head,
+.rwu-portal .session-assignments-panel,
+.rwu-public .login-card{
+  color:var(--rwu-text);
+  background:var(--rwu-paper);
+  border-color:var(--rwu-line);
+  box-shadow:var(--shadow);
+}
+.rwu-portal .session-heading,
+.rwu-portal .swap-page-head,
+.rwu-portal .turn-order-card,
+.rwu-portal .duty-calendar-card,
+.rwu-portal .rwu-duty-panel{border-top-color:var(--hall-accent)}
+.rwu-portal .summary-item,
+.rwu-portal .manager-quick-card,
+.rwu-portal .manager-setting-card,
+.rwu-portal .manager-settings,
+.rwu-portal .manager-swap-column,
+.rwu-portal .calendar-month,
+.rwu-portal .draft-person,
+.rwu-portal .session-card,
+.rwu-portal .swap-workflow-step,
+.rwu-portal .swap-review-card,
+.rwu-portal .swap-status-card,
+.rwu-portal .swap-builder-step,
+.rwu-portal .rwu-building-admin-card,
+.rwu-portal .empty-state.compact{
+  color:var(--rwu-text);
+  background:var(--rwu-inset);
+  border-color:var(--rwu-line);
+  box-shadow:none;
+}
+.rwu-portal .rwu-duty-panel .shift-card{
+  background:linear-gradient(180deg,var(--hall-soft),var(--rwu-paper));
+  border-color:var(--rwu-line);
+  border-top-color:var(--hall-accent);
+}
+.rwu-portal .rwu-building-rename-form,
+.rwu-portal .rwu-building-appearance-form,
+.rwu-portal .rwu-building-event-grid>section,
+.rwu-portal .manager-setting-card .override-row,
+.rwu-portal .swap-review-card .swap-pair,
+.rwu-portal .swap-pair,
+.rwu-portal .swap-builder-row,
+.rwu-portal .user-admin-entry{
+  color:var(--rwu-text);
+  background:var(--rwu-paper);
+  border-color:var(--rwu-line);
+}
+.rwu-portal .session-export-popover,
+.rwu-portal .calendar-dialog,
+.rwu-portal .help-dialog,
+.rwu-portal .help-dialog-panel,
+.rwu-portal .rwu-meeting-editor-panel{
+  color:var(--rwu-text);
+  background:var(--rwu-paper);
+  border-color:var(--rwu-line);
+}
+.rwu-portal input,.rwu-portal select,.rwu-portal textarea,
+.rwu-portal input:focus,.rwu-portal select:focus,.rwu-portal textarea:focus,
+.rwu-public input,.rwu-public select{
+  color:var(--rwu-text);
+  background:var(--rwu-control);
+  border-color:var(--line-strong);
+}
+.rwu-portal fieldset,.rwu-portal .drag-handle{background:var(--rwu-inset)}
+.rwu-portal .button.secondary,.rwu-portal .button.ghost{background:var(--rwu-control)}
+.rwu-portal .button.secondary:hover,.rwu-portal .button.ghost:hover,
+.rwu-portal .session-card:hover,.rwu-portal .session-export-popover a:hover,
+.rwu-portal .manager-settings>summary:hover,.rwu-portal .dashboard-create>summary:hover{
+  color:var(--rwu-text);
+  background:var(--rwu-hover);
+}
+.rwu-portal .summary-item strong,
+.rwu-portal .manager-settings-summary strong,
+.rwu-portal .swap-shift-copy strong,
+.rwu-portal .swap-builder-summary-copy strong,
+.rwu-portal .calendar-capacity strong,
+.rwu-portal .manager-swap-column legend{color:var(--rwu-text)}
+.rwu-portal .overview-stat>span,.rwu-portal .calendar-day-head small,
+.rwu-portal .calendar-weekdays span,.rwu-portal .your-turn-copy small{color:var(--rwu-muted)}
+.rwu-portal .overview-stat:first-child strong{color:var(--rwu-blue)}
+.rwu-portal .rwu-duty-panel .eyebrow,
+.rwu-portal .eyebrow,.rwu-portal .session-arrow,
+.rwu-portal .status-text.current,.rwu-portal .swap-arrow,
 .rwu-portal .swap-builder-arrow{color:var(--hall-accent)}
 .rwu-nav-link.is-active{box-shadow:inset 3px 0 0 var(--hall-accent)}
-.rwu-portal .rwu-duty-panel .shift-card-actions .button{color:var(--hall-accent)}
+.rwu-portal .rwu-duty-panel .shift-card-actions .button{color:var(--hall-accent);background:var(--rwu-control)}
+.rwu-portal .current-picker{border-left-color:var(--hall-accent)}
+.rwu-portal .session-page .draft-person.is-current .order-number,
+.rwu-portal .session-page .your-turn-icon{
+  color:var(--rwu-text);
+  background:var(--hall-soft);
+}
+.rwu-portal .order-number,.rwu-portal .inline-role{color:var(--rwu-blue);background:var(--blue-soft)}
+/* Legacy role badges declare these properties !important. */
+.rwu-portal .admin-role{color:#235f86!important;background:#e1edf5!important;border-color:#b9cfde!important}
+.rwu-portal .hra-role{color:#8b3535!important;background:#f3e5e5!important;border-color:#d8b7b7!important}
+.rwu-portal .notice,.rwu-portal .flash,
+.rwu-portal .notice.success,.rwu-portal .flash.success,
+.rwu-portal .pill.open,.rwu-portal .pill.approved{
+  color:#245e82;
+  background:#e1edf5;
+  border-color:#b9cfde;
+}
+.rwu-portal .notice.error,.rwu-portal .flash.error,
+.rwu-portal .manager-danger-settings{
+  color:#8b3535;
+  background:#f5e7e7;
+  border-color:#dbb8b8;
+}
+.rwu-portal .manager-danger-settings>summary{color:#8b3535}
+.rwu-portal .calendar-month-head span{background:var(--rwu-hover);border-color:var(--rwu-line);color:var(--rwu-muted)}
+.rwu-portal .calendar-assignee,.rwu-portal .calendar-more{color:var(--rwu-text);background:var(--rwu-paper);border-color:var(--rwu-line)}
+
+/* Day type stays visible when full, closed, disabled, hovered or selectable.
+   A separate inset ring indicates dates the current user may pick. */
+.rwu-portal .calendar-day.is-weekday{
+  --calendar-fill:#e7f0f7;
+  --calendar-edge:#b9d0e0;
+  --calendar-date-fill:#d3e5f1;
+  --calendar-date-ink:#255b7e;
+}
+.rwu-portal .calendar-day.is-weekend{
+  --calendar-fill:#f5edda;
+  --calendar-edge:#d8c28b;
+  --calendar-date-fill:#ecdfb9;
+  --calendar-date-ink:#70541a;
+}
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend),
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend):is(:disabled,:hover,:focus-visible,.is-full,.is-self-selectable),
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend).is-self-selectable:not(:disabled):is(:hover,:focus-visible){
+  color:var(--rwu-text);
+  background:var(--calendar-fill);
+  border-color:var(--calendar-edge);
+  box-shadow:none;
+  filter:none;
+  opacity:1;
+}
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend) .calendar-day-head strong,
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend).is-self-selectable:not(:disabled) .calendar-day-head strong{
+  color:var(--calendar-date-ink);
+  background:var(--calendar-date-fill);
+}
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend).is-self-selectable:not(:disabled),
+.rwu-portal .calendar-day:is(.is-weekday,.is-weekend).is-self-selectable:not(:disabled):is(:hover,:focus-visible){
+  border-color:var(--hall-accent);
+  box-shadow:inset 0 0 0 2px var(--hall-accent);
+}
+.rwu-portal .calendar-day.is-no-duty{
+  color:var(--rwu-muted);
+  background:var(--rwu-inset);
+  border-color:var(--rwu-line);
+  border-style:dashed;
+  box-shadow:none;
+  opacity:1;
+}
+.rwu-portal .calendar-no-duty{color:var(--rwu-muted);opacity:1}
+.rwu-portal .calendar-day:focus-visible{outline:3px solid var(--rwu-blue);outline-offset:2px}
+
+/* The sidebar and photo header are intentionally dark, not content panels. */
+.rwu-portal .rwu-sidebar .nav-form .button{
+  color:#d5e4ec;
+  background:transparent;
+  border-color:rgba(213,228,236,.25);
+}
+.rwu-portal .rwu-sidebar .nav-form .button:hover{background:rgba(213,228,236,.1)}
+.rwu-portal .rwu-sidebar .user-copy small{color:#c2d5e0}
+.rwu-portal .rwu-mobile-bar .nav-toggle{color:#d5e4ec;background:#123e53;border-color:#527181}
 
 @media(max-width:760px){
   .rwu-dashboard-hero{min-height:165px;padding:1.25rem}
   .rwu-hero-copy{padding:0}
 }
-
-@media(max-width:480px){
-  .rwu-dashboard-hero{min-height:150px}
-}
+@media(max-width:480px){.rwu-dashboard-hero{min-height:150px}}
