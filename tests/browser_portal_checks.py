@@ -19,6 +19,9 @@ def run(destination):
     checked = 0
     screenshots = destination / 'screenshots'
     screenshots.mkdir(exist_ok=True)
+    pages = sorted(destination.glob('*.html'))
+    if len(pages) != 12:
+        raise AssertionError(f'Expected 12 rendered pages, found {len(pages)}')
     try:
         with sync_playwright() as playwright:
             launch = {'headless': True}
@@ -31,7 +34,7 @@ def run(destination):
                 context.route('**/live-*', lambda route: route.abort())
                 context.route('https://**', lambda route: route.abort())
                 page = context.new_page()
-                for html in sorted(destination.glob('*.html')):
+                for html in pages:
                     page.goto(f'http://127.0.0.1:{server.server_port}/{html.name}', wait_until='networkidle')
                     result = page.evaluate(r'''() => {
                         const errors = [];
@@ -70,8 +73,24 @@ def run(destination):
                     checked += 1
                     if width in (1440, 390):
                         page.screenshot(path=str(screenshots / f'{html.stem}-{width}.png'), full_page=True)
-                    # Inspect fields/dialogs when open rather than relying on hidden markup.
-                    page.evaluate('document.querySelectorAll("details").forEach(el => {el.open = true})')
+                    # Test nested forms while open, not only their collapsed shells.
+                    expanded_errors = page.evaluate(r'''() => {
+                        document.querySelectorAll('details').forEach(el => {el.open = true});
+                        const errors = [];
+                        for (const form of document.querySelectorAll('.rwu-meeting-form')) {
+                            if (getComputedStyle(form).backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                                errors.push('event form retains a separate bright background');
+                            }
+                        }
+                        for (const field of document.querySelectorAll('input[name="repeat_weeks"]')) {
+                            if (getComputedStyle(field).backgroundColor !== 'rgb(237, 242, 245)') {
+                                errors.push('repeat field does not use shared muted control color');
+                            }
+                        }
+                        if (document.documentElement.scrollWidth > innerWidth + 1) errors.push('expanded page horizontal overflow');
+                        return errors;
+                    }''')
+                    failures.extend(f'{html.stem}/{width}: {error}' for error in expanded_errors)
                     if html.stem in ('admin', 'dashboard'):
                         page.screenshot(path=str(screenshots / f'{html.stem}-expanded-{width}.png'), full_page=True)
                     if page.locator('dialog.help-dialog').count():

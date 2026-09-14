@@ -176,3 +176,21 @@ body.rwu-portal,body.rwu-public{
 .rwu-portal .user-admin-entry.is-disabled{background:var(--danger-soft);opacity:1}
 .rwu-portal .rwu-main{min-width:0}
 .rwu-portal .table-wrap{max-width:100%;overflow-x:auto}
+
+/* Nested event forms used to keep a hard-coded pure-white fill. */
+.rwu-portal .rwu-meeting-form{background:transparent}
+.rwu-portal input::placeholder,.rwu-portal textarea::placeholder,
+.rwu-public input::placeholder,.rwu-public textarea::placeholder{
+  color:var(--rwu-muted);opacity:1;
+}
+.rwu-portal .rwu-main a:not(.button):hover,
+.rwu-public a:not(.button):hover{color:var(--rwu-navy)}
+
+/* Legacy fixed tracks must not push Admin controls beyond the page at tablet widths. */
+.rwu-portal .user-admin-list,.rwu-portal .user-admin-entry{min-width:0}
+.rwu-portal .user-admin-identity{flex-direction:row;align-items:center}
+.rwu-portal .user-access-form{display:block;min-width:0}
+@media(max-width:1000px){
+  .rwu-portal .swap-builder-row{grid-template-columns:minmax(0,1fr)}
+  .rwu-portal .swap-builder-arrow{transform:rotate(90deg);justify-self:start}
+}
