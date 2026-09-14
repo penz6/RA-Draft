@@ -8,42 +8,42 @@
       <h1>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}</h1>
       <p>{{ me.role }}{% if me.building_name %} · {{ me.building_name }}{% endif %}</p>
     </div>
-    {% if building_profile and building_profile.has_icon %}
-    <div class="rwu-hero-mark" aria-hidden="true">
-      <img src="{{ url_for('building_icon', building_id=building_profile.id) }}" alt="">
-    </div>
-    {% endif %}
   </section>
 
   {% if building_profile and (building_profile.staff_dinner_at or building_profile.staff_meeting_at or me.role in ('HRA', 'ADMIN')) %}
   <section class="rwu-staff-events" aria-label="Staff events">
-    {% if building_profile.staff_dinner_at or me.role in ('HRA', 'ADMIN') %}
+    {% for title, endpoint, start, location, repeat_weeks in [
+      ('Staff dinner', 'update_staff_dinner', building_profile.staff_dinner_at, building_profile.staff_dinner_location, building_profile.staff_dinner_repeat_weeks),
+      ('Staff meeting', 'update_staff_meeting', building_profile.staff_meeting_at, building_profile.staff_meeting_location, building_profile.staff_meeting_repeat_weeks)
+    ] %}
+    {% if start or me.role in ('HRA', 'ADMIN') %}
+    {% set next_at = start|next_event(repeat_weeks) %}
     <article class="card rwu-staff-event-card">
       <div class="rwu-meeting-info">
-        <div class="eyebrow">Staff dinner</div>
-        {% if building_profile.staff_dinner_at and building_profile.staff_dinner_location %}
-        <h2>{{ building_profile.staff_dinner_at|event_label }}</h2>
-        <p>{{ building_profile.staff_dinner_location }}</p>
-        {% else %}
-        <h2>Not scheduled</h2>
-        {% endif %}
+        <div class="eyebrow">{{ title }}</div>
+        {% if next_at and location %}
+        <h2>{{ next_at|event_label }}</h2>
+        <p>{{ location }}</p>
+        {% if repeat_weeks %}<p class="rwu-event-repeat">{{ repeat_weeks|repeat_label }}</p>{% endif %}
+        {% else %}<h2>Not scheduled</h2>{% endif %}
       </div>
       {% if me.role in ('HRA', 'ADMIN') %}
       <details class="rwu-meeting-editor">
         <summary class="button small secondary">Edit</summary>
         <div class="rwu-meeting-editor-panel">
-          <form method="post" action="{{ url_for('update_staff_dinner', building_id=building_profile.id) }}" class="rwu-meeting-form">
+          <form method="post" action="{{ url_for(endpoint, building_id=building_profile.id) }}" class="rwu-meeting-form">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-            <label class="field compact">Date and time
-              <input type="datetime-local" name="event_at" value="{{ building_profile.staff_dinner_at or '' }}" required>
+            <label class="field compact">First date and time
+              <input type="datetime-local" name="event_at" value="{{ start or '' }}" required>
             </label>
             <label class="field compact">Location
-              <input name="event_location" maxlength="120" value="{{ building_profile.staff_dinner_location or '' }}" placeholder="Location" required>
+              <input name="event_location" maxlength="120" value="{{ location or '' }}" placeholder="Location" required>
             </label>
+            {% include 'staff_event_repeat.html' %}
             <button class="button small" type="submit">Save</button>
           </form>
-          {% if building_profile.staff_dinner_at or building_profile.staff_dinner_location %}
-          <form method="post" action="{{ url_for('update_staff_dinner', building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
+          {% if start or location %}
+          <form method="post" action="{{ url_for(endpoint, building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}">
             <input type="hidden" name="event_at" value="">
             <input type="hidden" name="event_location" value="">
@@ -55,54 +55,13 @@
       {% endif %}
     </article>
     {% endif %}
-
-    {% if building_profile.staff_meeting_at or me.role in ('HRA', 'ADMIN') %}
-    <article class="card rwu-staff-event-card">
-      <div class="rwu-meeting-info">
-        <div class="eyebrow">Staff meeting</div>
-        {% if building_profile.staff_meeting_at and building_profile.staff_meeting_location %}
-        <h2>{{ building_profile.staff_meeting_at|event_label }}</h2>
-        <p>{{ building_profile.staff_meeting_location }}</p>
-        {% else %}
-        <h2>Not scheduled</h2>
-        {% endif %}
-      </div>
-      {% if me.role in ('HRA', 'ADMIN') %}
-      <details class="rwu-meeting-editor">
-        <summary class="button small secondary">Edit</summary>
-        <div class="rwu-meeting-editor-panel">
-          <form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form">
-            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-            <label class="field compact">Date and time
-              <input type="datetime-local" name="event_at" value="{{ building_profile.staff_meeting_at or '' }}" required>
-            </label>
-            <label class="field compact">Location
-              <input name="event_location" maxlength="120" value="{{ building_profile.staff_meeting_location or '' }}" placeholder="Location" required>
-            </label>
-            <button class="button small" type="submit">Save</button>
-          </form>
-          {% if building_profile.staff_meeting_at or building_profile.staff_meeting_location %}
-          <form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}" class="rwu-meeting-clear-form">
-            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-            <input type="hidden" name="event_at" value="">
-            <input type="hidden" name="event_location" value="">
-            <button class="button small ghost" type="submit">Clear</button>
-          </form>
-          {% endif %}
-        </div>
-      </details>
-      {% endif %}
-    </article>
-    {% endif %}
+    {% endfor %}
   </section>
   {% endif %}
 
   <section class="card dashboard-schedule-panel rwu-duty-panel">
     <div class="section-head compact">
-      <div>
-        <div class="eyebrow">Duty schedule</div>
-        <h2>Upcoming shifts</h2>
-      </div>
+      <div><div class="eyebrow">Duty schedule</div><h2>Upcoming shifts</h2></div>
       {% if upcoming_shifts %}
       <div class="session-head-actions">
         <span class="count-badge">{{ upcoming_shifts|length }}</span>
@@ -120,9 +79,7 @@
         </div>
         <div class="shift-card-body">
           <span class="shift-location"><strong>{{ shift.building_name }}</strong> &bull; {{ shift.session_name }}</span>
-          <span class="shift-partners">
-            {% if shift.partner_names %}On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>{% else %}Solo duty{% endif %}
-          </span>
+          <span class="shift-partners">{% if shift.partner_names %}On duty with: <strong>{{ shift.partner_names|join(', ') }}</strong>{% else %}Solo duty{% endif %}</span>
         </div>
         <div class="shift-card-actions">
           <a href="{{ url_for('view_session', session_id=shift.session_id) }}" class="button small ghost">View session &rarr;</a>
@@ -130,9 +87,7 @@
       </article>
       {% endfor %}
     </div>
-    {% else %}
-    <div class="empty-state compact"><p>No upcoming duty shifts.</p></div>
-    {% endif %}
+    {% else %}<div class="empty-state compact"><p>No upcoming duty shifts.</p></div>{% endif %}
   </section>
 
   {% if me.role in ['HRA', 'ADMIN'] %}
