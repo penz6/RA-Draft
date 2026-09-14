@@ -13,6 +13,7 @@ class RWUThemeRegressionTests(unittest.TestCase):
         cls.dashboard = (ROOT / "templates" / "dashboard_v2.html").read_text(encoding="utf-8")
         cls.admin = (ROOT / "templates" / "admin.html").read_text(encoding="utf-8")
         cls.theme = (ROOT / "static" / "rwu_theme.css").read_text(encoding="utf-8")
+        cls.overrides = (ROOT / "static" / "rwu_theme_overrides.css").read_text(encoding="utf-8")
         cls.banner = (ROOT / "static" / "rwu_banner.css").read_text(encoding="utf-8")
         cls.polish = (ROOT / "static" / "rwu_polish.css").read_text(encoding="utf-8")
         cls.settings = (ROOT / "building_settings.py").read_text(encoding="utf-8")
@@ -32,10 +33,10 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertIn('M7 2v3M17 2v3M3.5 9h17', self.base)
         self.assertNotIn('<span aria-hidden="true">▣</span><span>My Schedule</span>', self.base)
 
-    def test_official_rwu_brand_assets_are_used_until_local_brand_files_are_added(self):
-        self.assertIn("www.rwu.edu/themes/custom/rwu", self.base)
-        self.assertIn("rwuhawks.com/images/logos", self.base)
-        self.assertIn("import rwu_brand_assets", (ROOT / "main.py").read_text(encoding="utf-8"))
+    def test_sidebar_does_not_render_external_brand_images(self):
+        self.assertNotIn("footer-logo-transparent.svg", self.base)
+        self.assertNotIn("rwuhawks.com/images/logos", self.base)
+        self.assertIn("Residence Life", self.base)
 
     def test_dashboard_only_uses_current_building(self):
         self.assertIn("me.building_name", self.dashboard)
@@ -57,15 +58,14 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertIn('actor["building_id"] != building_id', self.settings)
         self.assertIn('@roles("HRA", "ADMIN")', self.settings)
 
-    def test_building_appearance_is_admin_managed(self):
-        self.assertIn('enctype="multipart/form-data"', self.admin)
-        self.assertIn('name="icon_svg"', self.admin)
-        self.assertIn('name="theme_key"', self.admin)
+    def test_building_appearance_is_accent_only_in_the_visible_ui(self):
         self.assertIn('name="accent_color"', self.admin)
         self.assertIn('type="color"', self.admin)
+        self.assertIn('label:has(select[name="theme_key"])', self.overrides)
+        self.assertIn('label:has(input[name="icon_svg"])', self.overrides)
+        self.assertIn('rwu-hero-mark{display:none!important}', self.overrides)
         self.assertIn("update_building_appearance", self.admin)
         self.assertNotIn("update_building_appearance", self.dashboard)
-        self.assertIn("sanitize_building_svg", self.settings)
         self.assertIn("normalize_accent_color", self.settings)
         self.assertIn("building_theme_css", self.settings)
 
@@ -75,12 +75,13 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertIn("update_staff_meeting", self.admin)
         self.assertIn('name="return_to" value="admin"', self.admin)
 
-    def test_building_themes_and_uploaded_banner_are_present(self):
-        self.assertIn(".theme-maple", self.theme)
-        self.assertIn(".theme-willow", self.theme)
-        self.assertIn(".theme-cedar", self.theme)
-        self.assertIn(".theme-stonewall", self.theme)
-        self.assertIn(".theme-bayside", self.theme)
+    def test_calendar_keeps_weekday_and_weekend_colors_visible(self):
+        self.assertIn(".calendar-day.is-weekday", self.overrides)
+        self.assertIn(".calendar-day.is-weekend", self.overrides)
+        self.assertIn("#eef6fb", self.overrides)
+        self.assertIn("#fff7e7", self.overrides)
+
+    def test_building_accent_and_uploaded_banner_are_present(self):
         self.assertIn("data:image/jpeg;base64,", self.banner)
         self.assertIn("rwu_banner.css", self.base)
         self.assertIn("rwu_polish.css", self.base)

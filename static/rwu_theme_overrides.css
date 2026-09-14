@@ -1,20 +1,81 @@
 /* Final shell details layered after the base RWU theme. */
-.rwu-hawk{
-  display:grid;
-  place-items:center;
-  margin-top:auto;
-  padding:.8rem .5rem .35rem;
-  border-top:1px solid rgba(255,255,255,.12);
+.rwu-sidebar-account{margin-top:auto}
+
+/* Keep legacy semantic states inside the RWU palette instead of leaking green. */
+.rwu-portal .admin-role,
+.rwu-portal .pill.open,
+.rwu-portal .pill.approved{
+  color:#235f86;
+  background:#eaf4fa;
+  border-color:#c9e1ed;
 }
-.rwu-hawk img{
+.rwu-portal .status-text.success{color:var(--rwu-blue)}
+.rwu-portal .notice.success,
+.rwu-portal .flash.success{
+  color:#245e82;
+  background:#edf6fa;
+  border-color:#c6dfea;
+}
+
+/* Keep the sidebar simple: no oversized white logo block. */
+.rwu-brand-text{
+  padding:.35rem .45rem .9rem;
+  color:#fff;
+  text-decoration:none;
+  border-bottom:1px solid rgba(255,255,255,.14);
+}
+.rwu-brand-text strong{
   display:block;
-  width:112px;
-  max-width:75%;
-  max-height:96px;
-  object-fit:contain;
-  filter:drop-shadow(0 5px 12px rgba(0,0,0,.18));
+  font-size:1.08rem;
+  font-weight:850;
+  letter-spacing:-.01em;
 }
-.rwu-sidebar-account{margin-top:0}
+
+/* Remove the old theme/upload controls from the admin UI. Accent is the only appearance control. */
+.rwu-building-create label:has(select[name="theme_key"]),
+.rwu-building-create label:has(input[name="icon_svg"]),
+.rwu-building-appearance-form label:has(select[name="theme_key"]),
+.rwu-building-appearance-form label:has(input[name="icon_svg"]),
+.rwu-building-appearance-form button[name="remove_icon"],
+.rwu-building-admin-mark img{
+  display:none!important;
+}
+.rwu-building-create{
+  grid-template-columns:minmax(220px,1fr) 92px auto!important;
+}
+.rwu-building-appearance-form{
+  grid-template-columns:92px auto!important;
+}
+.rwu-building-admin-mark span{display:grid!important}
+
+/* Prevent legacy dark-theme controls from bleeding into the light RWU portal. */
+.rwu-portal .field,
+.rwu-portal fieldset,
+.rwu-portal legend{color:var(--rwu-text)}
+.rwu-portal input,
+.rwu-portal select,
+.rwu-portal textarea,
+.rwu-portal .drag-handle,
+.rwu-portal .calendar-dialog{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:#c7d5dd;
+  box-shadow:none;
+}
+.rwu-portal input:hover,
+.rwu-portal select:hover,
+.rwu-portal textarea:hover{border-color:#9eb7c5}
+.rwu-portal input:focus,
+.rwu-portal select:focus,
+.rwu-portal textarea:focus{
+  color:var(--rwu-text);
+  background:#fff;
+  border-color:var(--rwu-blue);
+  box-shadow:0 0 0 3px rgba(23,78,119,.13);
+}
+.rwu-portal fieldset{background:#f8fafb}
+.rwu-portal .drag-handle{background:#f7fafc}
+.rwu-portal .calendar-dialog::backdrop{background:rgba(12,37,52,.35)}
 
 .rwu-dashboard-hero{
   min-height:205px;
@@ -31,16 +92,7 @@
 }
 .rwu-hero-kicker{color:#e0f1f5}
 .rwu-dashboard-hero p{color:#edf6f8}
-.rwu-hero-mark{
-  width:5.6rem;
-  height:5.6rem;
-  flex-basis:5.6rem;
-  margin-bottom:.15rem;
-  border-radius:18px;
-  background:rgba(255,255,255,.9);
-  border-color:rgba(255,255,255,.75);
-}
-.rwu-hero-mark img{width:78%;height:78%}
+.rwu-hero-mark{display:none!important}
 
 .rwu-staff-events{
   display:grid;
@@ -92,23 +144,12 @@
 .rwu-dashboard .dashboard-schedule-panel>.section-head{margin-bottom:1rem}
 .rwu-dashboard .shift-card{min-height:230px}
 
-.rwu-building-create{
-  grid-template-columns:minmax(170px,1.2fr) minmax(155px,.9fr) 92px minmax(210px,1.2fr) auto;
-}
-.rwu-building-appearance-form{
-  grid-template-columns:minmax(150px,.9fr) 92px minmax(180px,1fr);
-}
 .rwu-color-field input[type="color"]{
   width:100%;
   min-width:72px;
   min-height:42px;
   padding:.25rem;
   cursor:pointer;
-}
-.rwu-building-create input[type="file"],
-.rwu-building-appearance-form input[type="file"]{
-  min-height:42px;
-  padding:.45rem;
 }
 .rwu-building-events{
   margin-top:.8rem;
@@ -209,12 +250,31 @@
   border-color:#dbe4e9;
   box-shadow:none;
 }
-.rwu-portal .calendar-day:hover:not(:disabled){background:#f4f8fa;border-color:#adc3ce}
-.rwu-portal .calendar-day.is-weekend{background:#f7fafc}
+/* Weekday/weekend identity is persistent, not only shown when selectable. */
+.rwu-portal .calendar-day.is-weekday{
+  background:#eef6fb;
+  border-color:#bdd7e6;
+}
+.rwu-portal .calendar-day.is-weekend{
+  background:#fff7e7;
+  border-color:#e4c887;
+}
+.rwu-portal .calendar-day.is-weekday .calendar-day-head strong{
+  color:#245e82;
+  background:#dcecf5;
+}
+.rwu-portal .calendar-day.is-weekend .calendar-day-head strong{
+  color:#7b5a18;
+  background:#f6e8bc;
+}
+.rwu-portal .calendar-day:hover:not(:disabled){filter:brightness(.985)}
 .rwu-portal .calendar-day.is-self-selectable{
-  background:color-mix(in srgb,var(--hall-accent) 8%,#fff);
   border-color:var(--hall-accent);
-  box-shadow:inset 0 0 0 1px var(--hall-accent);
+  box-shadow:inset 0 0 0 2px var(--hall-accent);
+}
+.rwu-portal .calendar-day.is-self-selectable:not(:disabled):hover{
+  border-color:var(--hall-accent);
+  box-shadow:inset 0 0 0 2px var(--hall-accent),0 7px 18px rgba(17,49,68,.12);
 }
 .rwu-portal .calendar-day.is-full{background:#f2f4f5;color:#71808a}
 .rwu-portal .calendar-day.is-no-duty{background:#f6f6f3;color:#7b8077}
@@ -281,27 +341,21 @@
 .rwu-portal .swap-history-summary{color:var(--rwu-text)}
 
 @media(max-width:1100px){
-  .rwu-building-create{grid-template-columns:1fr 1fr 100px}
-  .rwu-building-create .field:nth-of-type(4){grid-column:1/3}
-  .rwu-building-create>.button{height:42px}
-  .rwu-building-appearance-form{grid-template-columns:1fr 100px}
-  .rwu-building-appearance-form .field:nth-of-type(3){grid-column:1/-1}
+  .rwu-building-create{grid-template-columns:1fr 92px auto!important}
+  .rwu-building-appearance-form{grid-template-columns:92px auto!important}
 }
 @media(max-width:900px){
   .rwu-staff-events,.rwu-building-event-grid{grid-template-columns:1fr}
 }
 @media(max-width:760px){
-  .rwu-hawk{display:none}
-  .rwu-sidebar-account{margin-top:auto}
   .rwu-dashboard-hero{min-height:170px;align-items:flex-end}
   .rwu-hero-copy{max-width:none;padding:.7rem .8rem}
   .rwu-staff-event-card{align-items:flex-start;flex-direction:column}
   .rwu-meeting-editor{width:100%}
   .rwu-meeting-editor>summary{width:100%}
   .rwu-meeting-editor-panel{position:static;width:100%;margin-top:.55rem;box-shadow:none}
-  .rwu-building-create,.rwu-building-appearance-form{grid-template-columns:1fr}
+  .rwu-building-create,.rwu-building-appearance-form{grid-template-columns:1fr!important}
   .rwu-building-event-form{grid-template-columns:1fr}
-  .rwu-building-create .field:nth-of-type(4),.rwu-building-appearance-form .field:nth-of-type(3){grid-column:auto}
   .rwu-building-create>.button{width:100%}
   .rwu-portal .session-heading,.rwu-portal .swap-page-head{padding:1rem}
 }

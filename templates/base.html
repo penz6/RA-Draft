@@ -22,7 +22,7 @@
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
 </head>
-<body class="{% if me %}rwu-portal{% else %}rwu-public{% endif %}{% if building_profile %} theme-{{ building_profile.theme_key or 'rwu' }}{% endif %}">
+<body class="{% if me %}rwu-portal{% else %}rwu-public{% endif %}">
   <a class="skip-link" href="#main-content">Skip to main content</a>
 
   {% if impersonator %}
@@ -43,9 +43,8 @@
   {% if me %}
   <div class="rwu-shell">
     <aside class="rwu-sidebar" aria-label="Portal navigation">
-      <a class="rwu-brand" href="{{ url_for('dashboard') }}" aria-label="Roger Williams University Residence Life">
-        <img src="https://www.rwu.edu/themes/custom/rwu/assets/img/footer-logo-transparent.svg" alt="Roger Williams University" referrerpolicy="no-referrer">
-        <span>Residence Life</span>
+      <a class="rwu-brand rwu-brand-text" href="{{ url_for('dashboard') }}" aria-label="RWU Residence Life">
+        <strong>Residence Life</strong>
       </a>
 
       <nav class="rwu-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
@@ -90,10 +89,6 @@
       <div class="rwu-external-links">
         <a href="https://rwu.housing.cloud" target="_blank" rel="noopener noreferrer">Housing Cloud <span aria-hidden="true">↗</span></a>
         <a href="https://cm.maxient.com/reportingform.php?RogerWilliamsUniv&layout_id=0" target="_blank" rel="noopener noreferrer">Maxient <span aria-hidden="true">↗</span></a>
-      </div>
-
-      <div class="rwu-hawk" aria-label="RWU Hawks">
-        <img src="https://rwuhawks.com/images/logos/site/site.png?width=200" alt="RWU Hawks" referrerpolicy="no-referrer">
       </div>
 
       <div class="rwu-sidebar-account">
