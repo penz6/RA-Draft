@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import threading
 from playwright.sync_api import sync_playwright
+from swap_building_browser_checks import check_swap_building_selector
 
 
 def run(destination):
@@ -70,6 +71,8 @@ def run(destination):
                         return errors;
                     }''')
                     failures.extend(f'{html.stem}/{width}: {error}' for error in result)
+                    if html.stem == 'swap-home':
+                        failures.extend(f'{html.stem}/{width}: {error}' for error in check_swap_building_selector(page))
                     checked += 1
                     if width in (1440, 390):
                         page.screenshot(path=str(screenshots / f'{html.stem}-{width}.png'), full_page=True)
