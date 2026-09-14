@@ -369,6 +369,10 @@ def update_building_appearance(building_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
+    actor = current_user()
+    if not actor or actor["role"] != "ADMIN":
+        conn.rollback()
+        abort(403)
     locked = conn.execute("SELECT * FROM buildings WHERE id=?", (building_id,)).fetchone()
     if not locked:
         conn.rollback()
@@ -428,6 +432,30 @@ def _check_staff_event_access(building_id):
     return actor
 
 
+def _check_locked_staff_event_access(conn, actor_id, building_id):
+    """Revalidate event permissions after acquiring the database write lock."""
+    actor = conn.execute(
+        "SELECT id,building_id,role,disabled FROM users WHERE id=?",
+        (actor_id,),
+    ).fetchone()
+    if not actor or actor["disabled"] or actor["role"] not in ("HRA", "ADMIN"):
+        conn.rollback()
+        abort(403)
+    if actor["role"] == "HRA" and actor["building_id"] != building_id:
+        conn.rollback()
+        abort(403)
+    return actor
+
+
+def _staff_event_redirect(building_id):
+    """Return to the admin building card only for authenticated admin forms."""
+    if request.form.get("return_to") == "admin":
+        actor = current_user()
+        if actor and actor["role"] == "ADMIN":
+            return redirect(url_for("admin", _anchor=f"building-{building_id}"))
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/buildings/<int:building_id>/staff-meeting", methods=["POST"])
 @roles("HRA", "ADMIN")
 def update_staff_meeting(building_id):
@@ -437,18 +465,14 @@ def update_staff_meeting(building_id):
         event_at, event_location = _parse_staff_event_form()
     except ValueError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("dashboard"))
+        return _staff_event_redirect(building_id)
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
     if not conn.execute("SELECT 1 FROM buildings WHERE id=?", (building_id,)).fetchone():
         conn.rollback()
         abort(404)
-    if actor["role"] == "HRA":
-        current = conn.execute("SELECT building_id,role FROM users WHERE id=?", (actor["id"],)).fetchone()
-        if not current or current["role"] != "HRA" or current["building_id"] != building_id:
-            conn.rollback()
-            abort(403)
+    _check_locked_staff_event_access(conn, actor["id"], building_id)
     conn.execute(
         "UPDATE buildings SET staff_meeting_at=?,staff_meeting_location=? WHERE id=?",
         (event_at, event_location, building_id),
@@ -461,7 +485,7 @@ def update_staff_meeting(building_id):
     )
     conn.commit()
     flash("Staff meeting cleared." if event_at is None else "Staff meeting updated.", "success")
-    return redirect(url_for("dashboard"))
+    return _staff_event_redirect(building_id)
 
 
 @app.route("/buildings/<int:building_id>/staff-dinner", methods=["POST"])
@@ -473,18 +497,14 @@ def update_staff_dinner(building_id):
         event_at, event_location = _parse_staff_event_form()
     except ValueError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("dashboard"))
+        return _staff_event_redirect(building_id)
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
     if not conn.execute("SELECT 1 FROM buildings WHERE id=?", (building_id,)).fetchone():
         conn.rollback()
         abort(404)
-    if actor["role"] == "HRA":
-        current = conn.execute("SELECT building_id,role FROM users WHERE id=?", (actor["id"],)).fetchone()
-        if not current or current["role"] != "HRA" or current["building_id"] != building_id:
-            conn.rollback()
-            abort(403)
+    _check_locked_staff_event_access(conn, actor["id"], building_id)
     conn.execute(
         "UPDATE buildings SET staff_dinner_at=?,staff_dinner_location=? WHERE id=?",
         (event_at, event_location, building_id),
@@ -497,4 +517,4 @@ def update_staff_dinner(building_id):
     )
     conn.commit()
     flash("Staff dinner cleared." if event_at is None else "Staff dinner updated.", "success")
-    return redirect(url_for("dashboard"))
+    return _staff_event_redirect(building_id)

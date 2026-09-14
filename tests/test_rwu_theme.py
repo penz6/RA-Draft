@@ -69,6 +69,12 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertIn("normalize_accent_color", self.settings)
         self.assertIn("building_theme_css", self.settings)
 
+    def test_admin_can_manage_staff_events_for_each_building(self):
+        self.assertIn("rwu-building-events", self.admin)
+        self.assertIn("update_staff_dinner", self.admin)
+        self.assertIn("update_staff_meeting", self.admin)
+        self.assertIn('name="return_to" value="admin"', self.admin)
+
     def test_building_themes_and_uploaded_banner_are_present(self):
         self.assertIn(".theme-maple", self.theme)
         self.assertIn(".theme-willow", self.theme)

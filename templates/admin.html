@@ -5,7 +5,7 @@
   <div>
     <div class="eyebrow">Administration</div>
     <h1>Users &amp; Buildings</h1>
-    <p>Manage access, buildings, and building appearance.</p>
+    <p>Manage access, buildings, appearance, and staff events.</p>
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
@@ -14,7 +14,7 @@
   <div class="section-head">
     <div>
       <h2>Buildings</h2>
-      <p>Set the name, theme, accent color, and building mark.</p>
+      <p>Set each building's identity and building-scoped staff events.</p>
     </div>
     <span class="count-badge">{{ buildings|length }}</span>
   </div>
@@ -85,6 +85,65 @@
           </div>
         </form>
       </div>
+
+      <details class="rwu-building-events">
+        <summary>Staff events</summary>
+        <div class="rwu-building-event-grid">
+          <section>
+            <div class="rwu-building-event-head">
+              <strong>Staff dinner</strong>
+              <small>{% if b.staff_dinner_at and b.staff_dinner_location %}{{ b.staff_dinner_at|event_label }} · {{ b.staff_dinner_location }}{% else %}Not scheduled{% endif %}</small>
+            </div>
+            <form method="post" action="{{ url_for('update_staff_dinner', building_id=b.id) }}" class="rwu-building-event-form">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="return_to" value="admin">
+              <label class="field compact">Date and time
+                <input type="datetime-local" name="event_at" value="{{ b.staff_dinner_at or '' }}" required>
+              </label>
+              <label class="field compact">Location
+                <input name="event_location" maxlength="120" value="{{ b.staff_dinner_location or '' }}" required>
+              </label>
+              <button class="button secondary small" type="submit">Save dinner</button>
+            </form>
+            {% if b.staff_dinner_at or b.staff_dinner_location %}
+            <form method="post" action="{{ url_for('update_staff_dinner', building_id=b.id) }}" class="rwu-building-event-clear-form">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="return_to" value="admin">
+              <input type="hidden" name="event_at" value="">
+              <input type="hidden" name="event_location" value="">
+              <button class="button ghost small" type="submit">Clear dinner</button>
+            </form>
+            {% endif %}
+          </section>
+
+          <section>
+            <div class="rwu-building-event-head">
+              <strong>Staff meeting</strong>
+              <small>{% if b.staff_meeting_at and b.staff_meeting_location %}{{ b.staff_meeting_at|event_label }} · {{ b.staff_meeting_location }}{% else %}Not scheduled{% endif %}</small>
+            </div>
+            <form method="post" action="{{ url_for('update_staff_meeting', building_id=b.id) }}" class="rwu-building-event-form">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="return_to" value="admin">
+              <label class="field compact">Date and time
+                <input type="datetime-local" name="event_at" value="{{ b.staff_meeting_at or '' }}" required>
+              </label>
+              <label class="field compact">Location
+                <input name="event_location" maxlength="120" value="{{ b.staff_meeting_location or '' }}" required>
+              </label>
+              <button class="button secondary small" type="submit">Save meeting</button>
+            </form>
+            {% if b.staff_meeting_at or b.staff_meeting_location %}
+            <form method="post" action="{{ url_for('update_staff_meeting', building_id=b.id) }}" class="rwu-building-event-clear-form">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="return_to" value="admin">
+              <input type="hidden" name="event_at" value="">
+              <input type="hidden" name="event_location" value="">
+              <button class="button ghost small" type="submit">Clear meeting</button>
+            </form>
+            {% endif %}
+          </section>
+        </div>
+      </details>
     </article>
     {% else %}
     <div class="empty-state compact"><p>No buildings yet.</p></div>

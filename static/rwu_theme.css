@@ -168,10 +168,15 @@ body.rwu-portal{
   .rwu-building-controls{grid-template-columns:1fr}
 }
 @media(max-width:760px){
-  .rwu-shell{display:block}.rwu-sidebar{position:fixed;inset:58px 0 auto 0;width:100%;height:calc(100vh - 58px);display:none;border-right:0;z-index:30}.rwu-sidebar:has(.rwu-nav.is-open){display:flex}
-  .rwu-mobile-bar{position:sticky;top:0;z-index:31;display:flex;align-items:center;justify-content:space-between;min-height:58px;padding:.55rem .8rem;background:var(--rwu-navy);border-bottom:1px solid rgba(255,255,255,.14)}
+  .rwu-shell{display:block}
+  .rwu-sidebar{position:static;inset:auto;width:100%;height:auto;display:flex;border-right:0;z-index:30}
+  .js .rwu-sidebar{position:fixed;inset:58px 0 auto 0;height:calc(100vh - 58px);display:none}
+  .js .rwu-sidebar.is-open{display:flex}
+  .rwu-mobile-bar{position:sticky;top:0;z-index:31;display:none;align-items:center;justify-content:space-between;min-height:58px;padding:.55rem .8rem;background:var(--rwu-navy);border-bottom:1px solid rgba(255,255,255,.14)}
+  .js .rwu-mobile-bar{display:flex}
   .rwu-mobile-brand{color:#fff;font-size:.88rem;font-weight:850;text-decoration:none}.rwu-mobile-brand:hover{color:#fff}
-  .rwu-mobile-bar .nav-toggle{display:inline-flex;color:#fff;background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18)}
+  .rwu-mobile-bar .nav-toggle{display:none;color:#fff;background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18)}
+  .js .rwu-mobile-bar .nav-toggle{display:inline-flex}
   .rwu-main{padding:1rem .7rem 3rem}.rwu-dashboard{gap:.8rem}
   .rwu-dashboard-hero{min-height:145px;padding:1.25rem}.rwu-hero-mark{width:4.8rem;height:4.8rem;flex-basis:4.8rem;border-radius:17px}
   .rwu-dashboard-hero h1{font-size:1.8rem}

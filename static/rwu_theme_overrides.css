@@ -110,6 +110,34 @@
   min-height:42px;
   padding:.45rem;
 }
+.rwu-building-events{
+  margin-top:.8rem;
+  padding-top:.8rem;
+  border-top:1px solid #e0e7eb;
+}
+.rwu-building-events>summary{
+  width:max-content;
+  color:var(--rwu-blue);
+  font-size:.84rem;
+  font-weight:800;
+  cursor:pointer;
+}
+.rwu-building-event-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.8rem;
+  margin-top:.8rem;
+}
+.rwu-building-event-grid>section{
+  padding:.8rem;
+  border:1px solid #e0e7eb;
+  border-radius:10px;
+  background:#fff;
+}
+.rwu-building-event-head strong,.rwu-building-event-head small{display:block}
+.rwu-building-event-head small{margin-top:.15rem;color:var(--rwu-muted)}
+.rwu-building-event-form{display:grid;grid-template-columns:1fr 1fr auto;gap:.55rem;align-items:end;margin-top:.7rem}
+.rwu-building-event-clear-form{margin-top:.55rem}
 
 /* Session pages ----------------------------------------------------------- */
 .rwu-portal .session-page{
@@ -260,7 +288,7 @@
   .rwu-building-appearance-form .field:nth-of-type(3){grid-column:1/-1}
 }
 @media(max-width:900px){
-  .rwu-staff-events{grid-template-columns:1fr}
+  .rwu-staff-events,.rwu-building-event-grid{grid-template-columns:1fr}
 }
 @media(max-width:760px){
   .rwu-hawk{display:none}
@@ -272,6 +300,7 @@
   .rwu-meeting-editor>summary{width:100%}
   .rwu-meeting-editor-panel{position:static;width:100%;margin-top:.55rem;box-shadow:none}
   .rwu-building-create,.rwu-building-appearance-form{grid-template-columns:1fr}
+  .rwu-building-event-form{grid-template-columns:1fr}
   .rwu-building-create .field:nth-of-type(4),.rwu-building-appearance-form .field:nth-of-type(3){grid-column:auto}
   .rwu-building-create>.button{width:100%}
   .rwu-portal .session-heading,.rwu-portal .swap-page-head{padding:1rem}
