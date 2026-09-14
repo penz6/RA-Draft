@@ -70,6 +70,36 @@ class SoftLightThemeTests(unittest.TestCase):
         self.assertIn('color:#235f86!important', block.group(1))
         self.assertIn('background:#e1edf5!important', block.group(1))
 
+    def test_shift_text_colors_apply_without_dashboard_wrappers(self):
+        # The full schedule uses .upcoming-shifts-card, not .rwu-duty-panel.
+        # Require shared selectors rather than another dashboard-only patch.
+        expected = {
+            '.rwu-portal .shift-card .shift-date': '--rwu-text',
+            '.rwu-portal .shift-card .shift-location': '--rwu-muted',
+            '.rwu-portal .shift-card .shift-partners': '--rwu-muted',
+            '.rwu-portal .shift-card .shift-location strong': '--rwu-text',
+            '.rwu-portal .shift-card .shift-partners strong': '--rwu-text',
+        }
+        css = re.sub(r'/\*.*?\*/', '', self.css, flags=re.S)
+        for selector, token in expected.items():
+            with self.subTest(selector=selector):
+                declarations = {}
+                for selectors, block in re.findall(r'([^{}]+)\{([^{}]*)\}', css):
+                    if selector in [item.strip() for item in selectors.split(',')]:
+                        for declaration in block.split(';'):
+                            name, sep, value = declaration.partition(':')
+                            if sep:
+                                declarations[name.strip()] = value.strip()
+                self.assertEqual(declarations.get('color'), f'var({token})')
+
+    def test_shift_action_text_does_not_depend_on_custom_accent(self):
+        # An admin may choose a very light accent; action labels still need
+        # readable text. Borders may continue to use the selected accent.
+        selector = '.rwu-portal .shift-card .shift-card-actions .button'
+        block = re.search(re.escape(selector) + r'\s*\{([^}]+)\}', self.css)
+        self.assertIsNotNone(block)
+        self.assertRegex(block.group(1), r'(?:^|;)\s*color:\s*var\(--rwu-blue\)')
+
     def test_admin_appearance_markup_has_only_an_accent_picker(self):
         admin = (ROOT / 'templates' / 'admin.html').read_text(encoding='utf-8')
         self.assertIn('name="accent_color"', admin)
