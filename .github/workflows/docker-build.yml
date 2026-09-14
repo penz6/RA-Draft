@@ -54,13 +54,33 @@ jobs:
             fi
             sleep 1
           done
-
           curl --fail --silent --show-error http://127.0.0.1:8000/ -o /tmp/index.html
           grep -q 'Continue with Google' /tmp/index.html
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Host: attacker.example' http://127.0.0.1:8000/healthz)" = "400"
           curl --fail --silent --show-error -D /tmp/headers http://127.0.0.1:8000/healthz -o /dev/null
           grep -qi '^X-Content-Type-Options: nosniff' /tmp/headers
           grep -qi '^Content-Security-Policy:' /tmp/headers
+
+      - name: Render application pages with sample data
+        run: |
+          mkdir -p artifacts
+          docker run --rm --user "$(id -u):$(id -g)" --volume "$PWD/artifacts:/artifacts" ra-draft:ci python tests/render_portal_pages.py /artifacts
+
+      - name: Check complete pages in Chromium
+        run: |
+          python3 -m venv /tmp/portal-browser-venv
+          /tmp/portal-browser-venv/bin/pip install playwright==1.57.0
+          /tmp/portal-browser-venv/bin/python -m playwright install --with-deps chromium
+          /tmp/portal-browser-venv/bin/python tests/browser_portal_checks.py artifacts
+
+      - name: Upload portal previews and browser results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: portal-previews
+          path: artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Clean up test container
         if: always()
