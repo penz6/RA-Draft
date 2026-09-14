@@ -68,7 +68,7 @@
 
   <div class="session-list">
     {% for s in available_buildings %}
-    <a class="session-card" href="{{ url_for('building_swap_page', building_id=s.building_id) }}">
+    <a class="session-card swap-building-card" href="{{ url_for('building_swap_page', building_id=s.building_id) }}">
       <div class="session-card-main">
         <div class="session-card-title">
           <h3>{{ s.building_name }}</h3>
@@ -76,7 +76,7 @@
         </div>
         <p>Open the building-wide duty swap workspace</p>
       </div>
-      <span class="session-arrow" aria-hidden="true">&rarr;</span>
+      <span class="swap-building-arrow" aria-hidden="true">&rarr;</span>
     </a>
     {% else %}
     <div class="empty-state compact">

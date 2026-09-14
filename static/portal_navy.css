@@ -194,3 +194,31 @@ body.rwu-portal,body.rwu-public{
   .rwu-portal .swap-builder-row{grid-template-columns:minmax(0,1fr)}
   .rwu-portal .swap-builder-arrow{transform:rotate(90deg);justify-self:start}
 }
+
+/* Building links have no session metadata column. Keep the whole row clickable
+   and the decorative arrow compact at every viewport width. */
+.rwu-portal .swap-building-card{
+  grid-template-columns:minmax(0,1fr) auto;
+  min-width:0;
+  gap:1rem;
+}
+.rwu-portal .swap-building-card .session-card-main{min-width:0;overflow-wrap:anywhere}
+.rwu-portal .swap-building-card .session-card-title{flex-wrap:wrap}
+.rwu-portal .swap-building-card .session-card-title h3{min-width:0}
+.rwu-portal .swap-building-card .swap-building-arrow{
+  display:grid;
+  place-items:center;
+  justify-self:end;
+  align-self:center;
+  width:2rem;
+  height:2rem;
+  border-radius:50%;
+  color:var(--rwu-navy);
+  background:var(--blue-soft);
+  font-size:1.2rem;
+  line-height:1;
+}
+.rwu-portal .swap-building-card:focus-visible{
+  outline:3px solid var(--rwu-navy);
+  outline-offset:3px;
+}
