@@ -61,7 +61,8 @@ def render_pages(destination):
         if 'portal_navy.css' not in text:
             raise AssertionError(f'{name}: missing shared palette')
         (destination / f'{name}.html').write_text(text, encoding='utf-8')
-    save('login', 'login')
+    # /login initiates Google OAuth; / is the actual public sign-in page.
+    save('login', 'index')
     save('onboarding', 'onboarding', new_ra)
     save('dashboard', 'dashboard', admin)
     save('admin', 'admin', admin)
@@ -72,7 +73,7 @@ def render_pages(destination):
     save('ra-session', 'view_session', ra, session_id=opened)
     save('closed-session', 'view_session', admin, session_id=closed)
     save('swap-home', 'swap_home', admin)
-    save('swaps', 'swap_page', ra, session_id=closed)
+    save('swaps', 'building_swap_page', ra, building_id=hall)
     print('Rendered 12 application pages with sample data.')
 
 
