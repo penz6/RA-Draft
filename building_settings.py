@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from xml.etree import ElementTree as ET
 
+from defusedxml.ElementTree import fromstring as safe_xml_fromstring
 from flask import Response, abort, flash, redirect, request, url_for
 
 from core import (
@@ -158,7 +159,7 @@ def sanitize_building_svg(raw: bytes) -> str:
         raise ValueError("SVG document types and entities are not allowed.")
 
     try:
-        root = ET.fromstring(text)
+        root = safe_xml_fromstring(text)
     except ET.ParseError as exc:
         raise ValueError("The uploaded file is not valid SVG.") from exc
     if _local_name(root.tag) != "svg":
