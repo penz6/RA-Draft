@@ -920,7 +920,8 @@ def calendar_months(row):
     """Generate structured monthly calendar grid weeks for template rendering."""
     start = date.fromisoformat(row["start_date"])
     end = date.fromisoformat(row["end_date"])
-    calendar = calendar_module.Calendar(firstweekday=0)
+    # Match the displayed weekday headers by laying each week out Sunday-first.
+    calendar = calendar_module.Calendar(firstweekday=6)
     months = []
     cursor = start.replace(day=1)
     while cursor <= end:

@@ -149,6 +149,11 @@ body.rwu-portal,body.rwu-public{
 .rwu-portal .calendar-day.is-weekend{--calendar-fill:#eee3c8;--calendar-date-fill:#e3d3a5}
 .rwu-portal .calendar-day.is-no-duty{background:var(--rwu-inset)}
 .rwu-portal .calendar-day.is-no-duty .calendar-day-head strong{color:var(--rwu-muted);background:var(--rwu-hover)}
+.rwu-portal .calendar-day.is-self-assigned,
+.rwu-portal .calendar-day.is-self-assigned:is(:disabled,:hover,:focus-visible,.is-full){
+  outline:3px solid #15803d;
+  outline-offset:-3px;
+}
 
 /* Building setup now has a name only. No hidden appearance controls. */
 .rwu-portal .rwu-building-create{grid-template-columns:minmax(0,1fr) auto!important}

@@ -40,6 +40,18 @@ class SessionSwapUIUsabilityTests(unittest.TestCase):
         self.assertIn(".calendar-month{", css)
         self.assertIn("min-height:104px", css)
 
+    def test_calendar_starts_on_sunday_and_outlines_the_users_assignments(self):
+        template = (ROOT / "templates" / "session_dates_v2.html").read_text(encoding="utf-8")
+        theme = (ROOT / "static" / "portal_navy.css").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "<span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span>",
+            template,
+        )
+        self.assertIn("{% if d in self_assigned_dates %} is-self-assigned{% endif %}", template)
+        self.assertIn(".calendar-day.is-self-assigned", theme)
+        self.assertIn("outline:3px solid #15803d", theme)
+
     def test_swap_request_ui_is_guided_and_has_live_readiness_summary(self):
         template = (ROOT / "templates" / "swap_page.html").read_text(encoding="utf-8")
         script = (ROOT / "static" / "swap_page.js").read_text(encoding="utf-8")
