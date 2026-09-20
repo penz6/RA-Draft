@@ -108,6 +108,11 @@ def _session_template_context(session_id, user):
             duty_date: ",".join(user_ids)
             for duty_date, user_ids in assignment_user_ids.items()
         },
+        "self_assigned_dates": {
+            assignment["duty_date"]
+            for assignment in picks
+            if assignment["user_id"] == user["id"]
+        },
         "selectable_dates": self_selectable,
         "next": current_picker,
         "can_manage": manager_allowed,

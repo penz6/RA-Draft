@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -18,6 +19,7 @@ os.environ.setdefault(
 import portal_app  # noqa: E402,F401
 from core import (  # noqa: E402
     app,
+    calendar_months,
     configure_connection,
     db,
     migrate_schema,
@@ -334,6 +336,23 @@ class RoundRobinCalendarTestCase(unittest.TestCase):
         self.assertIn("Skip once", page)
         self.assertIn("Download session iCal", page)
         self.assertNotIn("Reference hours", page)
+
+        self.login_as(alex_id)
+        page = self.request("get", f"/sessions/{session_id}").get_data(as_text=True)
+        self.assertRegex(
+            page,
+            re.compile(r'class="[^"]*is-self-assigned[^"]*"[^>]*data-date="2026-09-01"'),
+        )
+
+    def test_calendar_months_places_sunday_in_the_first_column(self):
+        month = calendar_months(
+            {"start_date": "2026-09-01", "end_date": "2026-09-05"}
+        )[0]
+
+        self.assertEqual(
+            month["weeks"][0],
+            [None, None, "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05"],
+        )
 
     def test_session_ical_uses_one_all_day_event_per_assigned_date(self):
         building_id = self.add_building("Maple")

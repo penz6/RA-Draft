@@ -67,6 +67,14 @@ def run(destination):
                             const expected = el.classList.contains('is-weekend') ? 'rgb(238, 227, 200)' : 'rgb(221, 232, 241)';
                             expect(style(el).backgroundColor === expected, 'persistent day color: ' + el.className);
                         }
+                        for (const header of document.querySelectorAll('.calendar-weekdays')) {
+                            const labels = Array.from(header.children, el => el.textContent.trim());
+                            expect(labels[0] === 'Sun' && labels[6] === 'Sat', 'Sunday-first calendar header');
+                        }
+                        for (const el of document.querySelectorAll('.calendar-day.is-self-assigned')) {
+                            expect(style(el).outlineColor === 'rgb(21, 128, 61)', 'green self-assignment outline');
+                            expect(style(el).outlineWidth === '3px', 'visible self-assignment outline');
+                        }
                         expect(document.documentElement.scrollWidth <= window.innerWidth + 1, 'page horizontal overflow');
                         return errors;
                     }''')
