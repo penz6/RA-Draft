@@ -29,7 +29,7 @@ def _ensure_picking_pause_column():
     if "order_edit_token" not in columns:
         conn.execute("ALTER TABLE draft_sessions ADD COLUMN order_edit_token TEXT")
         conn.commit()
-    # 0: weekday phase, 1: awaiting confirmation, 2: weekend order confirmed.
+    # 0: first phase, 1: awaiting confirmation, 2: second-phase order confirmed.
     if "phase_order_state" not in columns:
         conn.execute(
             "ALTER TABLE draft_sessions ADD COLUMN phase_order_state INTEGER NOT NULL "
@@ -43,32 +43,49 @@ _ensure_picking_pause_column()
 
 
 def pause_for_phase_confirmation(session_id):
-    """Gate weekday-to-weekend picking inside the caller's write transaction.
+    """Gate the transition between configured date phases in a write transaction.
 
-    Confirmation is once per session. Reopening a weekday after confirmation
-    does not reverse the order a second time.
+    Confirmation is once per session. Reopening a date in the first phase after
+    confirmation does not reverse the order a second time.
     """
     row = core.session_row(session_id)
     if (not row or row["status"] != "OPEN"
-            or row["date_order"] != core.DATE_ORDER_WEEKDAYS_FIRST
             or row["phase_order_state"] != 0):
         return False
+    phase_kinds = {
+        core.DATE_ORDER_WEEKDAYS_FIRST: (
+            core.DATE_KIND_WEEKDAY,
+            core.DATE_KIND_WEEKEND,
+        ),
+        core.DATE_ORDER_WEEKENDS_FIRST: (
+            core.DATE_KIND_WEEKEND,
+            core.DATE_KIND_WEEKDAY,
+        ),
+    }
+    configured_phases = phase_kinds.get(core.normalize_date_order(row["date_order"]))
+    if not configured_phases:
+        return False
+    completed_kind, next_kind = configured_phases
     counts = core.assignment_counts(session_id)
     capacities = core.capacities_for(row)
     kinds = core.date_kinds_for(row)
-    weekdays = [d for d, capacity in capacities.items()
-                if capacity > 0 and kinds[d] == core.DATE_KIND_WEEKDAY]
-    weekdays_full = weekdays and all(counts.get(d, 0) >= capacities[d] for d in weekdays)
-    weekends_open = any(capacity > counts.get(d, 0) and kinds[d] == core.DATE_KIND_WEEKEND
-                        for d, capacity in capacities.items())
-    if not weekdays_full or not weekends_open:
+    completed_dates = [d for d, capacity in capacities.items()
+                       if capacity > 0 and kinds[d] == completed_kind]
+    completed_phase_full = completed_dates and all(
+        counts.get(d, 0) >= capacities[d] for d in completed_dates
+    )
+    next_phase_open = any(
+        capacity > counts.get(d, 0) and kinds[d] == next_kind
+        for d, capacity in capacities.items()
+    )
+    if not completed_phase_full or not next_phase_open:
         return False
     core.db().execute(
         "UPDATE draft_sessions SET picking_paused=1,phase_order_state=1,order_edit_token=? WHERE id=?",
         (secrets.token_urlsafe(32), session_id),
     )
     core.audit("draft.phase.awaiting_confirmation", "session", session_id,
-               {"completed_phase": "WEEKDAY", "next_phase": "WEEKEND"})
+               {"completed_phase": completed_kind, "next_phase": next_kind})
     return True
 
 
