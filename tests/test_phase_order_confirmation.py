@@ -62,6 +62,33 @@ class PhaseOrderConfirmationTests(test_session_pause.SessionPauseTestCase):
         self.assertEqual(self.state()['phase_order_state'], 2)
         self.assertEqual(self.state()['picking_paused'], 0)
 
+    def test_final_weekend_pauses_and_confirmation_reverses_before_weekdays(self):
+        self.configure_phase(rule='WEEKENDS_FIRST')
+        response = self.pick(self.ra_one, '2026-09-04')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.state()['phase_order_state'], 0)
+        response = self.pick(self.ra_two, '2026-09-05')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Waiting for HRA to confirm order', response.json['message'])
+        self.assertEqual(self.state()['phase_order_state'], 1)
+        self.assertEqual(self.state()['picking_paused'], 1)
+        self.assertEqual(self.pick(self.ra_two, '2026-09-03').status_code, 409)
+
+        self.login_as(self.hra_id)
+        page = self.request('get', f'/sessions/{self.session_id}/order').get_data(as_text=True)
+        self.assertLess(page.index(f'name="position_{self.ra_two}"'),
+                        page.index(f'name="position_{self.ra_one}"'))
+        data = self.confirmation(starter=self.ra_one)
+        self.assertEqual(self.request('post', f'/sessions/{self.session_id}/order', data=data).status_code, 302)
+        self.assertEqual(self.state()['phase_order_state'], 2)
+        self.assertEqual(self.state()['picking_paused'], 0)
+        with app.app_context():
+            self.assertEqual(next_picker(self.session_id)['id'], self.ra_one)
+            self.assertEqual([r[0] for r in db().execute(
+                'SELECT user_id FROM session_order ORDER BY position'
+            )], [self.ra_two, self.ra_one])
+        self.assertEqual(self.pick(self.ra_one, '2026-09-03').status_code, 200)
+
     def test_refilling_weekdays_after_confirmation_does_not_reverse_again(self):
         self.configure_phase()
         self.pick(self.ra_one, '2026-09-03')
@@ -132,7 +159,9 @@ class PhaseOrderConfirmationTests(test_session_pause.SessionPauseTestCase):
         self.assertEqual(self.state()['phase_order_state'], 1)
 
     def test_complete_and_unphased_sessions_do_not_pause(self):
-        for rule, end in [('CHRONOLOGICAL', '2026-09-05'), ('WEEKENDS_FIRST', '2026-09-05'), ('WEEKDAYS_FIRST', '2026-09-03')]:
+        for rule, end in [('CHRONOLOGICAL', '2026-09-05'),
+                          ('WEEKDAYS_FIRST', '2026-09-03'),
+                          ('WEEKENDS_FIRST', '2026-09-04')]:
             with self.subTest(rule=rule):
                 self.setUp()
                 self.configure_phase(rule=rule, end=end)
