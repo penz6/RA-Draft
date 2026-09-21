@@ -19,7 +19,7 @@ def _pending_swap_approvals(user):
 
     return db().execute(
         "SELECT COALESCE(sr.batch_id, printf('legacy-%d', sr.id)) AS batch_key, "
-        "sr.session_id, s.name AS session_name, b.name AS building_name, "
+        "sr.session_id, s.building_id, s.name AS session_name, b.name AS building_name, "
         "requester.name AS requester_name, target.name AS target_name, "
         "COUNT(*) AS pair_count, MIN(sr.created_at) AS created_at "
         "FROM duty_swap_requests sr "
@@ -29,7 +29,7 @@ def _pending_swap_approvals(user):
         "JOIN users target ON target.id=sr.target_user_id "
         "WHERE sr.status='TARGET_APPROVED' AND s.status='CLOSED' "
         + scope_sql
-        + "GROUP BY batch_key, sr.session_id, s.name, b.name, "
+        + "GROUP BY batch_key, sr.session_id, s.building_id, s.name, b.name, "
         "requester.name, target.name "
         "ORDER BY MIN(sr.created_at) ASC, sr.session_id ASC",
         tuple(params),
