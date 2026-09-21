@@ -162,6 +162,35 @@ class DutySwapTestCase(unittest.TestCase):
         self.assertIn("All closed-session shifts for today or later in Oak Hall", page)
         self.assertNotIn("View session", page)
 
+    def test_admin_swap_home_links_pending_approval_to_its_building(self):
+        data = self.create_closed_session_with_assignments()
+        admin_id = self.add_user(
+            sub="admin-1", email="admin@rwu.edu", name="Admin User", role="ADMIN"
+        )
+        with app.app_context():
+            db().execute(
+                "INSERT INTO duty_swap_requests("
+                "session_id,requester_user_id,requester_assignment_id,target_user_id,"
+                "target_assignment_id,status,batch_id,target_reviewed_at"
+                ") VALUES(?,?,?,?,?,'TARGET_APPROVED','pending-batch',CURRENT_TIMESTAMP)",
+                (
+                    data["session_id"],
+                    data["ra1_id"],
+                    data["a1"],
+                    data["ra2_id"],
+                    data["b1"],
+                ),
+            )
+            db().commit()
+
+        self.login_as(admin_id)
+        response = self.request("get", "/swaps")
+
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn("Needs your approval", page)
+        self.assertIn(f'/swaps/building/{data["building_id"]}', page)
+
     def test_ra_can_request_swap_between_closed_sessions_in_same_building(self):
         data = self.create_closed_session_with_assignments()
         with app.app_context():
