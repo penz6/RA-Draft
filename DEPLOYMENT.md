@@ -32,7 +32,7 @@ PROXY_HOPS=1
 PANGOLIN_NETWORK=pangolin
 WEB_THREADS=32
 SSE_MAX_CONNECTIONS_PER_USER=4
-AUDIT_LOG_MAX_ROWS=5000
+AUDIT_LOG_MAX_ROWS=2000000
 ```
 
 `PUBLIC_HOST` is the hostname only, without a scheme or path. `PROXY_HOPS` must match the number of trusted forwarded-host/proto values between Pangolin and Flask. Keep it at `1` unless the deployment has been intentionally tested with another value.
@@ -41,7 +41,9 @@ AUDIT_LOG_MAX_ROWS=5000
 
 `SSE_MAX_CONNECTIONS_PER_USER` limits simultaneous visible live pages for one signed-in account. Keep the default of `4` for normal use: it accommodates a phone and laptop plus brief overlap while a browser or proxy releases an older connection. This setting only apportions the existing `WEB_THREADS` capacity; it does not create threads or increase the global stream limit. Older Compose files that omit it still receive the image default of `4`, but declaring it explicitly makes the deployed configuration clear.
 
-`AUDIT_LOG_MAX_ROWS` bounds the persistent Admin audit trail. The default is 5,000 rows. Older audit rows are deleted automatically and SQLite reuses the freed pages for later records. This limit does not remove duty sessions or assignment history.
+`AUDIT_LOG_MAX_ROWS` bounds the persistent Admin audit trail. The default is 2,000,000 rows and the accepted range is 100 through 5,000,000 rows. At the default, a typical database is expected to remain in roughly the 500 MB–1 GB range, although its actual size depends on the amount of detail stored in each event and the other application data. Older audit rows are deleted automatically in small batches, and SQLite reuses the freed pages for later records. This limit does not remove duty sessions or assignment history. Monitor the database volume after deployment and lower this value if your audit entries are unusually large.
+
+A database in this size range is well within SQLite's design limits and does not require switching database engines. The Admin page reads only the newest 100 audit entries, and the retention trigger prunes at most 10,000 rows at a time, so it does not load the complete audit history into memory. Keep the database on local persistent storage rather than a network filesystem, and include the `-wal` and `-shm` files when measuring live disk use.
 
 The event broker is held in the application process, so the production container intentionally runs exactly one Gunicorn worker. Do not add workers or app replicas unless the broker is replaced with shared pub/sub such as Redis.
 
@@ -158,7 +160,9 @@ The first new user whose email appears in `ADMIN_EMAILS` becomes an admin. Every
 
 The production container intentionally does not write a Gunicorn access log. Gunicorn error output remains available through Docker logs.
 
-The sample Compose file also caps the Docker `json-file` log at three 5 MB files (about 15 MB maximum for this container). The persistent audit table is bounded separately by `AUDIT_LOG_MAX_ROWS` and defaults to 5,000 rows.
+The sample Compose file also caps the Docker `json-file` log at three 5 MB files (about 15 MB maximum for this container). The persistent audit table is bounded separately by `AUDIT_LOG_MAX_ROWS` and defaults to 2,000,000 rows. Audit retention is row-based rather than byte-based, so monitor the database volume if a strict storage ceiling is required.
+
+SQLite normally retains pages freed by audit pruning for reuse, which keeps future writes fast but means the main database file will not automatically become smaller. Lowering `AUDIT_LOG_MAX_ROWS` therefore limits retained records but does not immediately return disk space to the host. If space must be reclaimed, first make a verified backup, stop the application, ensure enough temporary free space is available, and run `VACUUM` during a maintenance window. Routine operation does not require `VACUUM`.
 
 Docker images can consume much more disk than application logs after many deployments. After confirming a new deployment is healthy, remove dangling images that are no longer referenced by a container:
 
