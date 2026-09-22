@@ -434,9 +434,10 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertIn("data-duty-calendar", html)
         self.assertIn("data-staff-search", html)
         self.assertIn('list="staff-autocomplete"', html)
-        self.assertIn('id="staff-autocomplete"', html)
-        self.assertIn('<option value="Birch RA">birch_ra@rwu.edu</option>', html)
-        self.assertIn('<option value="birch_ra@rwu.edu">Birch RA</option>', html)
+        self.assertIn('<datalist id="staff-autocomplete"></datalist>', html)
+        # Staff suggestions are fetched on demand instead of embedding every
+        # active account (twice) in every calendar response.
+        self.assertNotIn('<option value="Birch RA">', html)
         self.assertIn("data-duty-event", html)
         self.assertIn('data-staff-search="Birch RA birch_ra@rwu.edu"', html)
 

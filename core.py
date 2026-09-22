@@ -252,6 +252,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_assignments_session_date ON assignments(session_id, duty_date);
+CREATE INDEX IF NOT EXISTS idx_assignments_date_session ON assignments(duty_date, session_id);
 CREATE INDEX IF NOT EXISTS idx_users_building ON users(building_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_building ON draft_sessions(building_id);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor_user_id);
@@ -382,6 +383,7 @@ def _ensure_performance_indexes(conn):
     if _table_exists(conn, "assignments"):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_user_session ON assignments(user_id, session_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_session_date ON assignments(session_id, duty_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_date_session ON assignments(duty_date, session_id)")
     if _table_exists(conn, "session_order"):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_session_order_lookup ON session_order(session_id, user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_session_order_position ON session_order(session_id, position)")

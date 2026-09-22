@@ -251,6 +251,57 @@
   const searchInput = document.querySelector("[data-staff-search]");
   const dutyCalendar = document.querySelector("[data-duty-calendar]");
   if (searchInput && dutyCalendar) {
+    const autocomplete = document.getElementById("staff-autocomplete");
+    let autocompleteTimer;
+    let autocompleteRequest;
+    const autocompleteCache = new Map();
+
+    const renderAutocomplete = (results) => {
+      if (!autocomplete) return;
+      autocomplete.replaceChildren(...results.flatMap((staff) => {
+        const name = document.createElement("option");
+        name.value = staff.name;
+        name.label = staff.email;
+        const email = document.createElement("option");
+        email.value = staff.email;
+        email.label = staff.name;
+        return [name, email];
+      }));
+    };
+
+    const updateAutocomplete = () => {
+      if (!autocomplete) return;
+      const query = searchInput.value.trim();
+      clearTimeout(autocompleteTimer);
+      autocompleteRequest?.abort();
+      if (query.length < 2) {
+        renderAutocomplete([]);
+        return;
+      }
+      const cacheKey = query.toLowerCase();
+      if (autocompleteCache.has(cacheKey)) {
+        renderAutocomplete(autocompleteCache.get(cacheKey));
+        return;
+      }
+      autocompleteTimer = window.setTimeout(async () => {
+        autocompleteRequest = new AbortController();
+        try {
+          const response = await fetch(`/prostaff/api/staff-search?q=${encodeURIComponent(query)}`, {
+            credentials: "same-origin",
+            signal: autocompleteRequest.signal,
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const results = Array.isArray(payload.results) ? payload.results : [];
+          autocompleteCache.set(cacheKey, results);
+          renderAutocomplete(results);
+        } catch (error) {
+          if (error.name !== "AbortError") renderAutocomplete([]);
+        }
+      }, 250);
+    };
+
     searchInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -320,7 +371,10 @@
       });
     };
 
-    searchInput.addEventListener("input", filterCalendar);
+    searchInput.addEventListener("input", () => {
+      filterCalendar();
+      updateAutocomplete();
+    });
     searchInput.addEventListener("search", filterCalendar);
 
     if (searchInput.value.trim()) {
