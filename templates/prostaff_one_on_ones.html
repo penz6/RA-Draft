@@ -2,10 +2,7 @@
 {% block title %}One-on-ones | Prostaff{% endblock %}
 {% block content %}
 <div class="dashboard-page prostaff-dashboard prostaff-one-on-ones">
-  <header class="prostaff-page-heading prostaff-one-on-one-hero">
-    <div><div class="eyebrow">Prostaff tools{% if me.building_name %} · {{ me.building_name }}{% endif %}</div><h1>One-on-one schedule</h1><p>Build a dependable meeting rhythm with your residential-life team.</p></div>
-    <div class="prostaff-hero-mark" aria-hidden="true">1:1</div>
-  </header>
+  <div class="prostaff-page-heading"><div><div class="eyebrow">Prostaff tools{% if me.building_name %} · {{ me.building_name }}{% endif %}</div><h1>One-on-one schedule</h1><p>Build a dependable meeting rhythm with your residential-life team.</p></div></div>
   {% include 'prostaff_tabs.html' %}
 
   <div class="prostaff-one-on-one-layout">

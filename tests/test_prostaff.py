@@ -16,7 +16,7 @@ os.environ.setdefault("DATABASE_PATH", str(Path(tempfile.mkdtemp()) / "prostaff.
 
 import portal_app  # noqa: E402,F401
 from core import app, db  # noqa: E402
-from prostaff import _duty_display_date  # noqa: E402
+from prostaff import _duty_display_date, consolidate_duty_schedule  # noqa: E402
 from staff_event_schedule import SCHOOL_TIMEZONE  # noqa: E402
 
 
@@ -225,6 +225,220 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertNotIn(b"Current Night RA", page.data)
         self.assertIn(b"Wed, Oct 14", page.data)
         self.assertIn(b"previous duty night until 8:00 AM", page.data)
+
+    def test_one_on_one_header_readability_and_theme_alignment(self):
+        with app.app_context():
+            building = db().execute("INSERT INTO buildings(name) VALUES('Willow')").lastrowid
+            staff = db().execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) "
+                "VALUES('ps2','ps2@example.edu','Pro Staff','RA',?,1,0)",
+                (building,),
+            ).lastrowid
+            db().commit()
+        self.login_as(staff)
+        res = self.request("get", "/prostaff/one-on-ones")
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+        self.assertIn("prostaff-page-heading", html)
+        self.assertIn("One-on-one schedule", html)
+        self.assertIn("Build a dependable meeting rhythm with your residential-life team.", html)
+        self.assertIn("Prostaff tools · Willow", html)
+        self.assertNotIn("prostaff-hero-mark", html)
+        self.assertNotIn("prostaff-one-on-one-hero", html)
+        self.assertNotIn(">1:1<", html)
+
+        # Verify static file definitions
+        root = Path(__file__).resolve().parents[1]
+        tmpl = (root / "templates/prostaff_one_on_ones.html").read_text(encoding="utf-8")
+        css = (root / "static/rwu_theme_overrides.css").read_text(encoding="utf-8")
+        self.assertNotIn("prostaff-hero-mark", tmpl)
+        self.assertNotIn("prostaff-one-on-one-hero", tmpl)
+        self.assertNotIn(">1:1<", tmpl)
+        self.assertNotIn(".prostaff-hero-mark", css)
+        self.assertNotIn(".prostaff-one-on-one-hero", css)
+
+    def test_consolidate_duty_schedule_helper(self):
+        # Empty input
+        self.assertEqual(consolidate_duty_schedule([]), {})
+
+        # Single staff
+        rows = [
+            {"duty_date": "2026-10-15", "building_id": 1, "building_name": "Maple", "name": "Jane Doe", "email": "jdoe@rwu.edu"}
+        ]
+        res = consolidate_duty_schedule(rows)
+        self.assertIn(15, res)
+        self.assertEqual(len(res[15]), 1)
+        self.assertEqual(res[15][0]["building_name"], "Maple")
+        self.assertEqual(res[15][0]["names"], "Jane Doe")
+        self.assertEqual(res[15][0]["search_terms"], "Jane Doe jdoe@rwu.edu")
+
+        # Two staff in same building
+        rows = [
+            {"duty_date": "2026-10-15", "building_id": 1, "building_name": "Maple", "name": "Jane Doe", "email": "jdoe@rwu.edu"},
+            {"duty_date": "2026-10-15", "building_id": 1, "building_name": "Maple", "name": "John Smith", "email": "jsmith@rwu.edu"},
+        ]
+        res = consolidate_duty_schedule(rows)
+        self.assertEqual(len(res[15]), 1)
+        self.assertEqual(res[15][0]["names"], "Jane Doe & John Smith")
+        self.assertEqual(res[15][0]["search_terms"], "Jane Doe jdoe@rwu.edu John Smith jsmith@rwu.edu")
+
+        # Duplicate row for same staff
+        rows.append({"duty_date": "2026-10-15", "building_id": 1, "building_name": "Maple", "name": "Jane Doe", "email": "jdoe@rwu.edu"})
+        res = consolidate_duty_schedule(rows)
+        self.assertEqual(len(res[15]), 1)
+        self.assertEqual(res[15][0]["names"], "Jane Doe & John Smith")
+
+        # Multiple buildings on same date
+        rows.append({"duty_date": "2026-10-15", "building_id": 2, "building_name": "Cedar", "name": "Taylor RA", "email": "taylor@rwu.edu"})
+        res = consolidate_duty_schedule(rows)
+        self.assertEqual(len(res[15]), 2)
+        self.assertEqual(res[15][1]["building_name"], "Cedar")
+        self.assertEqual(res[15][1]["names"], "Taylor RA")
+
+    def test_duty_calendar_building_entry_consolidation_and_time_omission(self):
+        with app.app_context():
+            conn = db()
+            b_maple = conn.execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
+            b_cedar = conn.execute("INSERT INTO buildings(name) VALUES('Cedar')").lastrowid
+            admin = conn.execute("INSERT INTO users(google_sub,email,name,role) VALUES('admin','admin@rwu.edu','Admin','ADMIN')").lastrowid
+            ra1 = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('ra1','ra1@rwu.edu','Alex RA','RA',?)", (b_maple,)).lastrowid
+            ra2 = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('ra2','ra2@rwu.edu','Sam RA','RA',?)", (b_maple,)).lastrowid
+            ra3 = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('ra3','ra3@rwu.edu','Taylor RA','RA',?)", (b_cedar,)).lastrowid
+            staff = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) VALUES('ps','ps@example.edu','Pro Staff','RA',?,1,0)", (b_maple,)).lastrowid
+
+            draft1 = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,shift_start,shift_end,created_by,status) "
+                "VALUES('Fall Maple',?,'2026-10-01','2026-10-31','19:00','08:00',?,'CLOSED')",
+                (b_maple, admin),
+            ).lastrowid
+            draft2 = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,shift_start,shift_end,created_by,status) "
+                "VALUES('Fall Cedar',?,'2026-10-01','2026-10-31','20:00','07:00',?,'CLOSED')",
+                (b_cedar, admin),
+            ).lastrowid
+
+            # Day 2026-10-15: Alex RA & Sam RA in Maple, Taylor RA in Cedar
+            conn.execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (draft1, ra1, "2026-10-15", admin))
+            conn.execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (draft1, ra2, "2026-10-15", admin))
+            conn.execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (draft2, ra3, "2026-10-15", admin))
+            conn.commit()
+
+        self.login_as(staff)
+        res = self.request("get", "/prostaff/schedule?month=2026-10")
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+
+        # Consolidated names joined with ampersand
+        self.assertIn("Alex RA &amp; Sam RA", html)
+        self.assertIn("Taylor RA", html)
+
+        # Omission of shift times
+        self.assertNotIn("7:00 PM", html)
+        self.assertNotIn("8:00 AM", html)
+        self.assertNotIn("20:00", html)
+
+        # Empty day indication preserved
+        self.assertIn('<small class="empty-copy">No duty</small>', html)
+
+        # Exactly 1 entry for Maple on Day 15
+        self.assertEqual(html.count("Alex RA &amp; Sam RA"), 1)
+
+    def test_prostaff_staff_search_api(self):
+        with app.app_context():
+            conn = db()
+            b = conn.execute("INSERT INTO buildings(name) VALUES('Oak')").lastrowid
+            conn.execute("INSERT INTO users(google_sub,email,name,role) VALUES('adm','adm@rwu.edu','Admin User','ADMIN')")
+            conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('r1','alex@rwu.edu','Alex Smith','RA',?)", (b,))
+            conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('r2','sam@rwu.edu','Sam Taylor','RA',?)", (b,))
+            conn.execute("INSERT INTO users(google_sub,email,name,role,building_id,disabled) VALUES('dis','dis@rwu.edu','Disabled RA','RA',?,1)", (b,))
+            staff = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) VALUES('stf','stf@rwu.edu','Staff User','RA',?,1,0)", (b,)).lastrowid
+            conn.commit()
+
+        self.login_as(staff)
+        # Search by name substring
+        res = self.request("get", "/prostaff/api/staff-search?q=alex")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("results", data)
+        names = [r["name"] for r in data["results"]]
+        self.assertIn("Alex Smith", names)
+        self.assertNotIn("Sam Taylor", names)
+
+        # Search by email substring
+        res = self.request("get", "/prostaff/api/staff-search?q=sam@rwu")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        names = [r["name"] for r in data["results"]]
+        self.assertIn("Sam Taylor", names)
+        self.assertNotIn("Alex Smith", names)
+
+        # Case-insensitive search
+        res = self.request("get", "/prostaff/api/staff-search?q=ALEX")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        names = [r["name"] for r in data["results"]]
+        self.assertIn("Alex Smith", names)
+
+        # Disabled and prostaff users excluded
+        res = self.request("get", "/prostaff/api/staff-search")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        names = [r["name"] for r in data["results"]]
+        self.assertIn("Alex Smith", names)
+        self.assertIn("Sam Taylor", names)
+        self.assertNotIn("Disabled RA", names)
+        self.assertNotIn("Staff User", names)
+
+    def test_prostaff_staff_search_authorization_and_portal_isolation(self):
+        with app.app_context():
+            conn = db()
+            b = conn.execute("INSERT INTO buildings(name) VALUES('Pine')").lastrowid
+            ra = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('ra_u','ra_u@rwu.edu','Standard RA','RA',?)", (b,)).lastrowid
+            staff = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) VALUES('staff_u','staff_u@rwu.edu','Staff','RA',?,1,0)", (b,)).lastrowid
+            conn.commit()
+
+        # Unauthenticated: 403
+        res = self.request("get", "/prostaff/api/staff-search")
+        self.assertEqual(res.status_code, 403)
+
+        # Standard RA: 403
+        self.login_as(ra)
+        res = self.request("get", "/prostaff/api/staff-search")
+        self.assertEqual(res.status_code, 403)
+
+        # Prostaff: allowed without redirection
+        self.login_as(staff)
+        res = self.request("get", "/prostaff/api/staff-search")
+        self.assertEqual(res.status_code, 200)
+
+    def test_duty_calendar_autocomplete_and_data_attributes(self):
+        with app.app_context():
+            conn = db()
+            b = conn.execute("INSERT INTO buildings(name) VALUES('Birch')").lastrowid
+            admin = conn.execute("INSERT INTO users(google_sub,email,name,role) VALUES('admin','admin@rwu.edu','Admin','ADMIN')").lastrowid
+            ra = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('ra','birch_ra@rwu.edu','Birch RA','RA',?)", (b,)).lastrowid
+            staff = conn.execute("INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) VALUES('ps','ps@example.edu','Pro Staff','RA',?,1,0)", (b,)).lastrowid
+            draft = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('Fall',?,?,?,?, 'CLOSED')",
+                (b, date.today().isoformat(), date.today().isoformat(), admin),
+            ).lastrowid
+            conn.execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (draft, ra, date.today().isoformat(), admin))
+            conn.commit()
+
+        self.login_as(staff)
+        res = self.request("get", f"/prostaff/schedule?month={date.today():%Y-%m}")
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+
+        self.assertIn("data-duty-calendar", html)
+        self.assertIn("data-staff-search", html)
+        self.assertIn('list="staff-autocomplete"', html)
+        self.assertIn('id="staff-autocomplete"', html)
+        self.assertIn('<option value="Birch RA">birch_ra@rwu.edu</option>', html)
+        self.assertIn('<option value="birch_ra@rwu.edu">Birch RA</option>', html)
+        self.assertIn("data-duty-event", html)
+        self.assertIn('data-staff-search="Birch RA birch_ra@rwu.edu"', html)
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ def isolate_prostaff_portal():
         "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones",
         "prostaff_set_password", "schedule_one_on_one",
         "delete_one_on_one", "stop_impersonation", "logout", "static",
+        "prostaff_staff_search",
     }
     is_impersonated = isinstance(session.get("impersonator_uid"), int)
     if request.endpoint not in allowed:
@@ -159,6 +160,62 @@ def _schedule_month(raw):
         return datetime.now(SCHOOL_TIMEZONE).date().replace(day=1)
 
 
+def consolidate_duty_schedule(schedule_rows):
+    """
+    Consolidate monthly duty schedule assignment rows by day and building.
+
+    For each date and building, multiple staff assignments are collapsed into a
+    single entry with staff names joined by ' & ' (or a single name if only one).
+    Shift times are omitted from the consolidated entries.
+    """
+    by_day_building = {}
+    for row in schedule_rows:
+        day = int(row["duty_date"][-2:])
+        b_id = row["building_id"]
+        key = (day, b_id)
+        if key not in by_day_building:
+            by_day_building[key] = {
+                "building_id": b_id,
+                "building_name": row["building_name"],
+                "duty_date": row["duty_date"],
+                "staff": [],
+            }
+        staff_name = (row["name"] or "").strip()
+        try:
+            email = (row["email"] or "").strip()
+        except (IndexError, KeyError):
+            email = ""
+        if staff_name and not any(s["name"] == staff_name for s in by_day_building[key]["staff"]):
+            by_day_building[key]["staff"].append({
+                "name": staff_name,
+                "email": email,
+            })
+
+    by_day = {}
+    for (day, _), item in by_day_building.items():
+        names_list = [s["name"] for s in item["staff"]]
+        joined_names = " & ".join(names_list) if names_list else "Unassigned"
+        terms = []
+        for s in item["staff"]:
+            if s["name"]:
+                terms.append(s["name"])
+            if s["email"]:
+                terms.append(s["email"])
+        search_terms = " ".join(terms)
+        entry = {
+            "building_id": item["building_id"],
+            "building_name": item["building_name"],
+            "duty_date": item["duty_date"],
+            "names": joined_names,
+            "name": joined_names,
+            "search_terms": search_terms,
+            "staff_list": item["staff"],
+        }
+        by_day.setdefault(day, []).append(entry)
+
+    return by_day
+
+
 @app.route("/prostaff/schedule")
 def prostaff_schedule():
     user = current_user()
@@ -183,16 +240,40 @@ def prostaff_schedule():
         "SELECT a.duty_date,u.name,u.email,b.id building_id,b.name building_name,s.shift_start,s.shift_end "
         "FROM assignments a JOIN users u ON u.id=a.user_id JOIN draft_sessions s ON s.id=a.session_id "
         "JOIN buildings b ON b.id=s.building_id WHERE u.role='RA' AND u.is_prostaff=0 AND " + " AND ".join(where) +
-        " ORDER BY a.duty_date,b.name,u.name LIMIT 250",
+        " ORDER BY a.duty_date,b.name,u.name LIMIT 1000",
         params,
     ).fetchall()
-    by_day = {}
-    for row in schedule:
-        by_day.setdefault(int(row["duty_date"][-2:]), []).append(row)
+    staff_members = db().execute(
+        "SELECT DISTINCT u.id, u.name, u.email FROM users u "
+        "WHERE u.role='RA' AND u.is_prostaff=0 AND u.disabled=0 "
+        "ORDER BY u.name"
+    ).fetchall()
+    by_day = consolidate_duty_schedule(schedule)
     return render_template("prostaff_schedule.html", buildings=buildings, schedule=schedule,
                            schedule_by_day=by_day, schedule_weeks=monthcalendar(selected.year, selected.month),
                            schedule_month=selected.strftime("%Y-%m"), schedule_month_label=selected.strftime("%B %Y"),
-                           selected_building=selected_building, search=search, prostaff_page="schedule")
+                           selected_building=selected_building, search=search, staff_members=staff_members,
+                           prostaff_page="schedule")
+
+
+@app.route("/prostaff/api/staff-search")
+def prostaff_staff_search():
+    user = current_user()
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+        abort(403)
+    q = request.args.get("q", "").strip()[:120]
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    where = ["u.role='RA'", "u.is_prostaff=0", "u.disabled=0"]
+    params = []
+    if q:
+        where.append("(u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\')")
+        params.extend([f"%{escaped}%", f"%{escaped}%"])
+    rows = db().execute(
+        "SELECT DISTINCT u.id, u.name, u.email FROM users u "
+        "WHERE " + " AND ".join(where) + " ORDER BY u.name LIMIT 25",
+        params,
+    ).fetchall()
+    return {"results": [{"id": r["id"], "name": r["name"], "email": r["email"]} for r in rows]}
 
 
 @app.route("/prostaff/one-on-ones")

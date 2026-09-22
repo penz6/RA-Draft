@@ -246,4 +246,85 @@
     dateInput.addEventListener("change", updateRepeatSummary);
     oneOnOneForm.querySelectorAll('[name="recurrence"]').forEach((field) => field.addEventListener("change", updateRepeatSummary));
   }
+
+  // Live staff search & autocomplete on Prostaff duty calendar
+  const searchInput = document.querySelector("[data-staff-search]");
+  const dutyCalendar = document.querySelector("[data-duty-calendar]");
+  if (searchInput && dutyCalendar) {
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+      }
+    });
+
+    const form = searchInput.closest("form");
+    form?.addEventListener("submit", (event) => {
+      if (!event.submitter || event.submitter.type !== "submit") {
+        event.preventDefault();
+      }
+    });
+
+    const dayCells = Array.from(dutyCalendar.querySelectorAll(".prostaff-calendar-day"));
+
+    const filterCalendar = () => {
+      const query = searchInput.value.trim().toLowerCase();
+
+      dayCells.forEach((dayCell) => {
+        const events = Array.from(dayCell.querySelectorAll("[data-duty-event]"));
+        let searchEmpty = dayCell.querySelector(".is-search-empty");
+
+        if (!events.length) {
+          return;
+        }
+
+        if (!query) {
+          events.forEach((ev) => {
+            ev.hidden = false;
+            ev.classList.remove("is-search-match");
+          });
+          if (searchEmpty) {
+            searchEmpty.hidden = true;
+          }
+          return;
+        }
+
+        let visibleCount = 0;
+        events.forEach((ev) => {
+          const searchContent = (
+            ev.dataset.staffSearch ||
+            ev.textContent ||
+            ""
+          ).toLowerCase();
+
+          const matches = searchContent.includes(query);
+          ev.hidden = !matches;
+          ev.classList.toggle("is-search-match", matches);
+          if (matches) {
+            visibleCount += 1;
+          }
+        });
+
+        if (visibleCount === 0) {
+          if (!searchEmpty) {
+            searchEmpty = document.createElement("small");
+            searchEmpty.className = "empty-copy is-search-empty";
+            searchEmpty.textContent = "No matching duty";
+            dayCell.appendChild(searchEmpty);
+          }
+          searchEmpty.hidden = false;
+        } else {
+          if (searchEmpty) {
+            searchEmpty.hidden = true;
+          }
+        }
+      });
+    };
+
+    searchInput.addEventListener("input", filterCalendar);
+    searchInput.addEventListener("search", filterCalendar);
+
+    if (searchInput.value.trim()) {
+      filterCalendar();
+    }
+  }
 })();
