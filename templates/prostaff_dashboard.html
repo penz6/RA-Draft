@@ -4,7 +4,7 @@
 <div class="dashboard-page prostaff-dashboard">
   <section class="rwu-dashboard-hero"><div class="rwu-hero-copy"><div class="rwu-hero-kicker">RWU Residence Life</div><h1>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}</h1><p>Prostaff duty overview</p></div></section>
   {% include 'prostaff_tabs.html' %}
-  <section class="card prostaff-panel"><div class="section-head"><div><div class="eyebrow">Tonight · {{ today|date_label }}</div><h2>Who is on duty</h2></div><a class="button small secondary" href="{{ url_for('prostaff_schedule') }}">Open duty calendar</a></div>
+  <section class="card prostaff-panel"><div class="section-head"><div><div class="eyebrow">Duty coverage</div><h2>Who is on duty · {{ duty_date|date_label }}</h2>{% if showing_previous_night %}<p class="prostaff-duty-date-note">Showing the previous duty night until 8:00 AM.</p>{% endif %}</div><a class="button small secondary" href="{{ url_for('prostaff_schedule') }}">Open duty calendar</a></div>
     <div class="prostaff-tonight-grid">{% for b in buildings %}<article class="shift-card"><h3>{{ b.name }}</h3>{% set ns = namespace(found=false) %}{% for row in tonight %}{% if row.building_id == b.id and row.name %}{% set ns.found=true %}<p><strong>{{ row.name }}</strong><br><small>{{ row.shift_start|time_label }}–{{ row.shift_end|time_label }}</small></p>{% endif %}{% endfor %}{% if not ns.found %}<p class="empty-copy">No one scheduled</p>{% endif %}</article>{% endfor %}</div>
   </section>
 </div>

@@ -162,7 +162,8 @@
           </label>
           <button class="button small" type="submit">Save changes</button>
         </div>
-      </form>{% else %}<form class="user-access-form" method="post" action="{{ url_for('assign_prostaff_building', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">Area Coordinator building<select name="building_id" required>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label><button class="button small" type="submit">Save building</button></div></form>{% endif %}
+      </form>{% else %}<form class="user-access-form" method="post" action="{{ url_for('assign_prostaff_building', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">Area Coordinator building<select name="building_id" required>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label><button class="button small" type="submit">Save building</button></div></form>
+      <form class="user-access-form" method="post" action="{{ url_for('reset_prostaff_password', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">New temporary password<input type="password" name="temporary_password" minlength="12" maxlength="128" required autocomplete="new-password"></label><button class="button secondary small" type="submit" data-confirm="Reset {{ u.name }}'s password and require a new password at next sign-in?">Reset password</button></div></form>{% endif %}
     </div>
     {% else %}<div class="empty-state compact"><p>No users exist yet.</p></div>{% endfor %}
   </div>

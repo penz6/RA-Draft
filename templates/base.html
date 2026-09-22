@@ -63,7 +63,10 @@
           {% if pending_swap_approval_count %}<span class="rwu-nav-count">{{ pending_swap_approval_count }}</span>{% endif %}
         </a>
         {% if me.role == 'ADMIN' %}
-        <a class="rwu-nav-link{% if request.endpoint == 'prostaff_dashboard' %} is-active{% endif %}" href="{{ url_for('prostaff_dashboard') }}"><span>Prostaff View</span></a>
+        <a class="rwu-nav-link{% if request.endpoint and request.endpoint.startswith('prostaff_') %} is-active{% endif %}" href="{{ url_for('prostaff_dashboard') }}">
+          <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 11.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM15.8 10.2a2.7 2.7 0 1 0 0-5.4M2.8 19.2v-1.4a5.4 5.4 0 0 1 10.8 0v1.4M14.4 13.2a4.6 4.6 0 0 1 6.8 4v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Prostaff</span>
+        </a>
         <a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9m7 10V5m7 14v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span>Analytics</span>
