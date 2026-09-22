@@ -45,11 +45,11 @@ class StaffEventVisibilityTests(unittest.TestCase):
             )
             db().commit()
         events = self.dashboard_events()
-        for text in ('Staff Dinner &amp; Meeting', 'Maple Lounge', 'Oct 20', '7:00 PM'):
+        for text in ('Staff dinner', 'Staff meeting', 'Maple Lounge', 'Oct 20', '7:00 PM',
+                     'Commons', 'Oct 21', '6:00 PM'):
             self.assertIn(text, events)
-        for text in ('Commons', 'Oct 21', '6:00 PM'):
-            self.assertNotIn(text, events)
         self.assertEqual(events.count('class="card rwu-staff-event-card"'), 2)
+        self.assertNotIn('One-on-one time', events)
         self.assertNotIn('rwu-meeting-editor', events)
         self.assertNotIn('<form', events)
         self.assertNotIn('name="repeat_weeks"', events)
@@ -68,8 +68,8 @@ class StaffEventVisibilityTests(unittest.TestCase):
         events = self.dashboard_events()
         for text in ('Oct 15', 'Every 2 weeks'):
             self.assertIn(text, events)
-        self.assertNotIn('Oct 16', events)
-        self.assertNotIn('Every week', events)
+        self.assertIn('Oct 16', events)
+        self.assertIn('Every week', events)
         self.assertNotIn('rwu-meeting-editor', events)
         with app.app_context():
             row = db().execute('SELECT staff_meeting_at FROM buildings WHERE id=?', (hall,)).fetchone()
@@ -86,8 +86,7 @@ class StaffEventVisibilityTests(unittest.TestCase):
             )
             db().commit()
         events = self.dashboard_events()
-        self.assertIn('Staff Dinner &amp; Meeting', events)
-        self.assertIn('One-on-one time', events)
+        self.assertEqual(events, '')
         self.assertNotIn('Other lounge', events)
         with app.app_context():
             db().execute(
@@ -96,9 +95,32 @@ class StaffEventVisibilityTests(unittest.TestCase):
             )
             db().commit()
         events = self.dashboard_events()
-        self.assertIn('Staff Dinner &amp; Meeting', events)
+        self.assertIn('Staff dinner', events)
         self.assertIn('Maple Only', events)
         self.assertNotIn('Willow Only', events)
+
+    def test_ra_sees_only_a_scheduled_one_on_one(self):
+        hall = self.add_building('Maple')
+        ra = self.add_ra(hall)
+        scheduler = self.add_user(
+            sub='prostaff-scheduler', email='scheduler@rwu.edu', name='Area Coordinator',
+            building_id=hall,
+        )
+        with app.app_context():
+            conn = db()
+            conn.execute('UPDATE users SET is_prostaff=1 WHERE id=?', (scheduler,))
+            conn.execute(
+                'INSERT INTO one_on_one_appointments'
+                '(ra_user_id,scheduled_by,scheduled_at,location,repeat_weeks) VALUES(?,?,?,?,?)',
+                (ra, scheduler, '2026-10-20T14:00', 'Coordinator office', 0),
+            )
+            conn.commit()
+        self.login_as(ra)
+        events = self.dashboard_events()
+        self.assertNotIn('Staff Dinner &amp; Meeting', events)
+        self.assertIn('One-on-one time', events)
+        self.assertIn('Coordinator office', events)
+        self.assertEqual(events.count('class="card rwu-staff-event-card"'), 1)
 
     def test_hra_keeps_edit_controls_for_own_building(self):
         hall = self.add_building('Maple')
@@ -106,11 +128,12 @@ class StaffEventVisibilityTests(unittest.TestCase):
                             name='Event Manager', role='HRA', building_id=hall)
         self.login_as(hra)
         events = self.dashboard_events()
-        self.assertIn('Staff Dinner &amp; Meeting', events)
-        self.assertEqual(events.count('class="rwu-meeting-editor"'), 1)
+        self.assertIn('Staff dinner', events)
+        self.assertIn('Staff meeting', events)
+        self.assertEqual(events.count('class="rwu-meeting-editor"'), 2)
         self.assertNotIn('Schedule an RA', events)
         self.assertIn(f'action="/buildings/{hall}/staff-meeting"', events)
-        self.assertNotIn(f'action="/buildings/{hall}/staff-dinner"', events)
+        self.assertIn(f'action="/buildings/{hall}/staff-dinner"', events)
 
     def test_swap_building_selector_retains_the_building_link(self):
         hall = self.add_building('Maple')

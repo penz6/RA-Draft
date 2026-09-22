@@ -66,7 +66,8 @@ class OneOnOneTests(unittest.TestCase):
             ra_page = self.request("get", "/dashboard")
         self.assertIn(b"Wed, Oct 14", hra_page.data)
         self.assertIn(b"Every 2 weeks", hra_page.data)
-        self.assertIn(b"Unavailable", ra_page.data)
+        self.assertNotIn(b"One-on-one time", ra_page.data)
+        self.assertNotIn(b"Unavailable", ra_page.data)
 
     def test_hra_and_ra_cannot_manage_one_on_ones(self):
         _building, ac, hra, ra = self.add_team()

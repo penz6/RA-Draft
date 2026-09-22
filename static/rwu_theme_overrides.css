@@ -96,7 +96,7 @@
 
 .rwu-staff-events{
   display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
   gap:1rem;
 }
 .rwu-staff-event-card{
@@ -108,8 +108,7 @@
   border-left:4px solid var(--hall-accent)!important;
 }
 
-.rwu-staff-event-card[data-card="combined-events"],.rwu-staff-event-card[data-card="one-on-one"]{display:flex}
-.rwu-staff-event-card[data-card="combined-events"]>.eyebrow,.rwu-staff-event-card[data-card="one-on-one"]>.eyebrow{margin-bottom:1rem}
+.rwu-staff-event-card>.eyebrow{margin-bottom:1rem}
 .rwu-one-on-one-form{margin:1rem 0}
 .rwu-month-picker{display:flex;align-items:end;gap:.65rem;margin:1rem 0}
 .rwu-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}

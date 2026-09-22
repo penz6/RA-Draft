@@ -98,8 +98,8 @@ class BuildingStaffEventTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'Every 2 weeks', page.data)
         self.assertIn(b'Oct 18', page.data)
-        self.assertNotIn(b'Every 3 weeks', page.data)
-        self.assertNotIn(b'Oct 25', page.data)
+        self.assertIn(b'Every 3 weeks', page.data)
+        self.assertIn(b'Oct 25', page.data)
         self.assertIn(b'value="2026-10-04T19:30"', page.data)
         self.assertEqual(self.row(building)['staff_meeting_at'], '2026-10-04T19:30')
 
