@@ -49,7 +49,8 @@ class StaffEventVisibilityTests(unittest.TestCase):
             self.assertIn(text, events)
         for text in ('Commons', 'Oct 21', '6:00 PM'):
             self.assertNotIn(text, events)
-        self.assertEqual(events.count('class="card rwu-staff-event-card"'), 2)
+        self.assertEqual(events.count('class="card rwu-staff-event-card"'), 1)
+        self.assertNotIn('One-on-one time', events)
         self.assertNotIn('rwu-meeting-editor', events)
         self.assertNotIn('<form', events)
         self.assertNotIn('name="repeat_weeks"', events)
@@ -86,8 +87,7 @@ class StaffEventVisibilityTests(unittest.TestCase):
             )
             db().commit()
         events = self.dashboard_events()
-        self.assertIn('Staff Dinner &amp; Meeting', events)
-        self.assertIn('One-on-one time', events)
+        self.assertEqual(events, '')
         self.assertNotIn('Other lounge', events)
         with app.app_context():
             db().execute(
@@ -99,6 +99,29 @@ class StaffEventVisibilityTests(unittest.TestCase):
         self.assertIn('Staff Dinner &amp; Meeting', events)
         self.assertIn('Maple Only', events)
         self.assertNotIn('Willow Only', events)
+
+    def test_ra_sees_only_a_scheduled_one_on_one(self):
+        hall = self.add_building('Maple')
+        ra = self.add_ra(hall)
+        scheduler = self.add_user(
+            sub='prostaff-scheduler', email='scheduler@rwu.edu', name='Area Coordinator',
+            building_id=hall,
+        )
+        with app.app_context():
+            conn = db()
+            conn.execute('UPDATE users SET is_prostaff=1 WHERE id=?', (scheduler,))
+            conn.execute(
+                'INSERT INTO one_on_one_appointments'
+                '(ra_user_id,scheduled_by,scheduled_at,location,repeat_weeks) VALUES(?,?,?,?,?)',
+                (ra, scheduler, '2026-10-20T14:00', 'Coordinator office', 0),
+            )
+            conn.commit()
+        self.login_as(ra)
+        events = self.dashboard_events()
+        self.assertNotIn('Staff Dinner &amp; Meeting', events)
+        self.assertIn('One-on-one time', events)
+        self.assertIn('Coordinator office', events)
+        self.assertEqual(events.count('class="card rwu-staff-event-card"'), 1)
 
     def test_hra_keeps_edit_controls_for_own_building(self):
         hall = self.add_building('Maple')

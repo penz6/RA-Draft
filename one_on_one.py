@@ -1,6 +1,6 @@
 """Area-coordinator managed recurring one-on-one appointments."""
 
-from calendar import monthcalendar
+from calendar import monthcalendar, monthrange
 from datetime import date, datetime, timedelta
 from math import gcd
 
@@ -30,6 +30,20 @@ def _series_occurrences(row, start_date, end_date):
     """Return stored or recurring occurrences in the half-open date range."""
     anchor = datetime.fromisoformat(row["scheduled_at"])
     repeat_weeks = row["repeat_weeks"]
+    recurrence_kind = row["recurrence_kind"] if "recurrence_kind" in row.keys() else "weekly"
+    if recurrence_kind == "monthly":
+        occurrences = []
+        cursor = anchor.date().replace(day=1)
+        ordinal = (anchor.day - 1) // 7 + 1
+        while cursor < end_date:
+            offset = (anchor.weekday() - cursor.weekday()) % 7
+            day = 1 + offset + (ordinal - 1) * 7
+            if day <= monthrange(cursor.year, cursor.month)[1]:
+                occurrence = anchor.replace(year=cursor.year, month=cursor.month, day=day)
+                if occurrence >= anchor and start_date <= occurrence.date() < end_date:
+                    occurrences.append(occurrence)
+            cursor = _next_month(cursor)
+        return occurrences
     if not repeat_weeks:
         return [anchor] if start_date <= anchor.date() < end_date else []
     step = timedelta(weeks=repeat_weeks)
@@ -46,8 +60,18 @@ def _series_occurrences(row, start_date, end_date):
     return occurrences
 
 
-def _series_overlap(first_at, first_repeat, second_at, second_repeat):
+def _series_overlap(first_at, first_repeat, second_at, second_repeat,
+                    first_kind="weekly", second_kind="weekly"):
     """Return whether two forward-only recurrence series share an occurrence."""
+    if "monthly" in (first_kind, second_kind):
+        start = min(datetime.fromisoformat(first_at), datetime.fromisoformat(second_at)).date()
+        end = date(start.year + 10, start.month, 1)
+        first_row = {"scheduled_at": first_at, "repeat_weeks": first_repeat,
+                     "recurrence_kind": first_kind}
+        second_row = {"scheduled_at": second_at, "repeat_weeks": second_repeat,
+                      "recurrence_kind": second_kind}
+        return bool(set(_series_occurrences(first_row, start, end)) &
+                    set(_series_occurrences(second_row, start, end)))
     first = datetime.fromisoformat(first_at)
     second = datetime.fromisoformat(second_at)
     if not first_repeat and not second_repeat:
@@ -62,14 +86,16 @@ def _series_overlap(first_at, first_repeat, second_at, second_repeat):
     return (first - second) % period == timedelta(0)
 
 
-def _has_schedule_conflict(conn, actor_id, recipient_id, scheduled_at, repeat_weeks):
+def _has_schedule_conflict(conn, actor_id, recipient_id, scheduled_at, repeat_weeks,
+                           recurrence_kind="weekly"):
     rows = conn.execute(
-        "SELECT scheduled_at,repeat_weeks FROM one_on_one_appointments "
+        "SELECT scheduled_at,repeat_weeks,recurrence_kind FROM one_on_one_appointments "
         "WHERE ra_user_id=? OR scheduled_by=?",
         (recipient_id, actor_id),
     ).fetchall()
     return any(
-        _series_overlap(scheduled_at, repeat_weeks, row["scheduled_at"], row["repeat_weeks"])
+        _series_overlap(scheduled_at, repeat_weeks, row["scheduled_at"], row["repeat_weeks"],
+                        recurrence_kind, row["recurrence_kind"])
         for row in rows
     )
 
@@ -83,10 +109,17 @@ def _recipient_next_appointment(user_id):
         (user_id,),
     ).fetchall()
     for row in rows:
-        occurrence_text = next_occurrence(row["scheduled_at"], row["repeat_weeks"], now=now)
+        if row["recurrence_kind"] == "monthly":
+            start = now.date().replace(day=1)
+            end = date(start.year + 2, start.month, 1)
+            future = [item for item in _series_occurrences(row, start, end) if item >= now]
+            occurrence_text = min(future).isoformat(timespec="minutes") if future else None
+        else:
+            occurrence_text = next_occurrence(row["scheduled_at"], row["repeat_weeks"], now=now)
         if occurrence_text and datetime.fromisoformat(occurrence_text) >= now:
             item = dict(row)
             item["scheduled_at"] = occurrence_text
+            item["recurrence_label"] = _recurrence_label(item)
             candidates.append(item)
     return min(candidates, key=lambda item: item["scheduled_at"]) if candidates else None
 
@@ -115,6 +148,7 @@ def one_on_one_calendar_context(user):
         for occurrence in _series_occurrences(row, selected, end):
             item = dict(row)
             item["scheduled_at"] = occurrence.strftime("%Y-%m-%dT%H:%M")
+            item["recurrence_label"] = _recurrence_label(item)
             by_day.setdefault(occurrence.day, []).append(item)
     for items in by_day.values():
         items.sort(key=lambda item: (item["scheduled_at"], item["ra_name"]))
@@ -137,6 +171,19 @@ def one_on_one_calendar_context(user):
         "one_on_one_month": selected.strftime("%Y-%m"),
         "one_on_one_month_label": selected.strftime("%B %Y"),
     }
+
+
+def _recurrence_label(row):
+    if row.get("recurrence_kind") == "monthly":
+        anchor = datetime.fromisoformat(row["scheduled_at"])
+        ordinal = (anchor.day - 1) // 7 + 1
+        names = ("first", "second", "third", "fourth", "fifth")
+        return f"Monthly · {names[ordinal - 1]} {anchor.strftime('%A')}"
+    if row.get("repeat_weeks") == 2:
+        return "Every 2 weeks"
+    if row.get("repeat_weeks") == 1:
+        return "Every week"
+    return "One time"
 
 
 @app.context_processor
@@ -176,8 +223,20 @@ def schedule_one_on_one():
         abort(403)
     try:
         recipient_id = int(request.form.get("recipient_user_id", ""))
-        scheduled_at = parse_event_start(request.form.get("scheduled_at"))
-        repeat_weeks = parse_repeat_weeks(request.form.get("repeat_weeks"))
+        raw_start = request.form.get("scheduled_at") or (
+            f"{request.form.get('start_date', '')}T{request.form.get('start_time', '')}"
+        )
+        scheduled_at = parse_event_start(raw_start)
+        recurrence_kind = request.form.get("recurrence", "legacy")
+        if recurrence_kind == "monthly":
+            repeat_weeks = 0
+        elif recurrence_kind == "biweekly":
+            recurrence_kind, repeat_weeks = "weekly", 2
+        elif recurrence_kind == "once":
+            repeat_weeks = 0
+        else:
+            recurrence_kind = "weekly"
+            repeat_weeks = parse_repeat_weeks(request.form.get("repeat_weeks"))
         if scheduled_at <= datetime.now(SCHOOL_TIMEZONE).strftime("%Y-%m-%dT%H:%M"):
             raise ValueError
         location = clean_single_line(request.form.get("location"), max_length=120)
@@ -188,14 +247,16 @@ def schedule_one_on_one():
     conn.execute("BEGIN IMMEDIATE")
     locked_actor = _require_locked_ac(conn, actor["id"])
     _require_recipient(conn, recipient_id, locked_actor["building_id"])
-    if _has_schedule_conflict(conn, actor["id"], recipient_id, scheduled_at, repeat_weeks):
+    if _has_schedule_conflict(conn, actor["id"], recipient_id, scheduled_at, repeat_weeks,
+                              recurrence_kind):
         conn.rollback()
         flash("That time conflicts with an existing one-on-one for you or that staff member.", "error")
         return redirect(url_for("prostaff_one_on_ones"))
     cur = conn.execute(
         "INSERT INTO one_on_one_appointments"
-        "(ra_user_id,scheduled_by,scheduled_at,location,repeat_weeks) VALUES(?,?,?,?,?)",
-        (recipient_id, actor["id"], scheduled_at, location, repeat_weeks),
+        "(ra_user_id,scheduled_by,scheduled_at,location,repeat_weeks,recurrence_kind) "
+        "VALUES(?,?,?,?,?,?)",
+        (recipient_id, actor["id"], scheduled_at, location, repeat_weeks, recurrence_kind),
     )
     audit("one_on_one.create", "one_on_one", cur.lastrowid,
           {"recipient_user_id": recipient_id, "scheduled_at": scheduled_at,

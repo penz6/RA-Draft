@@ -11,31 +11,37 @@
   </section>
 
   {% if building_profile %}
-  {# Staff dinner and Staff meeting previously used update_staff_dinner and update_staff_meeting separately. #}
+  {% set next_meeting = building_profile.staff_meeting_at|next_event(building_profile.staff_meeting_repeat_weeks) %}
+  {% set next_dinner = building_profile.staff_dinner_at|next_event(building_profile.staff_dinner_repeat_weeks) %}
+  {% set use_meeting = next_meeting and (not next_dinner or next_meeting <= next_dinner) %}
+  {% set start = building_profile.staff_meeting_at if use_meeting else building_profile.staff_dinner_at %}
+  {% set location = building_profile.staff_meeting_location if use_meeting else building_profile.staff_dinner_location %}
+  {% set repeat_weeks = building_profile.staff_meeting_repeat_weeks if use_meeting else building_profile.staff_dinner_repeat_weeks %}
+  {% set next_at = next_meeting if use_meeting else next_dinner %}
+  {% set event_endpoint = 'update_staff_dinner' if next_dinner and not use_meeting else 'update_staff_meeting' %}
+  {% if me.role in ('HRA', 'ADMIN') or (next_at and location) or one_on_one %}
   <section class="rwu-staff-events" aria-label="Staff events and one-on-ones">
+    {% if me.role in ('HRA', 'ADMIN') or (next_at and location) %}
     <article class="card rwu-staff-event-card" data-card="combined-events">
       <div class="eyebrow">Staff Dinner &amp; Meeting</div>
-      {% set next_meeting = building_profile.staff_meeting_at|next_event(building_profile.staff_meeting_repeat_weeks) %}
-      {% set next_dinner = building_profile.staff_dinner_at|next_event(building_profile.staff_dinner_repeat_weeks) %}
-      {% set use_meeting = next_meeting and (not next_dinner or next_meeting <= next_dinner) %}
-      {% set start = building_profile.staff_meeting_at if use_meeting else building_profile.staff_dinner_at %}
-      {% set location = building_profile.staff_meeting_location if use_meeting else building_profile.staff_dinner_location %}
-      {% set repeat_weeks = building_profile.staff_meeting_repeat_weeks if use_meeting else building_profile.staff_dinner_repeat_weeks %}
-      {% set next_at = next_meeting if use_meeting else next_dinner %}
       <div class="rwu-meeting-info">{% if next_at and location %}<h2>{{ next_at|event_label }}</h2><p>{{ location }}{% if repeat_weeks %} · {{ repeat_weeks|repeat_label }}{% endif %}</p>{% else %}<h2>Not scheduled</h2>{% endif %}</div>
         {% if me.role in ('HRA', 'ADMIN') %}<details class="rwu-meeting-editor"><summary class="button small secondary">Edit</summary><div class="rwu-meeting-editor-panel">
-          <form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label class="field compact">First date and time<input type="datetime-local" name="event_at" value="{{ start or '' }}" required></label><label class="field compact">Location<input name="event_location" maxlength="120" value="{{ location or '' }}" required></label>{% include 'staff_event_repeat.html' %}<button class="button small" type="submit">Save</button></form>
-          {% if start or location %}<form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="event_at"><input type="hidden" name="event_location"><button class="button small ghost" type="submit">Clear</button></form>{% endif %}
+          <form method="post" action="{{ url_for(event_endpoint, building_id=building_profile.id) }}" class="rwu-meeting-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label class="field compact">First date and time<input type="datetime-local" name="event_at" value="{{ start or '' }}" required></label><label class="field compact">Location<input name="event_location" maxlength="120" value="{{ location or '' }}" required></label>{% include 'staff_event_repeat.html' %}<button class="button small" type="submit">Save</button></form>
+          {% if start or location %}<form method="post" action="{{ url_for(event_endpoint, building_id=building_profile.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="event_at"><input type="hidden" name="event_location"><button class="button small ghost" type="submit">Clear</button></form>{% endif %}
         </div></details>{% endif %}
     </article>
+    {% endif %}
 
+    {% if me.role in ('HRA', 'ADMIN') or one_on_one %}
     <article class="card rwu-staff-event-card" data-card="one-on-one">
       <div class="eyebrow">One-on-one time</div>
       {% if me.role in ('RA', 'HRA', 'ADMIN') %}
-        {% if one_on_one %}<div class="rwu-meeting-info"><h2>{{ one_on_one.scheduled_at|event_label }}</h2><p>{{ one_on_one.location }}</p>{% if one_on_one.repeat_weeks %}<small>{{ one_on_one.repeat_weeks|repeat_label }} · Scheduled by {{ one_on_one.scheduler_name }}</small>{% else %}<small>Scheduled by {{ one_on_one.scheduler_name }}</small>{% endif %}</div>{% else %}<div class="rwu-meeting-info"><h2>Unavailable</h2></div>{% endif %}
+        {% if one_on_one %}<div class="rwu-meeting-info"><h2>{{ one_on_one.scheduled_at|event_label }}</h2><p>{{ one_on_one.location }}</p><small>{{ one_on_one.recurrence_label }} · Scheduled by {{ one_on_one.scheduler_name }}</small></div>{% else %}<div class="rwu-meeting-info"><h2>Unavailable</h2></div>{% endif %}
       {% else %}<p>One-on-one schedules are managed by Area Coordinators in the Prostaff View.</p>{% endif %}
     </article>
+    {% endif %}
   </section>
+  {% endif %}
   {% endif %}
 
   <section class="card dashboard-schedule-panel rwu-duty-panel">

@@ -28,6 +28,11 @@ class RWUThemeRegressionTests(unittest.TestCase):
         self.assertIn('M3 10.8 12 3l9 7.8', self.base)
         self.assertIn('M7 2v3M17 2v3M3.5 9h17', self.base)
 
+    def test_admin_prostaff_navigation_has_an_icon_and_short_label(self):
+        self.assertIn('<span>Prostaff</span>', self.base)
+        self.assertIn('M8.2 11.2a3.2 3.2', self.base)
+        self.assertNotIn('<span>Prostaff View</span>', self.base)
+
     def test_sidebar_does_not_render_external_brand_images(self):
         self.assertNotIn('footer-logo-transparent.svg', self.base)
         self.assertNotIn('rwuhawks.com/images/logos', self.base)
@@ -40,7 +45,7 @@ class RWUThemeRegressionTests(unittest.TestCase):
             self.assertNotIn(text, self.dashboard)
 
     def test_staff_event_controls_are_building_scoped(self):
-        for text in ('Staff dinner', 'Staff meeting', 'update_staff_dinner', 'update_staff_meeting', 'name="event_at"', 'name="event_location"', 'staff_event_repeat.html'):
+        for text in ('Staff Dinner &amp; Meeting', 'update_staff_dinner', 'update_staff_meeting', 'name="event_at"', 'name="event_location"', 'staff_event_repeat.html'):
             self.assertIn(text, self.dashboard)
         self.assertNotIn('Community meeting', self.dashboard)
         self.assertIn('actor["building_id"] != building_id', self.settings)

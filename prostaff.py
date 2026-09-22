@@ -18,6 +18,15 @@ def _valid_password(value):
     return isinstance(value, str) and 12 <= len(value) <= 128
 
 
+def _duty_display_date(now=None):
+    """Keep the prior night's duty roster visible through 7:59 a.m."""
+    current = now or datetime.now(SCHOOL_TIMEZONE)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=SCHOOL_TIMEZONE)
+    local = current.astimezone(SCHOOL_TIMEZONE)
+    return local.date() - timedelta(days=1) if local.hour < 8 else local.date()
+
+
 @app.before_request
 def isolate_prostaff_portal():
     """Keep local Prostaff accounts out of all RA/HRA scheduling routes."""
@@ -126,16 +135,20 @@ def prostaff_dashboard():
         return prostaff_one_on_ones()
     if request.args.get("q") or request.args.get("building") or request.args.get("month"):
         return prostaff_schedule()
-    today = datetime.now(SCHOOL_TIMEZONE).date().isoformat()
+    now = datetime.now(SCHOOL_TIMEZONE)
+    local_today = now.date()
+    duty_date = _duty_display_date(now)
     buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
     tonight = db().execute(
         "SELECT b.id building_id,b.name building_name,u.name,u.email,s.shift_start,s.shift_end "
         "FROM buildings b LEFT JOIN draft_sessions s ON s.building_id=b.id "
         "LEFT JOIN assignments a ON a.session_id=s.id AND a.duty_date=? "
         "LEFT JOIN users u ON u.id=a.user_id ORDER BY b.name,u.name",
-        (today,),
+        (duty_date.isoformat(),),
     ).fetchall()
-    return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight, today=today,
+    return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight,
+                           duty_date=duty_date.isoformat(),
+                           showing_previous_night=duty_date < local_today,
                            prostaff_page="overview")
 
 
@@ -269,4 +282,38 @@ def assign_prostaff_building(user_id):
           {"old_building_id": target["building_id"], "new_building_id": building_id})
     conn.commit()
     flash("Area Coordinator building updated.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/prostaff/<int:user_id>/reset-password", methods=["POST"])
+@roles("ADMIN")
+def reset_prostaff_password(user_id):
+    """Issue a temporary password that must be replaced at next sign-in."""
+    require_csrf()
+    temporary_password = request.form.get("temporary_password", "")
+    if not _valid_password(temporary_password):
+        flash("Temporary password must be between 12 and 128 characters.", "error")
+        return redirect(url_for("admin"))
+    conn = db()
+    conn.execute("BEGIN IMMEDIATE")
+    actor = conn.execute(
+        "SELECT role,disabled FROM users WHERE id=?", (current_user()["id"],)
+    ).fetchone()
+    target = conn.execute(
+        "SELECT id,is_prostaff,disabled FROM users WHERE id=?", (user_id,)
+    ).fetchone()
+    if not actor or actor["disabled"] or actor["role"] != "ADMIN":
+        conn.rollback()
+        abort(403)
+    if not target or not target["is_prostaff"]:
+        conn.rollback()
+        abort(404)
+    conn.execute(
+        "UPDATE users SET password_hash=?,password_must_change=1,"
+        "prostaff_failed_logins=0,prostaff_locked_until=NULL WHERE id=?",
+        (generate_password_hash(temporary_password), user_id),
+    )
+    audit("admin.prostaff.password_reset", "user", user_id)
+    conn.commit()
+    flash("Temporary Prostaff password saved. It must be changed at next sign-in.", "success")
     return redirect(url_for("admin"))

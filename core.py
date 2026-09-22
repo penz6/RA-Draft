@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS one_on_one_appointments (
   scheduled_at TEXT NOT NULL,
   location TEXT NOT NULL,
   repeat_weeks INTEGER NOT NULL DEFAULT 0 CHECK(repeat_weeks BETWEEN 0 AND 52),
+  recurrence_kind TEXT NOT NULL DEFAULT 'weekly' CHECK(recurrence_kind IN ('once','weekly','monthly')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(ra_user_id, scheduled_at)
 );
@@ -506,6 +507,7 @@ def migrate_schema(conn):
         "scheduled_at TEXT NOT NULL,"
         "location TEXT NOT NULL,"
         "repeat_weeks INTEGER NOT NULL DEFAULT 0 CHECK(repeat_weeks BETWEEN 0 AND 52),"
+        "recurrence_kind TEXT NOT NULL DEFAULT 'weekly' CHECK(recurrence_kind IN ('once','weekly','monthly')),"
         "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
         "UNIQUE(ra_user_id,scheduled_at))"
     )
@@ -516,6 +518,11 @@ def migrate_schema(conn):
         conn.execute(
             "ALTER TABLE one_on_one_appointments ADD COLUMN repeat_weeks INTEGER NOT NULL "
             "DEFAULT 0 CHECK(repeat_weeks BETWEEN 0 AND 52)"
+        )
+    if "recurrence_kind" not in one_on_one_columns:
+        conn.execute(
+            "ALTER TABLE one_on_one_appointments ADD COLUMN recurrence_kind TEXT NOT NULL "
+            "DEFAULT 'weekly' CHECK(recurrence_kind IN ('once','weekly','monthly'))"
         )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_one_on_one_recipient "

@@ -1,10 +1,11 @@
 import os
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from unittest.mock import patch
 
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-0123456789abcdef0123456789abcdef")
 os.environ.setdefault("PUBLIC_HOST", "ci.local")
@@ -15,6 +16,8 @@ os.environ.setdefault("DATABASE_PATH", str(Path(tempfile.mkdtemp()) / "prostaff.
 
 import portal_app  # noqa: E402,F401
 from core import app, db  # noqa: E402
+from prostaff import _duty_display_date  # noqa: E402
+from staff_event_schedule import SCHOOL_TIMEZONE  # noqa: E402
 
 
 class ProstaffTestCase(unittest.TestCase):
@@ -145,6 +148,83 @@ class ProstaffTestCase(unittest.TestCase):
                 "SELECT prostaff_locked_until FROM users WHERE id=?", (user,)
             ).fetchone()
             self.assertIsNotNone(locked["prostaff_locked_until"])
+
+    def test_admin_can_reset_prostaff_password(self):
+        with app.app_context():
+            building = db().execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
+            staff = db().execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,"
+                "password_hash,password_must_change,prostaff_failed_logins,prostaff_locked_until) "
+                "VALUES('reset-ps','reset@example.edu','Reset Staff','RA',?,1,?,0,4,?)",
+                (building, generate_password_hash("old-password-123"),
+                 "2099-01-01T00:00:00+00:00"),
+            ).lastrowid
+            db().commit()
+        self.login_as(self.add_admin())
+        response = self.request(
+            "post", f"/admin/prostaff/{staff}/reset-password",
+            data={"csrf": "csrf-token", "temporary_password": "new-temporary-456"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            updated = db().execute("SELECT * FROM users WHERE id=?", (staff,)).fetchone()
+            self.assertTrue(check_password_hash(updated["password_hash"], "new-temporary-456"))
+            self.assertEqual(updated["password_must_change"], 1)
+            self.assertEqual(updated["prostaff_failed_logins"], 0)
+            self.assertIsNone(updated["prostaff_locked_until"])
+
+    def test_duty_roster_uses_previous_date_until_eight_am(self):
+        self.assertEqual(
+            _duty_display_date(datetime(2026, 10, 15, 7, 59, tzinfo=SCHOOL_TIMEZONE)),
+            date(2026, 10, 14),
+        )
+        self.assertEqual(
+            _duty_display_date(datetime(2026, 10, 15, 8, 0, tzinfo=SCHOOL_TIMEZONE)),
+            date(2026, 10, 15),
+        )
+
+    def test_early_morning_dashboard_labels_and_shows_previous_duty_night(self):
+        with app.app_context():
+            conn = db()
+            building = conn.execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
+            admin = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role) VALUES('night-admin','night-admin@rwu.edu','Admin','ADMIN')"
+            ).lastrowid
+            prior_ra = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) VALUES('prior-ra','prior@rwu.edu','Prior Night RA','RA',?)",
+                (building,),
+            ).lastrowid
+            current_ra = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) VALUES('current-ra','current@rwu.edu','Current Night RA','RA',?)",
+                (building,),
+            ).lastrowid
+            draft = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('October',?,'2026-10-01','2026-10-31',?,'CLOSED')",
+                (building, admin),
+            ).lastrowid
+            conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (draft, prior_ra, "2026-10-14", admin),
+            )
+            conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (draft, current_ra, "2026-10-15", admin),
+            )
+            conn.commit()
+        self.login_as(admin)
+
+        class EarlyMorning(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 10, 15, 7, 30, tzinfo=tz)
+
+        with patch("prostaff.datetime", EarlyMorning):
+            page = self.request("get", "/prostaff")
+        self.assertIn(b"Prior Night RA", page.data)
+        self.assertNotIn(b"Current Night RA", page.data)
+        self.assertIn(b"Wed, Oct 14", page.data)
+        self.assertIn(b"previous duty night until 8:00 AM", page.data)
 
 
 if __name__ == "__main__":

@@ -1,19 +1,41 @@
 {% extends 'base.html' %}
-{% block title %}One-on-one times | Prostaff{% endblock %}
+{% block title %}One-on-ones | Prostaff{% endblock %}
 {% block content %}
-<div class="dashboard-page prostaff-dashboard">
-  <div class="prostaff-page-heading"><div><div class="eyebrow">Prostaff tools{% if me.building_name %} · {{ me.building_name }}{% endif %}</div><h1>One-on-one times</h1><p>Schedule meetings with RAs, HRAs, and administrators.</p></div></div>
+<div class="dashboard-page prostaff-dashboard prostaff-one-on-ones">
+  <header class="prostaff-page-heading prostaff-one-on-one-hero">
+    <div><div class="eyebrow">Prostaff tools{% if me.building_name %} · {{ me.building_name }}{% endif %}</div><h1>One-on-one schedule</h1><p>Build a dependable meeting rhythm with your residential-life team.</p></div>
+    <div class="prostaff-hero-mark" aria-hidden="true">1:1</div>
+  </header>
   {% include 'prostaff_tabs.html' %}
-  <section class="card prostaff-panel rwu-one-on-one-card"><div class="section-head"><div><div class="eyebrow">Appointments</div><h2>Set a one-on-one time</h2></div></div>
-    {% if me.is_prostaff and not me.building_id %}<div class="notice">An administrator must assign your building before you can manage one-on-ones.</div>{% endif %}
-    {% if me.is_prostaff and me.building_id %}<form method="post" action="{{ url_for('schedule_one_on_one') }}" class="rwu-meeting-form rwu-one-on-one-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <label class="field compact">Staff member<select name="recipient_user_id" required><option value="">Choose a staff member</option>{% for person in one_on_one_recipients %}<option value="{{ person.id }}">{{ person.building_name }} · {{ person.name }} ({{ person.role }})</option>{% endfor %}</select></label>
-      <label class="field compact">First date and time<input type="datetime-local" name="scheduled_at" required></label><label class="field compact">Location<input name="location" maxlength="120" required></label>
-      <label class="field compact">Repeat every (weeks)<input type="number" name="repeat_weeks" min="1" max="52" step="1" inputmode="numeric" value="1"><small>Leave blank for a one-time appointment.</small></label><button class="button" type="submit">Save one-on-one</button>
-    </form>{% endif %}
-    <div class="rwu-one-on-one-calendar"><form method="get" class="rwu-month-picker"><label class="field compact">Calendar month<input type="month" name="one_on_one_month" value="{{ one_on_one_month }}"></label><button class="button small ghost">View</button></form><h3>{{ one_on_one_month_label }}</h3>
-      <div class="rwu-calendar-grid" role="grid" aria-label="One-on-one calendar for {{ one_on_one_month_label }}">{% for label in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<strong class="rwu-calendar-heading">{{ label }}</strong>{% endfor %}{% for week in one_on_one_weeks %}{% for day in week %}<div class="rwu-calendar-day{% if not day %} is-empty{% endif %}" role="gridcell">{% if day %}<span>{{ day }}</span>{% for item in one_on_one_by_day.get(day, []) %}<div class="rwu-calendar-event"><strong>{{ item.scheduled_at[11:16]|time_label }}</strong> {{ item.ra_name }} <small>{{ item.building_name }}{% if item.repeat_weeks %} · {{ item.repeat_weeks|repeat_label }}{% endif %}</small>{% if me.is_prostaff %}<form method="post" action="{{ url_for('delete_one_on_one', appointment_id=item.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button-link" type="submit" aria-label="Remove one-on-one series for {{ item.ra_name }}">Remove series</button></form>{% endif %}</div>{% endfor %}{% endif %}</div>{% endfor %}{% endfor %}</div>
-    </div>
-  </section>
+
+  <div class="prostaff-one-on-one-layout">
+    <section class="card prostaff-panel prostaff-scheduler-card">
+      <div class="section-head"><div><div class="eyebrow">New appointment</div><h2>Set a one-on-one time</h2><p class="prostaff-section-copy">Choose the first meeting, then set a simple recurring rhythm.</p></div></div>
+      {% if me.is_prostaff and not me.building_id %}<div class="notice">An administrator must assign your building before you can manage one-on-ones.</div>{% endif %}
+      {% if me.is_prostaff and me.building_id %}
+      <form method="post" action="{{ url_for('schedule_one_on_one') }}" class="rwu-meeting-form rwu-one-on-one-form" data-one-on-one-form>
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <label class="field compact prostaff-form-wide">Staff member<select name="recipient_user_id" required><option value="">Choose a staff member</option>{% for person in one_on_one_recipients %}<option value="{{ person.id }}">{{ person.name }} · {{ person.role }}</option>{% endfor %}</select></label>
+        <label class="field compact">First meeting date<input type="date" name="start_date" required data-meeting-date></label>
+        <label class="field compact">Time<input type="time" name="start_time" required></label>
+        <label class="field compact prostaff-form-wide">Location<input name="location" maxlength="120" placeholder="Office, lounge, or video link" required></label>
+        <fieldset class="prostaff-repeat-field prostaff-form-wide"><legend>How often?</legend><div class="prostaff-repeat-options">
+          <label><input type="radio" name="recurrence" value="once"><span><strong>One time</strong><small>No repeats</small></span></label>
+          <label><input type="radio" name="recurrence" value="biweekly" checked><span><strong>Every 2 weeks</strong><small>Same weekday</small></span></label>
+          <label><input type="radio" name="recurrence" value="monthly"><span><strong>Every month</strong><small>Same weekday of the month</small></span></label>
+        </div><p class="prostaff-repeat-summary" data-repeat-summary>Select a first date to preview the recurring weekday.</p></fieldset>
+        <button class="button prostaff-save-meeting" type="submit">Add to calendar</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="card prostaff-panel prostaff-calendar-card">
+      <div class="prostaff-calendar-toolbar"><div><div class="eyebrow">Month view</div><h2>{{ one_on_one_month_label }}</h2></div><form method="get" class="rwu-month-picker"><label class="field compact"><span class="sr-only">Calendar month</span><input type="month" name="one_on_one_month" value="{{ one_on_one_month }}"></label><button class="button small secondary">Go</button></form></div>
+      <div class="prostaff-calendar-scroll"><div class="rwu-calendar-grid" role="grid" aria-label="One-on-one calendar for {{ one_on_one_month_label }}">
+        {% for label in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<strong class="rwu-calendar-heading">{{ label }}</strong>{% endfor %}
+        {% for week in one_on_one_weeks %}{% for day in week %}<div class="rwu-calendar-day{% if not day %} is-empty{% endif %}" role="gridcell">{% if day %}<span class="prostaff-calendar-date">{{ day }}</span>{% for item in one_on_one_by_day.get(day, []) %}<article class="rwu-calendar-event"><div><strong>{{ item.scheduled_at[11:16]|time_label }}</strong><span>{{ item.ra_name }}</span></div><small>{{ item.location }} · {{ item.recurrence_label }}</small>{% if me.is_prostaff %}<form method="post" action="{{ url_for('delete_one_on_one', appointment_id=item.id) }}" data-confirm="Remove this entire one-on-one series?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button-link" type="submit" aria-label="Remove one-on-one series for {{ item.ra_name }}">Remove</button></form>{% endif %}</article>{% endfor %}{% endif %}</div>{% endfor %}{% endfor %}
+      </div></div>
+    </section>
+  </div>
 </div>
 {% endblock %}
