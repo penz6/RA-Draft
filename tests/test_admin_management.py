@@ -77,6 +77,47 @@ class AdminManagementTestCase(unittest.TestCase):
             role="ADMIN",
         )
 
+    def test_admin_activity_shows_latest_100_significant_events(self):
+        admin_id = self.add_admin()
+        self.login_as(admin_id)
+        significant_actions = (
+            "auth.login",
+            "swap.request",
+            "draft.session.create",
+        )
+        with app.app_context():
+            conn = db()
+            for index in range(105):
+                conn.execute(
+                    "INSERT INTO audit_log(action,target_type,target_id,details) "
+                    "VALUES(?,?,?,?)",
+                    (
+                        significant_actions[index % len(significant_actions)],
+                        "test",
+                        index,
+                        f'{{"event":"significant-{index:03d}"}}',
+                    ),
+                )
+            # Newer routine picks must not consume any of the 100 display slots.
+            conn.executemany(
+                "INSERT INTO audit_log(action,target_type,target_id) "
+                "VALUES('assignment.self_pick','assignment',?)",
+                [(index,) for index in range(30)],
+            )
+            conn.commit()
+
+        response = self.request("get", "/admin")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.count(b'data-label="Action"'), 100)
+        self.assertNotIn(b"assignment.self_pick", response.data)
+        self.assertIn(b"auth.login", response.data)
+        self.assertIn(b"swap.request", response.data)
+        self.assertIn(b"draft.session.create", response.data)
+        self.assertNotIn(b"significant-004", response.data)
+        self.assertIn(b"significant-005", response.data)
+        self.assertIn(b"significant-104", response.data)
+
     def test_admin_can_precreate_user_and_google_claims_same_record(self):
         building_id = self.add_building()
         admin_id = self.add_admin()

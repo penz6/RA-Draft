@@ -59,13 +59,13 @@ DATE_KIND_LABELS = {
 
 
 def _audit_log_max_rows():
-    raw = os.environ.get("AUDIT_LOG_MAX_ROWS", "5000").strip()
+    raw = os.environ.get("AUDIT_LOG_MAX_ROWS", "2000000").strip()
     try:
         value = int(raw)
     except ValueError as exc:
         raise RuntimeError("AUDIT_LOG_MAX_ROWS must be an integer.") from exc
-    if not 100 <= value <= 100000:
-        raise RuntimeError("AUDIT_LOG_MAX_ROWS must be between 100 and 100000.")
+    if not 100 <= value <= 5000000:
+        raise RuntimeError("AUDIT_LOG_MAX_ROWS must be between 100 and 5000000.")
     return value
 
 
@@ -392,9 +392,14 @@ def _install_audit_retention(conn):
         ")",
         (offset,),
     )
+    # Checking a multi-million-row OFFSET after every audit event would make writes
+    # increasingly expensive. Prune in batches of at most 1% of the configured
+    # limit instead, while keeping the temporary overage capped at 10,000 rows.
+    prune_interval = max(1, min(10000, AUDIT_LOG_MAX_ROWS // 100))
     trigger_sql = f"""
         CREATE TRIGGER IF NOT EXISTS audit_log_retention
         AFTER INSERT ON audit_log
+        WHEN NEW.id % {prune_interval} = 0
         BEGIN
           DELETE FROM audit_log
           WHERE id < (
