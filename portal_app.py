@@ -266,6 +266,8 @@ def dashboard():
     user = current_user()
     if not user:
         return redirect(url_for("login"))
+    if user["is_prostaff"]:
+        return redirect(url_for("prostaff_dashboard"))
     if user["role"] == "RA" and user["building_id"] is None:
         return redirect(url_for("onboarding"))
 
@@ -377,8 +379,10 @@ def dashboard_live_fragments():
 
 
 import round_robin  # noqa: E402,F401
+import prostaff  # noqa: E402,F401
 from live_updates import dashboard_state_version  # noqa: E402
 import building_settings  # noqa: E402,F401
+import one_on_one  # noqa: E402,F401
 import admin_routes  # noqa: E402,F401
 import admin_analytics  # noqa: E402,F401
 import calendar_routes  # noqa: E402,F401

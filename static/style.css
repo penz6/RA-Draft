@@ -542,3 +542,12 @@ th{color:var(--muted);font-size:0.7rem;font-weight:850;letter-spacing:0.06em;tex
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto !important;transition:none !important;animation:none !important}
 }
+/* Prostaff authentication and read-only duty overview */
+.login-secondary-link { display: inline-block; margin-top: 1rem; font-size: .92rem; }
+.prostaff-login-form { display: grid; gap: 1rem; margin-top: 1.5rem; text-align: left; }
+.prostaff-login-form .button { width: 100%; }
+.prostaff-tonight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
+.prostaff-tonight-grid .shift-card { padding: 1rem; }
+.prostaff-building-buttons { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1.25rem; }
+.prostaff-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .75rem; margin-bottom: 1.25rem; }
+@media (max-width: 600px) { .prostaff-search { grid-template-columns: 1fr; } }

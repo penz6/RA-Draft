@@ -82,7 +82,10 @@ class StaffEventVisibilityTests(unittest.TestCase):
                 "staff_meeting_location='Willow Only' WHERE id=?", (other,),
             )
             db().commit()
-        self.assertEqual(self.dashboard_events(), '')
+        events = self.dashboard_events()
+        self.assertIn('Staff Dinner &amp; Meeting', events)
+        self.assertIn('One-on-one time', events)
+        self.assertNotIn('Other lounge', events)
         with app.app_context():
             db().execute(
                 "UPDATE buildings SET staff_dinner_at='2026-10-21T18:00',"
@@ -92,9 +95,9 @@ class StaffEventVisibilityTests(unittest.TestCase):
         events = self.dashboard_events()
         self.assertIn('Staff dinner', events)
         self.assertIn('Maple Only', events)
-        self.assertNotIn('Staff meeting', events)
+        self.assertIn('Staff meeting', events)
+        self.assertIn('Not scheduled', events)
         self.assertNotIn('Willow Only', events)
-        self.assertNotIn('Not scheduled', events)
 
     def test_hra_keeps_edit_controls_for_own_building(self):
         hall = self.add_building('Maple')
@@ -105,6 +108,7 @@ class StaffEventVisibilityTests(unittest.TestCase):
         self.assertIn('Staff meeting', events)
         self.assertIn('Staff dinner', events)
         self.assertEqual(events.count('class="rwu-meeting-editor"'), 2)
+        self.assertNotIn('Schedule an RA', events)
         self.assertIn(f'action="/buildings/{hall}/staff-meeting"', events)
         self.assertIn(f'action="/buildings/{hall}/staff-dinner"', events)
 

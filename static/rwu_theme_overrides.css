@@ -107,6 +107,18 @@
   min-height:112px;
   border-left:4px solid var(--hall-accent)!important;
 }
+
+.rwu-staff-event-card[data-card="combined-events"],.rwu-staff-event-card[data-card="one-on-one"]{display:block}
+.rwu-combined-event-row{display:flex;justify-content:space-between;gap:1rem;padding:1rem 0;border-top:1px solid var(--line)}
+.rwu-staff-event-card[data-card="combined-events"]>.eyebrow,.rwu-staff-event-card[data-card="one-on-one"]>.eyebrow{margin-bottom:1rem}
+.rwu-one-on-one-form{margin:1rem 0}
+.rwu-month-picker{display:flex;align-items:end;gap:.65rem;margin:1rem 0}
+.rwu-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.rwu-calendar-heading{padding:.45rem;text-align:center;background:var(--surface-2);font-size:.72rem}
+.rwu-calendar-day{min-height:72px;padding:.35rem;border-top:1px solid var(--line);border-right:1px solid var(--line);font-size:.75rem}
+.rwu-calendar-day.is-empty{background:rgba(255,255,255,.02)}
+.rwu-calendar-event{margin-top:.25rem;padding:.3rem;border-radius:6px;background:var(--blue-soft);overflow-wrap:anywhere}
+.rwu-calendar-event form{display:inline}.rwu-calendar-event .button-link{font-size:.68rem}
 .rwu-meeting-info h2{margin:0;font-size:1.12rem}
 .rwu-meeting-info p{margin:.22rem 0 0;color:var(--rwu-muted)}
 .rwu-meeting-editor{position:relative}
