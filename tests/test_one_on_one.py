@@ -157,6 +157,23 @@ class OneOnOneTests(unittest.TestCase):
         self.assertIn(b"Wed, Oct 14", page.data)
         self.assertIn(b"AC office", page.data)
 
+    def test_monthly_series_uses_same_ordinal_weekday(self):
+        _building, ac, _hra, ra = self.add_team()
+        with patch("one_on_one.datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 1, tzinfo=SCHOOL_TIMEZONE)
+            clock.strptime = datetime.strptime
+            clock.fromisoformat = datetime.fromisoformat
+            csrf = self.login_as(ac)
+            response = self.request("post", "/one-on-ones", data={
+                "csrf": csrf, "recipient_user_id": str(ra),
+                "start_date": "2026-10-14", "start_time": "14:30",
+                "location": "AC office", "recurrence": "monthly",
+            })
+            self.assertEqual(response.status_code, 302)
+            november = self.request("get", "/prostaff?one_on_one_month=2026-11")
+        self.assertIn(b"Monthly \xc2\xb7 second Wednesday", november.data)
+        self.assertIn(b">11<", november.data)
+
 
 if __name__ == "__main__":
     unittest.main()

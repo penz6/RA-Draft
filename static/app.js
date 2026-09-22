@@ -226,4 +226,24 @@
       event.stopImmediatePropagation();
     }
   }, true);
+
+  const oneOnOneForm = document.querySelector("[data-one-on-one-form]");
+  if (oneOnOneForm) {
+    const dateInput = oneOnOneForm.querySelector("[data-meeting-date]");
+    const summary = oneOnOneForm.querySelector("[data-repeat-summary]");
+    const updateRepeatSummary = () => {
+      const value = oneOnOneForm.querySelector('[name="recurrence"]:checked')?.value;
+      if (!dateInput.value) {
+        summary.textContent = "Select a first date to preview the recurring weekday.";
+        return;
+      }
+      const chosen = new Date(`${dateInput.value}T12:00:00`);
+      const weekday = chosen.toLocaleDateString(undefined, {weekday: "long"});
+      const ordinal = ["first", "second", "third", "fourth", "fifth"][Math.floor((chosen.getDate() - 1) / 7)];
+      summary.textContent = value === "monthly" ? `Repeats on the ${ordinal} ${weekday} of each month.`
+        : value === "biweekly" ? `Repeats every other ${weekday}.` : `One meeting on ${weekday}.`;
+    };
+    dateInput.addEventListener("change", updateRepeatSummary);
+    oneOnOneForm.querySelectorAll('[name="recurrence"]').forEach((field) => field.addEventListener("change", updateRepeatSummary));
+  }
 })();
