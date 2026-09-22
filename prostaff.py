@@ -241,7 +241,8 @@ def prostaff_schedule():
     schedule = db().execute(
         "SELECT a.duty_date,u.name,u.email,b.id building_id,b.name building_name,s.shift_start,s.shift_end "
         "FROM assignments a JOIN users u ON u.id=a.user_id JOIN draft_sessions s ON s.id=a.session_id "
-        "JOIN buildings b ON b.id=s.building_id WHERE u.role='RA' AND u.is_prostaff=0 AND " + " AND ".join(where) +
+        "JOIN buildings b ON b.id=s.building_id "
+        "WHERE u.role IN ('RA','HRA','ADMIN') AND u.is_prostaff=0 AND " + " AND ".join(where) +
         " ORDER BY a.duty_date,b.name,u.name LIMIT 1000",
         params,
     ).fetchall()
@@ -260,7 +261,7 @@ def prostaff_staff_search():
         abort(403)
     q = request.args.get("q", "").strip()[:120]
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    where = ["u.role='RA'", "u.is_prostaff=0", "u.disabled=0"]
+    where = ["u.role IN ('RA','HRA','ADMIN')", "u.is_prostaff=0", "u.disabled=0"]
     params = []
     if q:
         where.append("(u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\')")
