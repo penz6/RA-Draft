@@ -179,17 +179,19 @@ def consolidate_duty_schedule(schedule_rows):
                 "building_name": row["building_name"],
                 "duty_date": row["duty_date"],
                 "staff": [],
+                "staff_names": set(),
             }
         staff_name = (row["name"] or "").strip()
         try:
             email = (row["email"] or "").strip()
         except (IndexError, KeyError):
             email = ""
-        if staff_name and not any(s["name"] == staff_name for s in by_day_building[key]["staff"]):
+        if staff_name and staff_name not in by_day_building[key]["staff_names"]:
             by_day_building[key]["staff"].append({
                 "name": staff_name,
                 "email": email,
             })
+            by_day_building[key]["staff_names"].add(staff_name)
 
     by_day = {}
     for (day, _), item in by_day_building.items():
@@ -243,16 +245,11 @@ def prostaff_schedule():
         " ORDER BY a.duty_date,b.name,u.name LIMIT 1000",
         params,
     ).fetchall()
-    staff_members = db().execute(
-        "SELECT DISTINCT u.id, u.name, u.email FROM users u "
-        "WHERE u.role='RA' AND u.is_prostaff=0 AND u.disabled=0 "
-        "ORDER BY u.name"
-    ).fetchall()
     by_day = consolidate_duty_schedule(schedule)
     return render_template("prostaff_schedule.html", buildings=buildings, schedule=schedule,
                            schedule_by_day=by_day, schedule_weeks=monthcalendar(selected.year, selected.month),
                            schedule_month=selected.strftime("%Y-%m"), schedule_month_label=selected.strftime("%B %Y"),
-                           selected_building=selected_building, search=search, staff_members=staff_members,
+                           selected_building=selected_building, search=search,
                            prostaff_page="schedule")
 
 

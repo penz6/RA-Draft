@@ -9,12 +9,7 @@
       <label class="field compact">Month<input type="month" name="month" value="{{ schedule_month }}"></label>
       <label class="field compact">Building<select name="building"><option value="">All buildings</option>{% for b in buildings %}<option value="{{ b.id }}"{% if selected_building == b.id %} selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label>
       <label class="field compact">Search staff<input type="search" name="q" value="{{ search }}" placeholder="Name or email" list="staff-autocomplete" autocomplete="off" data-staff-search></label>
-      <datalist id="staff-autocomplete">
-        {% for s in staff_members %}
-        <option value="{{ s.name }}">{{ s.email }}</option>
-        <option value="{{ s.email }}">{{ s.name }}</option>
-        {% endfor %}
-      </datalist>
+      <datalist id="staff-autocomplete"></datalist>
       <button class="button" type="submit">View calendar</button>
     </form>
     <div class="section-head"><div><div class="eyebrow">Duty coverage</div><h2>{{ schedule_month_label }}</h2></div></div>
