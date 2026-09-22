@@ -152,7 +152,22 @@ CREATE TABLE IF NOT EXISTS users (
   building_id INTEGER REFERENCES buildings(id),
   disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)),
   picture_url TEXT,
+  is_prostaff INTEGER NOT NULL DEFAULT 0 CHECK(is_prostaff IN (0,1)),
+  password_hash TEXT,
+  password_must_change INTEGER NOT NULL DEFAULT 0 CHECK(password_must_change IN (0,1)),
+  prostaff_failed_logins INTEGER NOT NULL DEFAULT 0,
+  prostaff_locked_until TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS one_on_one_appointments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ra_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scheduled_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scheduled_at TEXT NOT NULL,
+  location TEXT NOT NULL,
+  repeat_weeks INTEGER NOT NULL DEFAULT 0 CHECK(repeat_weeks BETWEEN 0 AND 52),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(ra_user_id, scheduled_at)
 );
 CREATE TABLE IF NOT EXISTS draft_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -457,6 +472,54 @@ def migrate_schema(conn):
         )
     if "picture_url" not in user_columns:
         conn.execute("ALTER TABLE users ADD COLUMN picture_url TEXT")
+    if "is_prostaff" not in user_columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN is_prostaff INTEGER NOT NULL DEFAULT 0 "
+            "CHECK(is_prostaff IN (0,1))"
+        )
+    if "password_hash" not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    if "password_must_change" not in user_columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN password_must_change INTEGER NOT NULL DEFAULT 0 "
+            "CHECK(password_must_change IN (0,1))"
+        )
+    if "prostaff_failed_logins" not in user_columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN prostaff_failed_logins INTEGER NOT NULL DEFAULT 0"
+        )
+    if "prostaff_locked_until" not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN prostaff_locked_until TEXT")
+
+    # This belongs in the normal migration path rather than module import so
+    # every process observes the same, fully initialized schema.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS one_on_one_appointments ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "ra_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+        "scheduled_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+        "scheduled_at TEXT NOT NULL,"
+        "location TEXT NOT NULL,"
+        "repeat_weeks INTEGER NOT NULL DEFAULT 0 CHECK(repeat_weeks BETWEEN 0 AND 52),"
+        "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+        "UNIQUE(ra_user_id,scheduled_at))"
+    )
+    one_on_one_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(one_on_one_appointments)")
+    }
+    if "repeat_weeks" not in one_on_one_columns:
+        conn.execute(
+            "ALTER TABLE one_on_one_appointments ADD COLUMN repeat_weeks INTEGER NOT NULL "
+            "DEFAULT 0 CHECK(repeat_weeks BETWEEN 0 AND 52)"
+        )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_one_on_one_recipient "
+        "ON one_on_one_appointments(ra_user_id,scheduled_at)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_one_on_one_scheduler "
+        "ON one_on_one_appointments(scheduled_by,scheduled_at)"
+    )
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS session_date_overrides ("

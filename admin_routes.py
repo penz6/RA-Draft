@@ -494,7 +494,6 @@ def impersonate_user(user_id):
     if bool(target["disabled"]):
         flash("Cannot impersonate a disabled user.", "error")
         return redirect(url_for("admin"))
-
     session["impersonator_uid"] = actor["id"]
     session["uid"] = target["id"]
     audit(
@@ -509,7 +508,8 @@ def impersonate_user(user_id):
         actor_user_id=actor["id"],
     )
     conn.commit()
-    flash(f"Now viewing as {target['name']} ({target['role']}).", "info")
+    target_label = "Prostaff" if target["is_prostaff"] else target["role"]
+    flash(f"Now viewing as {target['name']} ({target_label}).", "info")
     return redirect(url_for("dashboard"))
 
 

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Prostaff sign in | RWU Residence Life{% endblock %}
+{% block content %}
+<div class="login-wrapper"><section class="login-card card prostaff-login-card">
+  <div class="eyebrow">Residence Life</div><h1>Prostaff sign in</h1>
+  <p>Use the account provided by an administrator.</p>
+  <form method="post" class="prostaff-login-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label class="field">Email<input type="email" name="email" required autocomplete="username" autofocus></label>
+    <label class="field">Password<input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="button large" type="submit">Sign in</button>
+  </form>
+  <a class="login-secondary-link" href="{{ url_for('index') }}">Back to Google sign in</a>
+</section></div>
+{% endblock %}
