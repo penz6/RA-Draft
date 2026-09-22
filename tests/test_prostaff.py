@@ -343,11 +343,55 @@ class ProstaffTestCase(unittest.TestCase):
         # Exactly 1 entry for Maple on Day 15
         self.assertEqual(html.count("Alex RA &amp; Sam RA"), 1)
 
+    def test_duty_calendar_includes_ra_hra_and_admin_assignments(self):
+        with app.app_context():
+            conn = db()
+            building = conn.execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
+            creator = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role) "
+                "VALUES('creator','creator@rwu.edu','Schedule Creator','ADMIN')"
+            ).lastrowid
+            assignees = []
+            for sub, email, name, role in (
+                ("ra-duty", "ra-duty@rwu.edu", "Assigned RA", "RA"),
+                ("hra-duty", "hra-duty@rwu.edu", "Assigned HRA", "HRA"),
+                ("admin-duty", "admin-duty@rwu.edu", "Assigned Admin", "ADMIN"),
+            ):
+                assignees.append(conn.execute(
+                    "INSERT INTO users(google_sub,email,name,role,building_id) "
+                    "VALUES(?,?,?,?,?)",
+                    (sub, email, name, role, building),
+                ).lastrowid)
+            staff = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) "
+                "VALUES('calendar-staff','calendar-staff@example.edu','Calendar Staff','RA',?,1,0)",
+                (building,),
+            ).lastrowid
+            draft = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('October',?,'2026-10-01','2026-10-31',?,'CLOSED')",
+                (building, creator),
+            ).lastrowid
+            for assignee in assignees:
+                conn.execute(
+                    "INSERT INTO assignments(session_id,user_id,duty_date,created_by) "
+                    "VALUES(?,?,'2026-10-15',?)",
+                    (draft, assignee, creator),
+                )
+            conn.commit()
+
+        self.login_as(staff)
+        response = self.request("get", "/prostaff/schedule?month=2026-10")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Assigned Admin &amp; Assigned HRA &amp; Assigned RA", html)
+
     def test_prostaff_staff_search_api(self):
         with app.app_context():
             conn = db()
             b = conn.execute("INSERT INTO buildings(name) VALUES('Oak')").lastrowid
             conn.execute("INSERT INTO users(google_sub,email,name,role) VALUES('adm','adm@rwu.edu','Admin User','ADMIN')")
+            conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('hra','hra@rwu.edu','HRA User','HRA',?)", (b,))
             conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('r1','alex@rwu.edu','Alex Smith','RA',?)", (b,))
             conn.execute("INSERT INTO users(google_sub,email,name,role,building_id) VALUES('r2','sam@rwu.edu','Sam Taylor','RA',?)", (b,))
             conn.execute("INSERT INTO users(google_sub,email,name,role,building_id,disabled) VALUES('dis','dis@rwu.edu','Disabled RA','RA',?,1)", (b,))
@@ -386,6 +430,8 @@ class ProstaffTestCase(unittest.TestCase):
         names = [r["name"] for r in data["results"]]
         self.assertIn("Alex Smith", names)
         self.assertIn("Sam Taylor", names)
+        self.assertIn("HRA User", names)
+        self.assertIn("Admin User", names)
         self.assertNotIn("Disabled RA", names)
         self.assertNotIn("Staff User", names)
 

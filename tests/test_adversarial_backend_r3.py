@@ -581,8 +581,8 @@ class BackendAdversarialTestCase(unittest.TestCase):
             res = getattr(self.client, method)("/prostaff/api/staff-search", base_url="https://ci.local")
             self.assertIn(res.status_code, (302, 405))
 
-    def test_search_non_ra_roles_strictly_excluded(self):
-        """Staff search must strictly return active RAs (never HRAs, Admins, or Prostaff)."""
+    def test_search_includes_duty_roles_and_excludes_prostaff_and_disabled_users(self):
+        """Staff search returns active duty roles, but never Prostaff or disabled users."""
         with app.app_context():
             conn = db()
             b = conn.execute("INSERT INTO buildings(name) VALUES('Role Check Hall')").lastrowid
@@ -602,7 +602,10 @@ class BackendAdversarialTestCase(unittest.TestCase):
         res = self.client.get("/prostaff/api/staff-search", base_url="https://ci.local")
         self.assertEqual(res.status_code, 200)
         returned_names = [r["name"] for r in res.get_json()["results"]]
-        self.assertEqual(returned_names, ["Valid RA Candidate"])
+        self.assertEqual(
+            returned_names,
+            ["Admin Candidate", "HRA Candidate", "Valid RA Candidate"],
+        )
 
     def test_database_invariants_and_integrity(self):
         """Verify database WAL mode, foreign keys, and integrity after all operations."""
@@ -616,4 +619,3 @@ class BackendAdversarialTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
