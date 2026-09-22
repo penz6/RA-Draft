@@ -11,22 +11,22 @@
   </section>
 
   {% if building_profile %}
+  {# Staff dinner and Staff meeting previously used update_staff_dinner and update_staff_meeting separately. #}
   <section class="rwu-staff-events" aria-label="Staff events and one-on-ones">
     <article class="card rwu-staff-event-card" data-card="combined-events">
       <div class="eyebrow">Staff Dinner &amp; Meeting</div>
-      {% for title, endpoint, start, location, repeat_weeks in [
-        ('Staff dinner', 'update_staff_dinner', building_profile.staff_dinner_at, building_profile.staff_dinner_location, building_profile.staff_dinner_repeat_weeks),
-        ('Staff meeting', 'update_staff_meeting', building_profile.staff_meeting_at, building_profile.staff_meeting_location, building_profile.staff_meeting_repeat_weeks)
-      ] %}
-      {% set next_at = start|next_event(repeat_weeks) %}
-      <div class="rwu-combined-event-row">
-        <div class="rwu-meeting-info"><strong>{{ title }}</strong>{% if next_at and location %}<h2>{{ next_at|event_label }}</h2><p>{{ location }}{% if repeat_weeks %} · {{ repeat_weeks|repeat_label }}{% endif %}</p>{% else %}<p class="empty-copy">Not scheduled</p>{% endif %}</div>
-        {% if me.role in ('HRA', 'ADMIN') %}<details class="rwu-meeting-editor"><summary class="button small secondary">Edit {{ title|lower }}</summary><div class="rwu-meeting-editor-panel">
-          <form method="post" action="{{ url_for(endpoint, building_id=building_profile.id) }}" class="rwu-meeting-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label class="field compact">First date and time<input type="datetime-local" name="event_at" value="{{ start or '' }}" required></label><label class="field compact">Location<input name="event_location" maxlength="120" value="{{ location or '' }}" required></label>{% include 'staff_event_repeat.html' %}<button class="button small" type="submit">Save</button></form>
-          {% if start or location %}<form method="post" action="{{ url_for(endpoint, building_id=building_profile.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="event_at"><input type="hidden" name="event_location"><button class="button small ghost" type="submit">Clear</button></form>{% endif %}
+      {% set next_meeting = building_profile.staff_meeting_at|next_event(building_profile.staff_meeting_repeat_weeks) %}
+      {% set next_dinner = building_profile.staff_dinner_at|next_event(building_profile.staff_dinner_repeat_weeks) %}
+      {% set use_meeting = next_meeting and (not next_dinner or next_meeting <= next_dinner) %}
+      {% set start = building_profile.staff_meeting_at if use_meeting else building_profile.staff_dinner_at %}
+      {% set location = building_profile.staff_meeting_location if use_meeting else building_profile.staff_dinner_location %}
+      {% set repeat_weeks = building_profile.staff_meeting_repeat_weeks if use_meeting else building_profile.staff_dinner_repeat_weeks %}
+      {% set next_at = next_meeting if use_meeting else next_dinner %}
+      <div class="rwu-meeting-info">{% if next_at and location %}<h2>{{ next_at|event_label }}</h2><p>{{ location }}{% if repeat_weeks %} · {{ repeat_weeks|repeat_label }}{% endif %}</p>{% else %}<h2>Not scheduled</h2>{% endif %}</div>
+        {% if me.role in ('HRA', 'ADMIN') %}<details class="rwu-meeting-editor"><summary class="button small secondary">Edit</summary><div class="rwu-meeting-editor-panel">
+          <form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}" class="rwu-meeting-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label class="field compact">First date and time<input type="datetime-local" name="event_at" value="{{ start or '' }}" required></label><label class="field compact">Location<input name="event_location" maxlength="120" value="{{ location or '' }}" required></label>{% include 'staff_event_repeat.html' %}<button class="button small" type="submit">Save</button></form>
+          {% if start or location %}<form method="post" action="{{ url_for('update_staff_meeting', building_id=building_profile.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="event_at"><input type="hidden" name="event_location"><button class="button small ghost" type="submit">Clear</button></form>{% endif %}
         </div></details>{% endif %}
-      </div>
-      {% endfor %}
     </article>
 
     <article class="card rwu-staff-event-card" data-card="one-on-one">

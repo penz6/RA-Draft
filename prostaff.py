@@ -1,6 +1,8 @@
 """Local Prostaff authentication and read-only campus duty dashboard."""
 
 import secrets
+from calendar import monthcalendar
+from datetime import date
 from datetime import datetime, timedelta, timezone
 
 from flask import abort, flash, redirect, render_template, request, session, url_for
@@ -23,7 +25,8 @@ def isolate_prostaff_portal():
     if not user or not user["is_prostaff"]:
         return None
     allowed = {
-        "prostaff_dashboard", "prostaff_set_password", "schedule_one_on_one",
+        "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones",
+        "prostaff_set_password", "schedule_one_on_one",
         "delete_one_on_one", "stop_impersonation", "logout", "static",
     }
     is_impersonated = isinstance(session.get("impersonator_uid"), int)
@@ -118,11 +121,13 @@ def prostaff_dashboard():
     user = current_user()
     if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
         abort(403)
+    # Preserve bookmarked filtered/calendar URLs from the original combined page.
+    if request.args.get("one_on_one_month"):
+        return prostaff_one_on_ones()
+    if request.args.get("q") or request.args.get("building") or request.args.get("month"):
+        return prostaff_schedule()
     today = datetime.now(SCHOOL_TIMEZONE).date().isoformat()
-    building_raw = request.args.get("building", "").strip()
-    search = request.args.get("q", "").strip()[:120]
     buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
-    selected_building = int(building_raw) if building_raw.isdigit() else None
     tonight = db().execute(
         "SELECT b.id building_id,b.name building_name,u.name,u.email,s.shift_start,s.shift_end "
         "FROM buildings b LEFT JOIN draft_sessions s ON s.building_id=b.id "
@@ -130,8 +135,30 @@ def prostaff_dashboard():
         "LEFT JOIN users u ON u.id=a.user_id ORDER BY b.name,u.name",
         (today,),
     ).fetchall()
-    params = [today]
-    where = ["a.duty_date>=?"]
+    return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight, today=today,
+                           prostaff_page="overview")
+
+
+def _schedule_month(raw):
+    try:
+        return datetime.strptime(str(raw or ""), "%Y-%m").date().replace(day=1)
+    except ValueError:
+        return datetime.now(SCHOOL_TIMEZONE).date().replace(day=1)
+
+
+@app.route("/prostaff/schedule")
+def prostaff_schedule():
+    user = current_user()
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+        abort(403)
+    selected = _schedule_month(request.args.get("month"))
+    month_end = date(selected.year + (selected.month == 12), 1 if selected.month == 12 else selected.month + 1, 1)
+    building_raw = request.args.get("building", "").strip()
+    search = request.args.get("q", "").strip()[:120]
+    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    selected_building = int(building_raw) if building_raw.isdigit() else None
+    params = [selected.isoformat(), month_end.isoformat()]
+    where = ["a.duty_date>=?", "a.duty_date<?"]
     if selected_building:
         where.append("b.id=?")
         params.append(selected_building)
@@ -146,8 +173,21 @@ def prostaff_dashboard():
         " ORDER BY a.duty_date,b.name,u.name LIMIT 250",
         params,
     ).fetchall()
-    return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight,
-                           schedule=schedule, selected_building=selected_building, search=search, today=today)
+    by_day = {}
+    for row in schedule:
+        by_day.setdefault(int(row["duty_date"][-2:]), []).append(row)
+    return render_template("prostaff_schedule.html", buildings=buildings, schedule=schedule,
+                           schedule_by_day=by_day, schedule_weeks=monthcalendar(selected.year, selected.month),
+                           schedule_month=selected.strftime("%Y-%m"), schedule_month_label=selected.strftime("%B %Y"),
+                           selected_building=selected_building, search=search, prostaff_page="schedule")
+
+
+@app.route("/prostaff/one-on-ones")
+def prostaff_one_on_ones():
+    user = current_user()
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+        abort(403)
+    return render_template("prostaff_one_on_ones.html", prostaff_page="one_on_ones")
 
 
 @app.route("/admin/prostaff", methods=["POST"])

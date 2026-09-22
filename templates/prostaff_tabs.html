@@ -1,0 +1,5 @@
+<nav class="prostaff-tabs" aria-label="Prostaff dashboard sections">
+  <a class="prostaff-tab{% if prostaff_page == 'overview' %} is-active{% endif %}" href="{{ url_for('prostaff_dashboard') }}">Overview</a>
+  <a class="prostaff-tab{% if prostaff_page == 'schedule' %} is-active{% endif %}" href="{{ url_for('prostaff_schedule') }}">Future duty schedule</a>
+  <a class="prostaff-tab{% if prostaff_page == 'one_on_ones' %} is-active{% endif %}" href="{{ url_for('prostaff_one_on_ones') }}">Set one-on-one times</a>
+</nav>

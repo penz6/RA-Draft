@@ -142,7 +142,7 @@ def one_on_one_calendar_context(user):
 @app.context_processor
 def inject_one_on_ones():
     user = current_user()
-    if user and request.endpoint == "prostaff_dashboard" and (
+    if user and request.endpoint in {"prostaff_dashboard", "prostaff_one_on_ones"} and (
             user["is_prostaff"] or user["role"] == "ADMIN"):
         return {"one_on_one": None, **one_on_one_calendar_context(user)}
     if not user or user["is_prostaff"] or user["role"] not in ("RA", "HRA", "ADMIN"):
@@ -183,7 +183,7 @@ def schedule_one_on_one():
         location = clean_single_line(request.form.get("location"), max_length=120)
     except (TypeError, ValueError):
         flash("Choose a staff member, a future time, a valid repeat interval, and a location.", "error")
-        return redirect(url_for("prostaff_dashboard"))
+        return redirect(url_for("prostaff_one_on_ones"))
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
     locked_actor = _require_locked_ac(conn, actor["id"])
@@ -191,7 +191,7 @@ def schedule_one_on_one():
     if _has_schedule_conflict(conn, actor["id"], recipient_id, scheduled_at, repeat_weeks):
         conn.rollback()
         flash("That time conflicts with an existing one-on-one for you or that staff member.", "error")
-        return redirect(url_for("prostaff_dashboard"))
+        return redirect(url_for("prostaff_one_on_ones"))
     cur = conn.execute(
         "INSERT INTO one_on_one_appointments"
         "(ra_user_id,scheduled_by,scheduled_at,location,repeat_weeks) VALUES(?,?,?,?,?)",
@@ -202,7 +202,7 @@ def schedule_one_on_one():
            "repeat_weeks": repeat_weeks})
     conn.commit()
     flash("One-on-one schedule saved.", "success")
-    return redirect(url_for("prostaff_dashboard", one_on_one_month=scheduled_at[:7]))
+    return redirect(url_for("prostaff_one_on_ones", one_on_one_month=scheduled_at[:7]))
 
 
 @app.route("/one-on-ones/<int:appointment_id>/delete", methods=["POST"])
@@ -227,4 +227,4 @@ def delete_one_on_one(appointment_id):
           {"recipient_user_id": row["ra_user_id"], "scheduled_at": row["scheduled_at"]})
     conn.commit()
     flash("One-on-one series removed.", "success")
-    return redirect(url_for("prostaff_dashboard", one_on_one_month=row["scheduled_at"][:7]))
+    return redirect(url_for("prostaff_one_on_ones", one_on_one_month=row["scheduled_at"][:7]))

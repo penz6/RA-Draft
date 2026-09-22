@@ -1,24 +1,11 @@
-{% extends 'base.html' %}{% block title %}Prostaff dashboard{% endblock %}{% block content %}
+{% extends 'base.html' %}
+{% block title %}Prostaff dashboard{% endblock %}
+{% block content %}
 <div class="dashboard-page prostaff-dashboard">
   <section class="rwu-dashboard-hero"><div class="rwu-hero-copy"><div class="rwu-hero-kicker">RWU Residence Life</div><h1>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}</h1><p>Prostaff duty overview</p></div></section>
-  <section class="card"><div class="section-head"><div><div class="eyebrow">Tonight · {{ today|date_label }}</div><h2>Who is on duty</h2></div></div>
+  {% include 'prostaff_tabs.html' %}
+  <section class="card prostaff-panel"><div class="section-head"><div><div class="eyebrow">Tonight · {{ today|date_label }}</div><h2>Who is on duty</h2></div><a class="button small secondary" href="{{ url_for('prostaff_schedule') }}">Open duty calendar</a></div>
     <div class="prostaff-tonight-grid">{% for b in buildings %}<article class="shift-card"><h3>{{ b.name }}</h3>{% set ns = namespace(found=false) %}{% for row in tonight %}{% if row.building_id == b.id and row.name %}{% set ns.found=true %}<p><strong>{{ row.name }}</strong><br><small>{{ row.shift_start|time_label }}–{{ row.shift_end|time_label }}</small></p>{% endif %}{% endfor %}{% if not ns.found %}<p class="empty-copy">No one scheduled</p>{% endif %}</article>{% endfor %}</div>
   </section>
-  <section class="card"><div class="section-head"><div><div class="eyebrow">Future schedules</div><h2>Browse duty coverage</h2></div></div>
-    <div class="prostaff-building-buttons"><a class="button small {{ 'secondary' if not selected_building else 'ghost' }}" href="{{ url_for('prostaff_dashboard', q=search) }}">All buildings</a>{% for b in buildings %}<a class="button small {{ 'secondary' if selected_building == b.id else 'ghost' }}" href="{{ url_for('prostaff_dashboard', building=b.id, q=search) }}">{{ b.name }}</a>{% endfor %}</div>
-    <form method="get" class="prostaff-search"><input type="hidden" name="building" value="{{ selected_building or '' }}"><label class="field"><span>Search RAs</span><input type="search" name="q" value="{{ search }}" placeholder="Search by name or email"></label><button class="button" type="submit">Search</button></form>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>RA</th><th>Building</th><th>Duty hours</th></tr></thead><tbody>{% for row in schedule %}<tr><td>{{ row.duty_date|date_label }}</td><td><strong>{{ row.name }}</strong><br><small>{{ row.email }}</small></td><td>{{ row.building_name }}</td><td>{{ row.shift_start|time_label }}–{{ row.shift_end|time_label }}</td></tr>{% else %}<tr><td colspan="4">No future duty shifts match this view.</td></tr>{% endfor %}</tbody></table></div>
-  </section>
-  <section class="card rwu-one-on-one-card"><div class="section-head"><div><div class="eyebrow">Area Coordinator tools{% if me.building_name %} · {{ me.building_name }}{% endif %}</div><h2>One-on-one schedules</h2></div></div>
-    {% if me.is_prostaff and not me.building_id %}<div class="notice">An administrator must assign your building before you can manage one-on-ones.</div>{% endif %}
-    {% if me.is_prostaff and me.building_id %}<details class="rwu-meeting-editor" open><summary class="button small secondary">Schedule a staff member</summary>
-      <form method="post" action="{{ url_for('schedule_one_on_one') }}" class="rwu-meeting-form rwu-one-on-one-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <label class="field compact">Staff member<select name="recipient_user_id" required><option value="">Choose a staff member</option>{% for person in one_on_one_recipients %}<option value="{{ person.id }}">{{ person.building_name }} · {{ person.name }} ({{ person.role }})</option>{% endfor %}</select></label>
-        <label class="field compact">First date and time<input type="datetime-local" name="scheduled_at" required></label><label class="field compact">Location<input name="location" maxlength="120" required></label>
-        <label class="field compact">Repeat every (weeks)<input type="number" name="repeat_weeks" min="1" max="52" step="1" inputmode="numeric" value="1"><small>Leave blank for a one-time appointment.</small></label><button class="button small" type="submit">Save schedule</button>
-      </form></details>{% endif %}
-    <div class="rwu-one-on-one-calendar"><form method="get" class="rwu-month-picker"><label>Calendar month <input type="month" name="one_on_one_month" value="{{ one_on_one_month }}"></label><button class="button small ghost">View</button></form><h3>{{ one_on_one_month_label }}</h3>
-      <div class="rwu-calendar-grid" role="grid" aria-label="One-on-one calendar for {{ one_on_one_month_label }}">{% for label in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<strong class="rwu-calendar-heading">{{ label }}</strong>{% endfor %}{% for week in one_on_one_weeks %}{% for day in week %}<div class="rwu-calendar-day{% if not day %} is-empty{% endif %}" role="gridcell">{% if day %}<span>{{ day }}</span>{% for item in one_on_one_by_day.get(day, []) %}<div class="rwu-calendar-event"><strong>{{ item.scheduled_at[11:16]|time_label }}</strong> {{ item.ra_name }} <small>{{ item.building_name }}{% if item.repeat_weeks %} · {{ item.repeat_weeks|repeat_label }}{% endif %}</small>{% if me.is_prostaff %}<form method="post" action="{{ url_for('delete_one_on_one', appointment_id=item.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button-link" type="submit" aria-label="Remove one-on-one series for {{ item.ra_name }}">Remove series</button></form>{% endif %}</div>{% endfor %}{% endif %}</div>{% endfor %}{% endfor %}</div>
-    </div>
-  </section>
-</div>{% endblock %}
+</div>
+{% endblock %}

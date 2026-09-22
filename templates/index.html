@@ -8,7 +8,7 @@
     <a class="button large" href="{{ url_for('dashboard') }}">Open portal</a>
     {% else %}
     <a class="button large" href="{{ url_for('login') }}">Continue with Google</a>
-    <a class="login-secondary-link" href="{{ url_for('prostaff_login') }}">Prostaff sign in</a>
+    <a class="button ghost login-prostaff-button" href="{{ url_for('prostaff_login') }}">Prostaff sign in</a>
     {% endif %}
     <p class="login-note">RA and HRA accounts use RWU Google sign in.</p>
   </section>
