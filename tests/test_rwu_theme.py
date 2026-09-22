@@ -40,7 +40,7 @@ class RWUThemeRegressionTests(unittest.TestCase):
             self.assertNotIn(text, self.dashboard)
 
     def test_staff_event_controls_are_building_scoped(self):
-        for text in ('Staff dinner', 'Staff meeting', 'update_staff_dinner', 'update_staff_meeting', 'name="event_at"', 'name="event_location"', 'staff_event_repeat.html'):
+        for text in ('Staff Dinner &amp; Meeting', 'update_staff_dinner', 'update_staff_meeting', 'name="event_at"', 'name="event_location"', 'staff_event_repeat.html'):
             self.assertIn(text, self.dashboard)
         self.assertNotIn('Community meeting', self.dashboard)
         self.assertIn('actor["building_id"] != building_id', self.settings)
