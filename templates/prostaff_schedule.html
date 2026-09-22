@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Future duty schedule | Prostaff{% endblock %}
+{% block content %}
+<div class="dashboard-page prostaff-dashboard">
+  <div class="prostaff-page-heading"><div><div class="eyebrow">Prostaff tools</div><h1>Future duty schedule</h1><p>View campus duty coverage separately from the resident staff portal.</p></div></div>
+  {% include 'prostaff_tabs.html' %}
+  <section class="card prostaff-panel">
+    <form method="get" class="prostaff-schedule-filters">
+      <label class="field compact">Month<input type="month" name="month" value="{{ schedule_month }}"></label>
+      <label class="field compact">Building<select name="building"><option value="">All buildings</option>{% for b in buildings %}<option value="{{ b.id }}"{% if selected_building == b.id %} selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label>
+      <label class="field compact">Search staff<input type="search" name="q" value="{{ search }}" placeholder="Name or email"></label>
+      <button class="button" type="submit">View calendar</button>
+    </form>
+    <div class="section-head"><div><div class="eyebrow">Duty coverage</div><h2>{{ schedule_month_label }}</h2></div></div>
+    <div class="prostaff-duty-calendar" role="grid" aria-label="Duty schedule for {{ schedule_month_label }}">
+      {% for label in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<strong class="prostaff-calendar-heading">{{ label }}</strong>{% endfor %}
+      {% for week in schedule_weeks %}{% for day in week %}<div class="prostaff-calendar-day{% if not day %} is-empty{% endif %}" role="gridcell">{% if day %}<span class="prostaff-calendar-date">{{ day }}</span>{% for item in schedule_by_day.get(day, []) %}<article class="prostaff-duty-event"><strong>{{ item.building_name }}</strong><span>{{ item.name }}</span><small>{{ item.shift_start|time_label }}–{{ item.shift_end|time_label }}</small></article>{% else %}<small class="empty-copy">No duty</small>{% endfor %}{% endif %}</div>{% endfor %}{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

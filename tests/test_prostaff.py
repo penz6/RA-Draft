@@ -109,6 +109,14 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertIn("Maple", page)
         self.assertNotIn("Duty Swaps", page)
 
+        calendar = self.request("get", f"/prostaff/schedule?month={date.today():%Y-%m}")
+        self.assertEqual(calendar.status_code, 200)
+        self.assertIn(b"Duty schedule for", calendar.data)
+        self.assertIn(b"Alex RA", calendar.data)
+        one_on_ones = self.request("get", "/prostaff/one-on-ones")
+        self.assertEqual(one_on_ones.status_code, 200)
+        self.assertIn(b"Set a one-on-one time", one_on_ones.data)
+
     def test_repeated_bad_passwords_temporarily_lock_local_login(self):
         with app.app_context():
             building = db().execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
