@@ -91,7 +91,9 @@ def admin():
     ).fetchall()
     audit_rows = db().execute(
         "SELECT a.*,u.name actor_name FROM audit_log a "
-        "LEFT JOIN users u ON u.id=a.actor_user_id ORDER BY a.id DESC LIMIT 100"
+        "LEFT JOIN users u ON u.id=a.actor_user_id "
+        "WHERE a.action <> 'assignment.self_pick' "
+        "ORDER BY a.id DESC LIMIT 100"
     ).fetchall()
     return render_template(
         "admin.html",
