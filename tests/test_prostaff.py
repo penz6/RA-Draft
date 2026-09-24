@@ -120,6 +120,117 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertEqual(one_on_ones.status_code, 200)
         self.assertIn(b"Set a one-on-one time", one_on_ones.data)
 
+    def test_prostaff_duty_swaps_are_read_only_and_building_scoped(self):
+        with app.app_context():
+            conn = db()
+            maple = conn.execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
+            cedar = conn.execute("INSERT INTO buildings(name) VALUES('Cedar')").lastrowid
+            admin = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role) "
+                "VALUES('swap-admin','swap-admin@rwu.edu','Swap Admin','ADMIN')"
+            ).lastrowid
+            staff = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) "
+                "VALUES('swap-staff','swap-staff@rwu.edu','Area Coordinator','RA',?,1,0)",
+                (maple,),
+            ).lastrowid
+
+            maple_requester = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) "
+                "VALUES('maple-requester','maple-requester@rwu.edu','Maple Requester','RA',?)",
+                (maple,),
+            ).lastrowid
+            maple_target = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) "
+                "VALUES('maple-target','maple-target@rwu.edu','Maple Target','RA',?)",
+                (maple,),
+            ).lastrowid
+            cedar_requester = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) "
+                "VALUES('cedar-requester','cedar-requester@rwu.edu','Cedar Requester','RA',?)",
+                (cedar,),
+            ).lastrowid
+            cedar_target = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) "
+                "VALUES('cedar-target','cedar-target@rwu.edu','Cedar Target','RA',?)",
+                (cedar,),
+            ).lastrowid
+
+            maple_session = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('Maple Fall',?,'2026-10-01','2026-10-31',?,'CLOSED')",
+                (maple, admin),
+            ).lastrowid
+            cedar_session = conn.execute(
+                "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                "VALUES('Cedar Fall',?,'2026-10-01','2026-10-31',?,'CLOSED')",
+                (cedar, admin),
+            ).lastrowid
+
+            maple_req_assignment = conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (maple_session, maple_requester, "2026-10-10", admin),
+            ).lastrowid
+            maple_target_assignment = conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (maple_session, maple_target, "2026-10-11", admin),
+            ).lastrowid
+            cedar_req_assignment = conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (cedar_session, cedar_requester, "2026-10-12", admin),
+            ).lastrowid
+            cedar_target_assignment = conn.execute(
+                "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                (cedar_session, cedar_target, "2026-10-13", admin),
+            ).lastrowid
+
+            conn.execute(
+                "INSERT INTO duty_swap_requests("
+                "session_id,requester_user_id,requester_assignment_id,target_user_id,"
+                "target_assignment_id,status,batch_id"
+                ") VALUES(?,?,?,?,?,'PENDING','maple-batch')",
+                (
+                    maple_session,
+                    maple_requester,
+                    maple_req_assignment,
+                    maple_target,
+                    maple_target_assignment,
+                ),
+            )
+            conn.execute(
+                "INSERT INTO duty_swap_requests("
+                "session_id,requester_user_id,requester_assignment_id,target_user_id,"
+                "target_assignment_id,status,batch_id"
+                ") VALUES(?,?,?,?,?,'APPROVED','cedar-batch')",
+                (
+                    cedar_session,
+                    cedar_requester,
+                    cedar_req_assignment,
+                    cedar_target,
+                    cedar_target_assignment,
+                ),
+            )
+            conn.commit()
+
+        self.login_as(staff)
+        response = self.request("get", "/prostaff/swaps")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Duty swaps", html)
+        self.assertIn("Maple duty swaps", html)
+        self.assertIn("Maple Requester", html)
+        self.assertIn("Maple Target", html)
+        self.assertIn("Waiting for recipient", html)
+        self.assertIn("Oct 10", html)
+        self.assertIn("Oct 11", html)
+        self.assertNotIn("Cedar Requester", html)
+        self.assertNotIn("Cedar Target", html)
+        self.assertNotIn("Approve request", html)
+        self.assertNotIn("Reject", html)
+
+        self.login_as(maple_requester)
+        self.assertEqual(self.request("get", "/prostaff/swaps").status_code, 403)
+
     def test_repeated_bad_passwords_temporarily_lock_local_login(self):
         with app.app_context():
             building = db().execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
