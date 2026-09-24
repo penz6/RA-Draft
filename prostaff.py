@@ -34,7 +34,7 @@ def isolate_prostaff_portal():
     if not user or not user["is_prostaff"]:
         return None
     allowed = {
-        "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones",
+        "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones", "prostaff_swaps",
         "prostaff_set_password", "schedule_one_on_one",
         "delete_one_on_one", "stop_impersonation", "logout", "static",
         "prostaff_staff_search",
@@ -252,6 +252,97 @@ def prostaff_schedule():
                            schedule_month=selected.strftime("%Y-%m"), schedule_month_label=selected.strftime("%B %Y"),
                            selected_building=selected_building, search=search,
                            prostaff_page="schedule")
+
+
+def _prostaff_swap_batches(user):
+    """Return duty-swap batches visible in the Prostaff portal.
+
+    Area Coordinators are always restricted to their assigned building. Admin
+    users may use the Prostaff view for support and can see all buildings.
+    """
+    params = []
+    where = []
+    if user["is_prostaff"]:
+        if not user["building_id"]:
+            return []
+        where.append("s.building_id=?")
+        params.append(user["building_id"])
+
+    rows = db().execute(
+        "SELECT sr.*, s.name session_name, b.name building_name, "
+        "u1.name requester_name, u2.name target_name, "
+        "a1.duty_date requester_date, a2.duty_date target_date, "
+        "ur.name reviewer_name "
+        "FROM duty_swap_requests sr "
+        "JOIN draft_sessions s ON s.id=sr.session_id "
+        "JOIN buildings b ON b.id=s.building_id "
+        "JOIN users u1 ON u1.id=sr.requester_user_id "
+        "JOIN users u2 ON u2.id=sr.target_user_id "
+        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
+        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
+        "LEFT JOIN users ur ON ur.id=sr.reviewed_by"
+        + (" WHERE " + " AND ".join(where) if where else "")
+        + " ORDER BY sr.created_at DESC, sr.id ASC",
+        params,
+    ).fetchall()
+
+    labels = {
+        "PENDING": "Waiting for recipient",
+        "TARGET_APPROVED": "Waiting for HRA",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "CANCELLED": "Cancelled",
+    }
+    batches = {}
+    for row in rows:
+        batch_key = row["batch_id"] or f"row:{row['id']}"
+        if batch_key not in batches:
+            manager_manual = bool(
+                row["status"] == "APPROVED"
+                and row["reviewed_by"] is not None
+                and row["created_at"] == row["target_reviewed_at"]
+                and row["created_at"] == row["reviewed_at"]
+            )
+            batches[batch_key] = {
+                "batch_id": batch_key,
+                "status": row["status"],
+                "status_label": labels.get(row["status"], row["status"].replace("_", " ").title()),
+                "requester_name": row["requester_name"],
+                "target_name": row["target_name"],
+                "session_name": row["session_name"],
+                "building_name": row["building_name"],
+                "created_at": row["created_at"],
+                "reviewer_name": row["reviewer_name"],
+                "manager_manual": manager_manual,
+                "pairs": [],
+            }
+        batches[batch_key]["pairs"].append({
+            "requester_date": row["requester_date"],
+            "target_date": row["target_date"],
+        })
+
+    return list(batches.values())
+
+
+@app.route("/prostaff/swaps")
+def prostaff_swaps():
+    user = current_user()
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+        abort(403)
+
+    building = None
+    if user["is_prostaff"] and user["building_id"]:
+        building = db().execute(
+            "SELECT id,name FROM buildings WHERE id=?",
+            (user["building_id"],),
+        ).fetchone()
+
+    return render_template(
+        "prostaff_swaps.html",
+        building=building,
+        swap_batches=_prostaff_swap_batches(user),
+        prostaff_page="swaps",
+    )
 
 
 @app.route("/prostaff/api/staff-search")
