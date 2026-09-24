@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Duty swaps | Prostaff{% endblock %}
+{% block content %}
+<div class="dashboard-page prostaff-dashboard">
+  <div class="prostaff-page-heading">
+    <div>
+      <div class="eyebrow">Prostaff tools{% if building %} · {{ building.name }}{% endif %}</div>
+      <h1>Duty swaps</h1>
+      <p>Read-only history of duty swap requests{% if building %} for {{ building.name }}{% endif %}.</p>
+    </div>
+  </div>
+
+  {% include 'prostaff_tabs.html' %}
+
+  <section class="card prostaff-panel">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Swap activity</div>
+        <h2>{% if building %}{{ building.name }} duty swaps{% else %}Duty swaps across buildings{% endif %}</h2>
+        <p>See who requested each trade, the dates involved, and its current approval state.</p>
+      </div>
+      <span class="count-badge">{{ swap_batches|length }}</span>
+    </div>
+
+    {% if swap_batches %}
+    <div class="swap-status-list">
+      {% for batch in swap_batches %}
+      <article class="swap-status-card">
+        <div class="swap-status-top">
+          <div>
+            <div class="eyebrow">{{ batch.building_name }} · {{ batch.session_name }}</div>
+            <h3>{{ batch.requester_name }} &harr; {{ batch.target_name }}</h3>
+            <p>
+              {% if batch.manager_manual %}
+                Manual swap{% if batch.reviewer_name %} by {{ batch.reviewer_name }}{% endif %}
+              {% else %}
+                Requested by {{ batch.requester_name }}
+              {% endif %}
+              &bull; {{ batch.pairs|length }} shift{{ 's' if batch.pairs|length != 1 else '' }}
+              &bull; {{ batch.created_at|date_label }}
+            </p>
+          </div>
+          <span class="pill small {{ batch.status|lower }}">{{ batch.status_label }}</span>
+        </div>
+
+        <div class="swap-pairs-list">
+          {% for pair in batch.pairs %}
+          <div class="swap-pair">
+            <span class="swap-pair-from">
+              <small>{{ batch.requester_name }}</small><br>
+              <strong>{{ pair.requester_date|date_label }}</strong>
+            </span>
+            <span class="swap-arrow" aria-hidden="true">&harr;</span>
+            <span class="swap-pair-to">
+              <small>{{ batch.target_name }}</small><br>
+              <strong>{{ pair.target_date|date_label }}</strong>
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if batch.reviewer_name and not batch.manager_manual %}
+        <p class="empty-copy">Final review: {{ batch.reviewer_name }}</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-copy">No duty swaps have been recorded{% if building %} for {{ building.name }}{% endif %}.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
