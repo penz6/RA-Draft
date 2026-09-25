@@ -2,8 +2,8 @@
 {% block title %}Analytics | Duty Shift{% endblock %}
 {% block content %}
 <div class="page-head dashboard-hero">
-  <div><div class="eyebrow">Administration</div><h1>Analytics</h1><p>Staffing coverage, assignments, and duty swaps.</p></div>
-  <a class="button secondary" href="{{ url_for('admin') }}">Manage users &amp; buildings</a>
+  <div><div class="eyebrow">Campus-wide reporting</div><h1>Analytics</h1><p>Staffing coverage, assignments, and duty swaps across all buildings.</p></div>
+  {% if not me.is_prostaff %}<a class="button secondary" href="{{ url_for('admin') }}">Manage users &amp; buildings</a>{% endif %}
 </div>
 <form method="get" class="analytics-filter card">
   <label class="field">Building<select name="building_id"><option value="">All buildings</option>{% for b in buildings %}<option value="{{ b.id }}" {% if building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label>

@@ -35,6 +35,7 @@ def isolate_prostaff_portal():
         return None
     allowed = {
         "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones", "prostaff_swaps",
+        "admin_analytics",
         "prostaff_set_password", "schedule_one_on_one",
         "delete_one_on_one", "stop_impersonation", "logout", "static",
         "prostaff_staff_search",

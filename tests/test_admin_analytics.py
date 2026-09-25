@@ -81,6 +81,40 @@ class AdminAnalyticsTests(unittest.TestCase):
         self.assertIn(b'Logins per week', response.data)
         self.assertIn(b'Logins this week', response.data)
 
+    def test_prostaff_and_admin_lite_see_all_buildings(self):
+        maple = self.add_building('Maple')
+        cedar = self.add_building('Cedar')
+        creator = self.add_admin()
+        admin_lite = self.add_user(
+            sub='lite', email='lite@rwu.edu', name='Admin Lite', role='HRA',
+            building_id=maple,
+        )
+        prostaff = self.add_user(
+            sub='area-coordinator', email='coordinator@rwu.edu',
+            name='Area Coordinator', building_id=maple,
+        )
+        with app.app_context():
+            conn = db()
+            conn.execute('UPDATE users SET admin_lite=1 WHERE id=?', (admin_lite,))
+            conn.execute(
+                'UPDATE users SET is_prostaff=1,password_must_change=0 WHERE id=?',
+                (prostaff,),
+            )
+            for name, building in [('Maple Session', maple), ('Cedar Session', cedar)]:
+                conn.execute(
+                    "INSERT INTO draft_sessions(name,building_id,start_date,end_date,capacity,created_by) "
+                    "VALUES(?,?,'2099-01-01','2099-01-02',1,?)",
+                    (name, building, creator),
+                )
+            conn.commit()
+
+        for viewer in (admin_lite, prostaff):
+            self.login_as(viewer)
+            response = self.request('get', '/admin/analytics')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b'Maple Session', response.data)
+            self.assertIn(b'Cedar Session', response.data)
+
     def test_hra_analytics_and_dashboard_widgets(self):
         building = self.add_building('Willow')
         other_bldg = self.add_building('Oak')
