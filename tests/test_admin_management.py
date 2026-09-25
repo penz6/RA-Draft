@@ -644,7 +644,7 @@ class AdminManagementTestCase(unittest.TestCase):
             self.assertIn("admin.impersonate.stop", audit_actions)
 
 
-    def test_admin_lite_is_building_scoped_and_limited_to_ra_management(self):
+    def test_admin_lite_can_manage_ras_across_buildings(self):
         maple = self.add_building("Maple")
         oak = self.add_building("Oak")
         admin_id = self.add_admin()
@@ -675,7 +675,9 @@ class AdminManagementTestCase(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         html = page.get_data(as_text=True)
         self.assertIn("Maple RA", html)
-        self.assertNotIn("Oak RA", html)
+        self.assertIn("Oak RA", html)
+        self.assertIn("Maple", html)
+        self.assertIn("Oak", html)
         self.assertNotIn("Provision Area Coordinator", html)
         self.assertNotIn("Disable", html)
         self.assertNotIn("Delete", html)
@@ -698,7 +700,7 @@ class AdminManagementTestCase(unittest.TestCase):
         self.assertEqual(created.status_code, 302)
         with app.app_context():
             new_ra = db().execute("SELECT * FROM users WHERE email='new-ra@rwu.edu'").fetchone()
-            self.assertEqual(new_ra["building_id"], maple)
+            self.assertEqual(new_ra["building_id"], oak)
             self.assertEqual(new_ra["role"], "RA")
 
         promoted = self.request("post", f"/admin/users/{maple_ra}", data={
@@ -708,12 +710,21 @@ class AdminManagementTestCase(unittest.TestCase):
         with app.app_context():
             updated = db().execute("SELECT * FROM users WHERE id=?", (maple_ra,)).fetchone()
             self.assertEqual(updated["role"], "HRA")
-            self.assertEqual(updated["building_id"], maple)
-
+            self.assertEqual(updated["building_id"], oak)
         self.assertEqual(self.request(
-            "post", f"/admin/users/{oak_ra}",
-            data={"csrf": csrf, "role": "HRA", "building_id": oak},
+            "post", f"/admin/users/{maple_ra}",
+            data={"csrf": csrf, "role": "RA", "building_id": maple},
         ).status_code, 403)
+
+        moved = self.request(
+            "post", f"/admin/users/{oak_ra}",
+            data={"csrf": csrf, "role": "RA", "building_id": maple},
+        )
+        self.assertEqual(moved.status_code, 302)
+        with app.app_context():
+            updated = db().execute("SELECT * FROM users WHERE id=?", (oak_ra,)).fetchone()
+            self.assertEqual(updated["role"], "RA")
+            self.assertEqual(updated["building_id"], maple)
         self.assertEqual(self.request(
             "post", "/admin/users",
             data={"csrf": csrf, "name": "No Admin", "email": "no-admin@rwu.edu",

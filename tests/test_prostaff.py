@@ -503,6 +503,62 @@ class ProstaffTestCase(unittest.TestCase):
         # Exactly 1 entry for Maple on Day 15
         self.assertEqual(html.count("Alex RA &amp; Sam RA"), 1)
 
+    def test_prostaff_and_admin_lite_see_campus_wide_duty_coverage(self):
+        today = date.today()
+        with app.app_context():
+            conn = db()
+            maple = conn.execute("INSERT INTO buildings(name) VALUES('Maple')").lastrowid
+            cedar = conn.execute("INSERT INTO buildings(name) VALUES('Cedar')").lastrowid
+            admin = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role) "
+                "VALUES('coverage-admin','coverage-admin@rwu.edu','Coverage Admin','ADMIN')"
+            ).lastrowid
+            maple_ra = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) "
+                "VALUES('coverage-maple','maple@rwu.edu','Maple Coverage RA','RA',?)",
+                (maple,),
+            ).lastrowid
+            cedar_ra = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id) "
+                "VALUES('coverage-cedar','cedar@rwu.edu','Cedar Coverage RA','RA',?)",
+                (cedar,),
+            ).lastrowid
+            prostaff = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) "
+                "VALUES('coverage-staff','staff@example.edu','Coverage Staff','RA',?,1,0)",
+                (maple,),
+            ).lastrowid
+            admin_lite = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,admin_lite) "
+                "VALUES('coverage-lite','lite@rwu.edu','Coverage Admin Lite','HRA',?,1)",
+                (maple,),
+            ).lastrowid
+            for name, building, assignee in (
+                ("Maple Duty", maple, maple_ra),
+                ("Cedar Duty", cedar, cedar_ra),
+            ):
+                draft = conn.execute(
+                    "INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) "
+                    "VALUES(?,?,?,?,?,'CLOSED')",
+                    (name, building, today.isoformat(), today.isoformat(), admin),
+                ).lastrowid
+                conn.execute(
+                    "INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)",
+                    (draft, assignee, today.isoformat(), admin),
+                )
+            conn.commit()
+
+        for viewer in (prostaff, admin_lite):
+            self.login_as(viewer)
+            with patch("prostaff._duty_display_date", return_value=today):
+                overview = self.request("get", "/prostaff").get_data(as_text=True)
+            calendar = self.request(
+                "get", f"/prostaff/schedule?month={today:%Y-%m}"
+            ).get_data(as_text=True)
+            for expected in ("Maple Coverage RA", "Cedar Coverage RA"):
+                self.assertIn(expected, overview)
+                self.assertIn(expected, calendar)
+
     def test_duty_calendar_includes_ra_hra_and_admin_assignments(self):
         with app.app_context():
             conn = db()

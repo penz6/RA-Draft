@@ -116,6 +116,35 @@ class OneOnOneTests(unittest.TestCase):
         self.assertEqual(self.request("post", f"/one-on-ones/{series}/delete",
                                       data={"csrf": csrf}).status_code, 404)
 
+    def test_admin_lite_manages_one_on_ones_only_for_own_building(self):
+        building, _ac, _hra, ra = self.add_team()
+        other = self.add_building("Willow")
+        other_ra = self.add_user(
+            sub="other-lite-ra", email="other-lite-ra@rwu.edu",
+            name="Other Building RA", role="RA", building_id=other,
+        )
+        admin_lite = self.add_user(
+            sub="admin-lite", email="admin-lite@rwu.edu", name="Admin Lite",
+            role="HRA", building_id=building,
+        )
+        with app.app_context():
+            db().execute("UPDATE users SET admin_lite=1 WHERE id=?", (admin_lite,))
+            db().commit()
+
+        with patch("one_on_one.datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 1, tzinfo=SCHOOL_TIMEZONE)
+            clock.strptime = datetime.strptime
+            clock.fromisoformat = datetime.fromisoformat
+            self.assertEqual(self.schedule(admin_lite, ra).status_code, 302)
+            self.assertEqual(self.schedule(
+                admin_lite, other_ra, scheduled_at="2026-10-15T14:30"
+            ).status_code, 403)
+
+        page = self.request("get", "/prostaff/one-on-ones?one_on_one_month=2026-10")
+        self.assertIn(b"Alex RA", page.data)
+        self.assertNotIn(b"Other Building RA", page.data)
+        self.assertIn(b"Remove one-on-one series", page.data)
+
     def test_recurring_series_cannot_double_book_recipient_or_coordinator(self):
         _building, ac, hra, ra = self.add_team()
         with patch("one_on_one.datetime") as clock:
