@@ -31,11 +31,13 @@ def render_pages(destination):
     hra = fixture.add_user(sub='hra-preview', email='taylor@rwu.edu', name='Taylor Morgan', role='HRA', building_id=hall)
     ra = fixture.add_user(sub='ra-preview', email='alex@g.rwu.edu', name='Alex Rivera', building_id=hall)
     partner = fixture.add_user(sub='partner-preview', email='jordan@g.rwu.edu', name='Jordan Ellis', building_id=hall)
+    prostaff = fixture.add_user(sub='prostaff-preview', email='coordinator@rwu.edu', name='Morgan Coordinator', building_id=hall)
     new_ra = fixture.add_user(sub='new-preview', email='sam@g.rwu.edu', name='Sam Lee')
     inactive = fixture.add_user(sub='inactive-preview', email='casey@g.rwu.edu', name='Casey Park', building_id=hall)
     with app.app_context():
         conn = db()
         conn.execute('UPDATE users SET building_id=? WHERE id=?', (hall, admin))
+        conn.execute('UPDATE users SET is_prostaff=1,password_must_change=0 WHERE id=?', (prostaff,))
         conn.execute('UPDATE users SET disabled=1 WHERE id=?', (inactive,))
         conn.execute("UPDATE buildings SET accent_color='#ffffff',staff_meeting_at='2026-09-01T19:00',staff_meeting_location='Maple Lounge',staff_meeting_repeat_weeks=2,staff_dinner_at='2026-09-02T18:00',staff_dinner_location='Commons',staff_dinner_repeat_weeks=1 WHERE id=?", (hall,))
         opened = conn.execute("INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status,capacity,date_order) VALUES(?,?,?,?,?,'OPEN',2,'CHRONOLOGICAL')", ('September duty', hall, '2026-09-01', '2026-09-14', admin)).lastrowid
@@ -43,8 +45,14 @@ def render_pages(destination):
         for session_id in (opened, closed):
             for position, user in enumerate((ra, partner, hra, admin), 1):
                 conn.execute('INSERT INTO session_order(session_id,user_id,position) VALUES(?,?,?)', (session_id, user, position))
+        assignments = {}
         for user, day in ((admin,'2026-10-01'), (ra,'2026-10-01'), (admin,'2026-10-02'), (partner,'2026-10-02'), (hra,'2026-10-03')):
-            conn.execute('INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)', (closed, user, day, admin))
+            assignments[(user, day)] = conn.execute('INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)', (closed, user, day, admin)).lastrowid
+        conn.execute(
+            "INSERT INTO duty_swap_requests(session_id,requester_user_id,requester_assignment_id,"
+            "target_user_id,target_assignment_id,status,batch_id) VALUES(?,?,?,?,?,'PENDING','preview-swap')",
+            (closed, ra, assignments[(ra, '2026-10-01')], partner, assignments[(partner, '2026-10-02')]),
+        )
         conn.execute("INSERT INTO session_date_overrides(session_id,duty_date,date_kind,updated_by) VALUES(?,?,'NO_DUTY',?)", (opened,'2026-09-10',admin))
         conn.commit()
     def save(name, endpoint, user=None, **values):
@@ -74,7 +82,8 @@ def render_pages(destination):
     save('closed-session', 'view_session', admin, session_id=closed)
     save('swap-home', 'swap_home', admin)
     save('swaps', 'building_swap_page', ra, building_id=hall)
-    print('Rendered 12 application pages with sample data.')
+    save('prostaff-swaps', 'prostaff_swaps', prostaff)
+    print('Rendered 13 application pages with sample data.')
 
 
 if __name__ == '__main__':

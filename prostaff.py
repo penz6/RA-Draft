@@ -34,7 +34,7 @@ def isolate_prostaff_portal():
     if not user or not user["is_prostaff"]:
         return None
     allowed = {
-        "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones",
+        "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones", "prostaff_swaps",
         "prostaff_set_password", "schedule_one_on_one",
         "delete_one_on_one", "stop_impersonation", "logout", "static",
         "prostaff_staff_search",
@@ -237,24 +237,23 @@ def prostaff_schedule():
         (user["building_id"],) if user["admin_lite"] else (),
     ).fetchall()
     selected_building = int(building_raw) if building_raw.isdigit() else None
-    params = [selected.isoformat(), month_end.isoformat()]
-    where = ["a.duty_date>=?", "a.duty_date<?"]
-    if user["admin_lite"]:
-        where.append("b.id=?")
-        params.append(user["building_id"])
-    if selected_building:
-        where.append("b.id=?")
-        params.append(selected_building)
-    if search:
-        where.append("(u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\')")
-        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        params.extend([f"%{escaped}%", f"%{escaped}%"])
+    escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    search_pattern = f"%{escaped}%"
+    scoped_building = user["building_id"] if user["admin_lite"] else selected_building
+    params = [
+        selected.isoformat(), month_end.isoformat(),
+        scoped_building, scoped_building,
+        search, search_pattern, search_pattern,
+    ]
     schedule = db().execute(
         "SELECT a.duty_date,u.name,u.email,b.id building_id,b.name building_name,s.shift_start,s.shift_end "
         "FROM assignments a JOIN users u ON u.id=a.user_id JOIN draft_sessions s ON s.id=a.session_id "
         "JOIN buildings b ON b.id=s.building_id "
-        "WHERE u.role IN ('RA','HRA','ADMIN') AND u.is_prostaff=0 AND " + " AND ".join(where) +
-        " ORDER BY a.duty_date,b.name,u.name LIMIT 1000",
+        "WHERE u.role IN ('RA','HRA','ADMIN') AND u.is_prostaff=0 "
+        "AND a.duty_date>=? AND a.duty_date<? "
+        "AND (? IS NULL OR b.id=?) "
+        "AND (?='' OR u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\') "
+        "ORDER BY a.duty_date,b.name,u.name LIMIT 1000",
         params,
     ).fetchall()
     by_day = consolidate_duty_schedule(schedule)
@@ -265,6 +264,93 @@ def prostaff_schedule():
                            prostaff_page="schedule")
 
 
+def _prostaff_swap_batches(user):
+    """Return duty-swap batches visible in the Prostaff portal.
+
+    Area Coordinators are always restricted to their assigned building. Admin
+    users may use the Prostaff view for support and can see all buildings.
+    """
+    if user["is_prostaff"] or user["admin_lite"]:
+        if not user["building_id"]:
+            return []
+        scoped_building_id = user["building_id"]
+    else:
+        scoped_building_id = None
+
+    rows = db().execute(
+        "SELECT sr.*, s.name session_name, b.name building_name, "
+        "u1.name requester_name, u2.name target_name, "
+        "a1.duty_date requester_date, a2.duty_date target_date, "
+        "ur.name reviewer_name, manual.target_id IS NOT NULL manager_manual "
+        "FROM duty_swap_requests sr "
+        "JOIN draft_sessions s ON s.id=sr.session_id "
+        "JOIN buildings b ON b.id=s.building_id "
+        "JOIN users u1 ON u1.id=sr.requester_user_id "
+        "JOIN users u2 ON u2.id=sr.target_user_id "
+        "JOIN assignments a1 ON a1.id=sr.requester_assignment_id "
+        "JOIN assignments a2 ON a2.id=sr.target_assignment_id "
+        "LEFT JOIN users ur ON ur.id=sr.reviewed_by "
+        "LEFT JOIN (SELECT DISTINCT target_id FROM audit_log "
+        "WHERE action='swap.manager_manual' AND target_type='swap_request') manual "
+        "ON manual.target_id=sr.id "
+        "WHERE (? IS NULL OR s.building_id=?) "
+        "ORDER BY sr.created_at DESC, sr.id ASC",
+        (scoped_building_id, scoped_building_id),
+    ).fetchall()
+
+    labels = {
+        "PENDING": "Waiting for recipient",
+        "TARGET_APPROVED": "Waiting for HRA",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "CANCELLED": "Cancelled",
+    }
+    batches = {}
+    for row in rows:
+        batch_key = row["batch_id"] or f"row:{row['id']}"
+        if batch_key not in batches:
+            batches[batch_key] = {
+                "batch_id": batch_key,
+                "status": row["status"],
+                "status_label": labels.get(row["status"], row["status"].replace("_", " ").title()),
+                "requester_name": row["requester_name"],
+                "target_name": row["target_name"],
+                "session_name": row["session_name"],
+                "building_name": row["building_name"],
+                "created_at": row["created_at"],
+                "reviewer_name": row["reviewer_name"],
+                "manager_manual": bool(row["manager_manual"]),
+                "pairs": [],
+            }
+        batches[batch_key]["pairs"].append({
+            "requester_date": row["requester_date"],
+            "target_date": row["target_date"],
+        })
+
+    return list(batches.values())
+
+
+@app.route("/prostaff/swaps")
+def prostaff_swaps():
+    user = current_user()
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
+        abort(403)
+
+    building = None
+    if (user["is_prostaff"] or user["admin_lite"]) and user["building_id"]:
+        building = db().execute(
+            "SELECT id,name FROM buildings WHERE id=?",
+            (user["building_id"],),
+        ).fetchone()
+
+    return render_template(
+        "prostaff_swaps.html",
+        building=building,
+        swap_batches=_prostaff_swap_batches(user),
+        prostaff_page="swaps",
+    )
+
+
 @app.route("/prostaff/api/staff-search")
 def prostaff_staff_search():
     user = current_user()
@@ -272,18 +358,15 @@ def prostaff_staff_search():
         abort(403)
     q = request.args.get("q", "").strip()[:120]
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    where = ["u.role IN ('RA','HRA','ADMIN')", "u.is_prostaff=0", "u.disabled=0"]
-    params = []
-    if user["admin_lite"]:
-        where.append("u.building_id=?")
-        params.append(user["building_id"])
-    if q:
-        where.append("(u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\')")
-        params.extend([f"%{escaped}%", f"%{escaped}%"])
+    search_pattern = f"%{escaped}%"
+    scoped_building = user["building_id"] if user["admin_lite"] else None
     rows = db().execute(
         "SELECT DISTINCT u.id, u.name, u.email FROM users u "
-        "WHERE " + " AND ".join(where) + " ORDER BY u.name LIMIT 25",
-        params,
+        "WHERE u.role IN ('RA','HRA','ADMIN') AND u.is_prostaff=0 AND u.disabled=0 "
+        "AND (? IS NULL OR u.building_id=?) "
+        "AND (?='' OR u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\') "
+        "ORDER BY u.name LIMIT 25",
+        (scoped_building, scoped_building, q, search_pattern, search_pattern),
     ).fetchall()
     return {"results": [{"id": r["id"], "name": r["name"], "email": r["email"]} for r in rows]}
 

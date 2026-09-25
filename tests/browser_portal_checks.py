@@ -21,8 +21,8 @@ def run(destination):
     screenshots = destination / 'screenshots'
     screenshots.mkdir(exist_ok=True)
     pages = sorted(destination.glob('*.html'))
-    if len(pages) != 12:
-        raise AssertionError(f'Expected 12 rendered pages, found {len(pages)}')
+    if len(pages) != 13:
+        raise AssertionError(f'Expected 13 rendered pages, found {len(pages)}')
     try:
         with sync_playwright() as playwright:
             launch = {'headless': True}
@@ -117,7 +117,7 @@ def run(destination):
     (destination / 'browser-results.json').write_text(json.dumps({'page_checks': checked, 'failures': failures}, indent=2))
     if failures:
         raise AssertionError('\n'.join(failures))
-    print(f'Passed {checked} full-page Chromium checks (12 pages at 3 viewport widths).')
+    print(f'Passed {checked} full-page Chromium checks (13 pages at 3 viewport widths).')
 
 
 if __name__ == '__main__':
