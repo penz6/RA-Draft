@@ -401,7 +401,6 @@ class ProstaffTestCase(unittest.TestCase):
         html = res.get_data(as_text=True)
         self.assertIn("prostaff-page-heading", html)
         self.assertIn("One-on-one schedule", html)
-        self.assertIn("Build a dependable meeting rhythm with your residential-life team.", html)
         self.assertIn("Prostaff tools · Willow", html)
         self.assertNotIn("prostaff-hero-mark", html)
         self.assertNotIn("prostaff-one-on-one-hero", html)

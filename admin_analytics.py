@@ -1,6 +1,6 @@
 """Read-only reporting over current scheduling records.
 
-Admin users see the full analytics dashboard.
+Admin, Admin Lite, and Prostaff users see the full analytics dashboard.
 HRA users see a building-scoped subset.
 """
 
@@ -8,13 +8,16 @@ from collections import Counter
 
 from flask import abort, flash, redirect, render_template, request, url_for
 
-from core import app, capacities_for, current_user, db, roles
+from core import app, capacities_for, current_user, db, login_required, roles
 from runtime_policy import school_today
 
 
 @app.route('/admin/analytics')
-@roles('ADMIN')
+@login_required
 def admin_analytics():
+    me = current_user()
+    if me['role'] != 'ADMIN' and not me['admin_lite'] and not me['is_prostaff']:
+        abort(403)
     conn = db()
     conn.execute('BEGIN')
     buildings = conn.execute('SELECT * FROM buildings ORDER BY name').fetchall()
@@ -80,7 +83,7 @@ def admin_analytics():
     ).fetchall()
 
     conn.commit()
-    return render_template('admin_analytics.html', me=current_user(), buildings=buildings,
+    return render_template('admin_analytics.html', me=me, buildings=buildings,
                            building_id=building_id, reports=reports, metrics=metrics,
                            workload=workload, max_shifts=max((r['shifts'] for r in workload), default=0),
                            swap_counts=swap_counts, today=today,

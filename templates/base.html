@@ -47,7 +47,11 @@
       </a>
       <nav class="rwu-nav" id="primary-navigation" aria-label="Primary navigation" data-primary-nav>
         {% if me.is_prostaff %}
-        <a class="rwu-nav-link is-active" href="{{ url_for('prostaff_dashboard') }}"><span>Prostaff Dashboard</span></a>
+        <a class="rwu-nav-link{% if request.endpoint and request.endpoint.startswith('prostaff_') %} is-active{% endif %}" href="{{ url_for('prostaff_dashboard') }}"><span>Prostaff Dashboard</span></a>
+        <a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">
+          <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9m7 10V5m7 14v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Analytics</span>
+        </a>
         {% else %}
         <a class="rwu-nav-link{% if request.endpoint == 'dashboard' %} is-active{% endif %}" href="{{ url_for('dashboard') }}">
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.2a1 1 0 0 1-1 1h-5.2v-6.1H9.2V21H4a1 1 0 0 1-1-1z"/></svg>
@@ -67,10 +71,10 @@
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 11.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM15.8 10.2a2.7 2.7 0 1 0 0-5.4M2.8 19.2v-1.4a5.4 5.4 0 0 1 10.8 0v1.4M14.4 13.2a4.6 4.6 0 0 1 6.8 4v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>Prostaff</span>
         </a>
-        {% if not me.admin_lite %}<a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">
+        <a class="rwu-nav-link{% if request.endpoint == 'admin_analytics' %} is-active{% endif %}" href="{{ url_for('admin_analytics') }}">
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9m7 10V5m7 14v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           <span>Analytics</span>
-        </a>{% endif %}
+        </a>
         <a class="rwu-nav-link{% if request.endpoint == 'admin' %} is-active{% endif %}" href="{{ url_for('admin') }}">
           <svg class="rwu-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm8 3.8-.1-1.3 2-1.5-2-3.4-2.5 1a8 8 0 0 0-2.2-1.3L15 3h-4l-.3 2.5a8 8 0 0 0-2.1 1.3l-2.5-1-2 3.4 2 1.5A8 8 0 0 0 6 12c0 .4 0 .9.1 1.3l-2 1.5 2 3.4 2.5-1a8 8 0 0 0 2.1 1.3L11 21h4l.3-2.5a8 8 0 0 0 2.1-1.3l2.5 1 2-3.4-2-1.5c.1-.4.1-.9.1-1.3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
           <span>Admin</span>
