@@ -50,10 +50,10 @@ def form_building_id(raw_value):
     return building_id
 
 
-def _require_locked_admin(conn):
+def _require_locked_admin(conn, *, allow_lite=False):
     """Verify that current user has ADMIN role or abort transaction with HTTP 403."""
     actor = current_user()
-    if not actor or actor["role"] != "ADMIN":
+    if not actor or (actor["role"] != "ADMIN" and not (allow_lite and actor["admin_lite"])):
         conn.rollback()
         abort(403)
     return actor
@@ -74,20 +74,26 @@ def _enabled_admin_count(conn):
 
 
 @app.route("/admin")
-@roles("ADMIN")
+@roles("ADMIN", "ADMIN_LITE")
 def admin():
     """Render the master administrative dashboard showing users, buildings, and audit logs."""
+    actor = current_user()
+    user_where = " WHERE u.building_id=? AND u.is_prostaff=0" if actor["admin_lite"] else ""
+    user_params = (actor["building_id"],) if actor["admin_lite"] else ()
     users = db().execute(
         "SELECT u.*,b.name building_name,"
         "CASE WHEN u.google_sub LIKE 'manual:%' THEN 1 ELSE 0 END pending_google "
-        "FROM users u LEFT JOIN buildings b ON b.id=u.building_id "
-        "ORDER BY u.disabled,u.name,u.email"
+        "FROM users u LEFT JOIN buildings b ON b.id=u.building_id " + user_where +
+        " ORDER BY u.disabled,u.name,u.email",
+        user_params,
     ).fetchall()
+    building_where = " WHERE b.id=?" if actor["admin_lite"] else ""
     buildings = db().execute(
         "SELECT b.*,"
         "(SELECT COUNT(*) FROM users u WHERE u.building_id=b.id) user_count,"
         "(SELECT COUNT(*) FROM draft_sessions s WHERE s.building_id=b.id) session_count "
-        "FROM buildings b ORDER BY b.name"
+        "FROM buildings b" + building_where + " ORDER BY b.name",
+        user_params,
     ).fetchall()
     audit_rows = db().execute(
         "SELECT a.*,u.name actor_name FROM audit_log a "
@@ -100,6 +106,7 @@ def admin():
         users=users,
         buildings=buildings,
         audit_rows=audit_rows,
+        is_admin_lite=bool(actor["admin_lite"]),
     )
 
 
@@ -233,7 +240,7 @@ def delete_building(building_id):
 
 
 @app.route("/admin/users", methods=["POST"])
-@roles("ADMIN")
+@roles("ADMIN", "ADMIN_LITE")
 def add_user():
     """Pre-create a user account pending first Google OAuth sign-in."""
     require_csrf()
@@ -245,13 +252,24 @@ def add_user():
         flash(str(exc), "error")
         return redirect(url_for("admin"))
 
-    role = request.form.get("role", "")
-    if role not in ("RA", "HRA", "ADMIN"):
+    requested_role = request.form.get("role", "")
+    actor = current_user()
+    if requested_role not in ("RA", "HRA", "ADMIN", "ADMIN_LITE"):
         abort(400)
+    if actor["admin_lite"] and requested_role != "RA":
+        abort(403)
+    # Admin Lite retains the complete HRA permission set for its building.
+    role = "HRA" if requested_role == "ADMIN_LITE" else requested_role
+    admin_lite = int(requested_role == "ADMIN_LITE")
+    if actor["admin_lite"]:
+        building_id = actor["building_id"]
+    if admin_lite and building_id is None:
+        flash("Admin Lite users must be assigned to a building.", "error")
+        return redirect(url_for("admin"))
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    _require_locked_admin(conn)
+    _require_locked_admin(conn, allow_lite=True)
     if not _building_still_exists(conn, building_id):
         conn.rollback()
         flash("That building no longer exists. Refresh and try again.", "error")
@@ -267,8 +285,8 @@ def add_user():
 
     placeholder_sub = f"manual:{secrets.token_urlsafe(24)}"
     cur = conn.execute(
-        "INSERT INTO users(google_sub,email,name,role,building_id) VALUES(?,?,?,?,?)",
-        (placeholder_sub, email, name, role, building_id),
+        "INSERT INTO users(google_sub,email,name,role,building_id,admin_lite) VALUES(?,?,?,?,?,?)",
+        (placeholder_sub, email, name, role, building_id, admin_lite),
     )
     audit(
         "admin.user.create",
@@ -276,7 +294,7 @@ def add_user():
         cur.lastrowid,
         {
             "email": email,
-            "role": role,
+            "role": requested_role,
             "building_id": building_id,
             "awaiting_google_link": True,
         },
@@ -290,13 +308,16 @@ def add_user():
 
 
 @app.route("/admin/users/<int:user_id>", methods=["POST"])
-@roles("ADMIN")
+@roles("ADMIN", "ADMIN_LITE")
 def edit_user(user_id):
     """Modify role or building assignment for an existing user account."""
     require_csrf()
-    role = request.form.get("role", "")
-    if role not in ("RA", "HRA", "ADMIN"):
+    requested_role = request.form.get("role", "")
+    if requested_role not in ("RA", "HRA", "ADMIN", "ADMIN_LITE"):
         abort(400)
+    actor = current_user()
+    role = "HRA" if requested_role == "ADMIN_LITE" else requested_role
+    admin_lite = int(requested_role == "ADMIN_LITE")
 
     try:
         building_id = form_building_id(request.form.get("building_id"))
@@ -305,11 +326,22 @@ def edit_user(user_id):
 
     conn = db()
     conn.execute("BEGIN IMMEDIATE")
-    _require_locked_admin(conn)
+    _require_locked_admin(conn, allow_lite=True)
     existing = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     if not existing:
         conn.rollback()
         abort(404)
+    if actor["admin_lite"]:
+        if (existing["is_prostaff"] or existing["admin_lite"] or
+                existing["role"] != "RA" or requested_role != "HRA" or
+                existing["building_id"] != actor["building_id"]):
+            conn.rollback()
+            abort(403)
+        building_id = actor["building_id"]
+    if admin_lite and building_id is None:
+        conn.rollback()
+        flash("Admin Lite users must be assigned to a building.", "error")
+        return redirect(url_for("admin"))
     if not _building_still_exists(conn, building_id):
         conn.rollback()
         flash("That building no longer exists. Refresh and try again.", "error")
@@ -321,14 +353,15 @@ def edit_user(user_id):
             flash("You cannot demote the last enabled admin.", "error")
             return redirect(url_for("admin"))
 
-    if role == existing["role"] and building_id == existing["building_id"]:
+    if (role == existing["role"] and admin_lite == existing["admin_lite"]
+            and building_id == existing["building_id"]):
         conn.rollback()
         flash("No access changes were needed.", "success")
         return redirect(url_for("admin"))
 
     conn.execute(
-        "UPDATE users SET role=?,building_id=? WHERE id=?",
-        (role, building_id, user_id),
+        "UPDATE users SET role=?,building_id=?,admin_lite=? WHERE id=?",
+        (role, building_id, admin_lite, user_id),
     )
     audit(
         "admin.user.update",
@@ -336,7 +369,7 @@ def edit_user(user_id):
         user_id,
         {
             "old_role": existing["role"],
-            "new_role": role,
+            "new_role": requested_role,
             "old_building_id": existing["building_id"],
             "new_building_id": building_id,
         },
@@ -477,10 +510,12 @@ def delete_user(user_id):
 @app.route("/admin/impersonate/<int:user_id>", methods=["POST"])
 @roles("ADMIN")
 def impersonate_user(user_id):
-    """Allow an active administrator to view the portal as another user."""
+    """Allow only a full administrator to view the portal as another user."""
     require_csrf()
     actor = current_user()
-    if not actor or actor["role"] != "ADMIN":
+    # Keep this explicit check in addition to the route decorator: impersonation
+    # must never be inherited by constrained administrative capabilities.
+    if not actor or actor["role"] != "ADMIN" or actor["admin_lite"]:
         abort(403)
     if session.get("impersonator_uid"):
         flash("Cannot nest impersonation sessions.", "error")
