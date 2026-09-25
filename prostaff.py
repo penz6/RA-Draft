@@ -139,18 +139,15 @@ def prostaff_dashboard():
     now = datetime.now(SCHOOL_TIMEZONE)
     local_today = now.date()
     duty_date = _duty_display_date(now)
-    building_scope = user["building_id"] if user["admin_lite"] else None
     buildings = db().execute(
-        "SELECT * FROM buildings" + (" WHERE id=?" if building_scope else "") + " ORDER BY name",
-        (building_scope,) if building_scope else (),
+        "SELECT * FROM buildings ORDER BY name",
     ).fetchall()
-    tonight_where = " WHERE b.id=?" if building_scope else ""
     tonight = db().execute(
         "SELECT b.id building_id,b.name building_name,u.name,u.email,s.shift_start,s.shift_end "
         "FROM buildings b LEFT JOIN draft_sessions s ON s.building_id=b.id "
         "LEFT JOIN assignments a ON a.session_id=s.id AND a.duty_date=? "
-        "LEFT JOIN users u ON u.id=a.user_id" + tonight_where + " ORDER BY b.name,u.name",
-        (duty_date.isoformat(), building_scope) if building_scope else (duty_date.isoformat(),),
+        "LEFT JOIN users u ON u.id=a.user_id ORDER BY b.name,u.name",
+        (duty_date.isoformat(),),
     ).fetchall()
     return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight,
                            duty_date=duty_date.isoformat(),
@@ -233,13 +230,12 @@ def prostaff_schedule():
     building_raw = request.args.get("building", "").strip()
     search = request.args.get("q", "").strip()[:120]
     buildings = db().execute(
-        "SELECT * FROM buildings" + (" WHERE id=?" if user["admin_lite"] else "") + " ORDER BY name",
-        (user["building_id"],) if user["admin_lite"] else (),
+        "SELECT * FROM buildings ORDER BY name",
     ).fetchall()
     selected_building = int(building_raw) if building_raw.isdigit() else None
     escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     search_pattern = f"%{escaped}%"
-    scoped_building = user["building_id"] if user["admin_lite"] else selected_building
+    scoped_building = selected_building
     params = [
         selected.isoformat(), month_end.isoformat(),
         scoped_building, scoped_building,
@@ -359,14 +355,12 @@ def prostaff_staff_search():
     q = request.args.get("q", "").strip()[:120]
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     search_pattern = f"%{escaped}%"
-    scoped_building = user["building_id"] if user["admin_lite"] else None
     rows = db().execute(
         "SELECT DISTINCT u.id, u.name, u.email FROM users u "
         "WHERE u.role IN ('RA','HRA','ADMIN') AND u.is_prostaff=0 AND u.disabled=0 "
-        "AND (? IS NULL OR u.building_id=?) "
         "AND (?='' OR u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\') "
         "ORDER BY u.name LIMIT 25",
-        (scoped_building, scoped_building, q, search_pattern, search_pattern),
+        (q, search_pattern, search_pattern),
     ).fetchall()
     return {"results": [{"id": r["id"], "name": r["name"], "email": r["email"]} for r in rows]}
 

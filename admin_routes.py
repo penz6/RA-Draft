@@ -78,22 +78,24 @@ def _enabled_admin_count(conn):
 def admin():
     """Render the master administrative dashboard showing users, buildings, and audit logs."""
     actor = current_user()
-    user_where = " WHERE u.building_id=? AND u.is_prostaff=0" if actor["admin_lite"] else ""
-    user_params = (actor["building_id"],) if actor["admin_lite"] else ()
+    # Admin Lite may manage ordinary RAs campus-wide, but should never receive
+    # administrator, HRA, or Prostaff accounts through this management view.
+    user_where = (
+        " WHERE u.role='RA' AND u.admin_lite=0 AND u.is_prostaff=0"
+        if actor["admin_lite"] else ""
+    )
     users = db().execute(
         "SELECT u.*,b.name building_name,"
         "CASE WHEN u.google_sub LIKE 'manual:%' THEN 1 ELSE 0 END pending_google "
         "FROM users u LEFT JOIN buildings b ON b.id=u.building_id " + user_where +
         " ORDER BY u.disabled,u.name,u.email",
-        user_params,
+        (),
     ).fetchall()
-    building_where = " WHERE b.id=?" if actor["admin_lite"] else ""
     buildings = db().execute(
         "SELECT b.*,"
         "(SELECT COUNT(*) FROM users u WHERE u.building_id=b.id) user_count,"
         "(SELECT COUNT(*) FROM draft_sessions s WHERE s.building_id=b.id) session_count "
-        "FROM buildings b" + building_where + " ORDER BY b.name",
-        user_params,
+        "FROM buildings b ORDER BY b.name",
     ).fetchall()
     audit_rows = db().execute(
         "SELECT a.*,u.name actor_name FROM audit_log a "
@@ -261,8 +263,6 @@ def add_user():
     # Admin Lite retains the complete HRA permission set for its building.
     role = "HRA" if requested_role == "ADMIN_LITE" else requested_role
     admin_lite = int(requested_role == "ADMIN_LITE")
-    if actor["admin_lite"]:
-        building_id = actor["building_id"]
     if admin_lite and building_id is None:
         flash("Admin Lite users must be assigned to a building.", "error")
         return redirect(url_for("admin"))
@@ -333,11 +333,9 @@ def edit_user(user_id):
         abort(404)
     if actor["admin_lite"]:
         if (existing["is_prostaff"] or existing["admin_lite"] or
-                existing["role"] != "RA" or requested_role != "HRA" or
-                existing["building_id"] != actor["building_id"]):
+                existing["role"] != "RA" or requested_role not in ("RA", "HRA")):
             conn.rollback()
             abort(403)
-        building_id = actor["building_id"]
     if admin_lite and building_id is None:
         conn.rollback()
         flash("Admin Lite users must be assigned to a building.", "error")

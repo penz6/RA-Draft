@@ -200,7 +200,8 @@ def inject_one_on_ones():
 
 def _require_locked_ac(conn, actor_id):
     actor = conn.execute("SELECT * FROM users WHERE id=?", (actor_id,)).fetchone()
-    if not actor or actor["disabled"] or not actor["is_prostaff"]:
+    if (not actor or actor["disabled"]
+            or (not actor["is_prostaff"] and not actor["admin_lite"])):
         conn.rollback()
         abort(403)
     return actor
@@ -220,7 +221,7 @@ def _require_recipient(conn, recipient_id, building_id):
 def schedule_one_on_one():
     require_csrf()
     actor = current_user()
-    if not actor or not actor["is_prostaff"]:
+    if not actor or (not actor["is_prostaff"] and not actor["admin_lite"]):
         abort(403)
     try:
         recipient_id = int(request.form.get("recipient_user_id", ""))
@@ -271,7 +272,7 @@ def schedule_one_on_one():
 def delete_one_on_one(appointment_id):
     require_csrf()
     actor = current_user()
-    if not actor or not actor["is_prostaff"]:
+    if not actor or (not actor["is_prostaff"] and not actor["admin_lite"]):
         abort(403)
     conn = db()
     conn.execute("BEGIN IMMEDIATE")

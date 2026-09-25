@@ -5,7 +5,7 @@
   <div>
     <div class="eyebrow">Administration</div>
     <h1>Users &amp; Buildings</h1>
-    <p>{% if is_admin_lite %}Provision RAs, promote RAs to HRAs, and review activity for your building.{% else %}Manage users and buildings.{% endif %}</p>
+    <p>{% if is_admin_lite %}Provision and manage RAs across every building, or promote them to HRAs.{% else %}Manage users and buildings.{% endif %}</p>
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
@@ -103,7 +103,7 @@
 {% endif %}
 <section class="card">
   <div class="section-head">
-    <div><h2>Team Members</h2><p>{% if is_admin_lite %}Add RAs or promote an RA in your building to HRA.{% else %}Add team members, assign their role and building, or manage account access.{% endif %}</p></div>
+    <div><h2>Team Members</h2><p>{% if is_admin_lite %}Add RAs, move them between buildings, or promote them to HRA.{% else %}Add team members, assign their role and building, or manage account access.{% endif %}</p></div>
     <span class="count-badge">{{ users|length }}</span>
   </div>
   <form class="admin-create-user grid-form" method="post" action="{{ url_for('add_user') }}">
@@ -114,7 +114,7 @@
       <select name="role" required><option value="RA" selected>RA</option>{% if not is_admin_lite %}<option value="HRA">HRA</option><option value="ADMIN_LITE">ADMIN LITE</option><option value="ADMIN">ADMIN</option>{% endif %}</select>
     </label>
     <label class="field">Building
-      <select name="building_id"{% if is_admin_lite %} disabled{% endif %}><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}"{% if is_admin_lite %} selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
+      <select name="building_id"><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select>
     </label>
     <div class="form-actions full"><button class="button" type="submit">Create user</button></div>
   </form>
@@ -157,10 +157,10 @@
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
         <div class="user-access-controls">
           <label class="field compact">Role
-            <select name="role">{% if is_admin_lite %}<option value="HRA">HRA</option>{% else %}<option value="RA" {% if u.role == 'RA' and not u.admin_lite %}selected{% endif %}>RA</option><option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option><option value="ADMIN_LITE" {% if u.admin_lite %}selected{% endif %}>ADMIN LITE</option><option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>{% endif %}</select>
+            <select name="role"><option value="RA" {% if u.role == 'RA' and not u.admin_lite %}selected{% endif %}>RA</option><option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option>{% if not is_admin_lite %}<option value="ADMIN_LITE" {% if u.admin_lite %}selected{% endif %}>ADMIN LITE</option><option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>{% endif %}</select>
           </label>
           <label class="field compact">Building
-            <select name="building_id"{% if is_admin_lite %} disabled{% endif %}><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
+            <select name="building_id"><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
           </label>
           <button class="button small" type="submit">Save changes</button>
         </div>
