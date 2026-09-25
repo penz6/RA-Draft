@@ -644,5 +644,100 @@ class AdminManagementTestCase(unittest.TestCase):
             self.assertIn("admin.impersonate.stop", audit_actions)
 
 
+    def test_admin_lite_is_building_scoped_and_limited_to_ra_management(self):
+        maple = self.add_building("Maple")
+        oak = self.add_building("Oak")
+        admin_id = self.add_admin()
+        maple_ra = self.add_user(
+            sub="maple-ra", email="maple-ra@rwu.edu", name="Maple RA",
+            building_id=maple,
+        )
+        oak_ra = self.add_user(
+            sub="oak-ra", email="oak-ra@rwu.edu", name="Oak RA",
+            building_id=oak,
+        )
+        admin_csrf = self.login_as(admin_id)
+        self.assertEqual(self.request("post", "/admin/users", data={
+            "csrf": admin_csrf, "name": "Building Admin",
+            "email": "lite@rwu.edu", "role": "ADMIN_LITE",
+            "building_id": maple,
+        }).status_code, 302)
+        with app.app_context():
+            lite = db().execute(
+                "SELECT * FROM users WHERE email='lite@rwu.edu'"
+            ).fetchone()
+            lite_id = lite["id"]
+            self.assertEqual(lite["role"], "HRA")
+            self.assertEqual(lite["admin_lite"], 1)
+        csrf = self.login_as(lite_id)
+
+        page = self.request("get", "/admin")
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn("Maple RA", html)
+        self.assertNotIn("Oak RA", html)
+        self.assertNotIn("Provision Area Coordinator", html)
+        self.assertNotIn("Disable", html)
+        self.assertNotIn("Delete", html)
+        self.assertNotIn("View as", html)
+        self.assertIn("Recent activity", html)
+        self.assertIn('href="/prostaff"', html)
+
+        dashboard = self.request("get", "/dashboard")
+        dashboard_html = dashboard.get_data(as_text=True)
+        self.assertIn("ADMIN · Maple", dashboard_html)
+        self.assertNotIn("HRA · Maple", dashboard_html)
+        self.assertNotIn("Admin Lite", dashboard_html)
+        self.assertIn("Your Admin role", dashboard_html)
+        self.assertIn("Create a duty session", dashboard_html)
+
+        created = self.request("post", "/admin/users", data={
+            "csrf": csrf, "name": "New RA", "email": "new-ra@rwu.edu",
+            "role": "RA", "building_id": oak,
+        })
+        self.assertEqual(created.status_code, 302)
+        with app.app_context():
+            new_ra = db().execute("SELECT * FROM users WHERE email='new-ra@rwu.edu'").fetchone()
+            self.assertEqual(new_ra["building_id"], maple)
+            self.assertEqual(new_ra["role"], "RA")
+
+        promoted = self.request("post", f"/admin/users/{maple_ra}", data={
+            "csrf": csrf, "role": "HRA", "building_id": oak,
+        })
+        self.assertEqual(promoted.status_code, 302)
+        with app.app_context():
+            updated = db().execute("SELECT * FROM users WHERE id=?", (maple_ra,)).fetchone()
+            self.assertEqual(updated["role"], "HRA")
+            self.assertEqual(updated["building_id"], maple)
+
+        self.assertEqual(self.request(
+            "post", f"/admin/users/{oak_ra}",
+            data={"csrf": csrf, "role": "HRA", "building_id": oak},
+        ).status_code, 403)
+        self.assertEqual(self.request(
+            "post", "/admin/users",
+            data={"csrf": csrf, "name": "No Admin", "email": "no-admin@rwu.edu",
+                  "role": "ADMIN_LITE", "building_id": maple},
+        ).status_code, 403)
+        self.assertEqual(self.request(
+            "post", f"/admin/users/{oak_ra}/status",
+            data={"csrf": csrf, "disabled": "1"},
+        ).status_code, 403)
+        self.assertEqual(self.request(
+            "post", f"/admin/users/{oak_ra}/delete", data={"csrf": csrf},
+        ).status_code, 403)
+        impersonate = self.request(
+            "post", f"/admin/impersonate/{maple_ra}", data={"csrf": csrf},
+        )
+        self.assertEqual(impersonate.status_code, 403)
+        with self.client.session_transaction() as flask_session:
+            self.assertEqual(flask_session["uid"], lite_id)
+            self.assertNotIn("impersonator_uid", flask_session)
+        with app.app_context():
+            self.assertIsNone(db().execute(
+                "SELECT 1 FROM audit_log WHERE action='admin.impersonate.start'"
+            ).fetchone())
+
+
 if __name__ == "__main__":
     unittest.main()

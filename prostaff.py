@@ -129,7 +129,7 @@ def prostaff_set_password():
 @app.route("/prostaff")
 def prostaff_dashboard():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     # Preserve bookmarked filtered/calendar URLs from the original combined page.
     if request.args.get("one_on_one_month"):
@@ -139,13 +139,18 @@ def prostaff_dashboard():
     now = datetime.now(SCHOOL_TIMEZONE)
     local_today = now.date()
     duty_date = _duty_display_date(now)
-    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    building_scope = user["building_id"] if user["admin_lite"] else None
+    buildings = db().execute(
+        "SELECT * FROM buildings" + (" WHERE id=?" if building_scope else "") + " ORDER BY name",
+        (building_scope,) if building_scope else (),
+    ).fetchall()
+    tonight_where = " WHERE b.id=?" if building_scope else ""
     tonight = db().execute(
         "SELECT b.id building_id,b.name building_name,u.name,u.email,s.shift_start,s.shift_end "
         "FROM buildings b LEFT JOIN draft_sessions s ON s.building_id=b.id "
         "LEFT JOIN assignments a ON a.session_id=s.id AND a.duty_date=? "
-        "LEFT JOIN users u ON u.id=a.user_id ORDER BY b.name,u.name",
-        (duty_date.isoformat(),),
+        "LEFT JOIN users u ON u.id=a.user_id" + tonight_where + " ORDER BY b.name,u.name",
+        (duty_date.isoformat(), building_scope) if building_scope else (duty_date.isoformat(),),
     ).fetchall()
     return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight,
                            duty_date=duty_date.isoformat(),
@@ -221,16 +226,22 @@ def consolidate_duty_schedule(schedule_rows):
 @app.route("/prostaff/schedule")
 def prostaff_schedule():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     selected = _schedule_month(request.args.get("month"))
     month_end = date(selected.year + (selected.month == 12), 1 if selected.month == 12 else selected.month + 1, 1)
     building_raw = request.args.get("building", "").strip()
     search = request.args.get("q", "").strip()[:120]
-    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    buildings = db().execute(
+        "SELECT * FROM buildings" + (" WHERE id=?" if user["admin_lite"] else "") + " ORDER BY name",
+        (user["building_id"],) if user["admin_lite"] else (),
+    ).fetchall()
     selected_building = int(building_raw) if building_raw.isdigit() else None
     params = [selected.isoformat(), month_end.isoformat()]
     where = ["a.duty_date>=?", "a.duty_date<?"]
+    if user["admin_lite"]:
+        where.append("b.id=?")
+        params.append(user["building_id"])
     if selected_building:
         where.append("b.id=?")
         params.append(selected_building)
@@ -257,12 +268,15 @@ def prostaff_schedule():
 @app.route("/prostaff/api/staff-search")
 def prostaff_staff_search():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     q = request.args.get("q", "").strip()[:120]
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     where = ["u.role IN ('RA','HRA','ADMIN')", "u.is_prostaff=0", "u.disabled=0"]
     params = []
+    if user["admin_lite"]:
+        where.append("u.building_id=?")
+        params.append(user["building_id"])
     if q:
         where.append("(u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\')")
         params.extend([f"%{escaped}%", f"%{escaped}%"])
@@ -277,7 +291,7 @@ def prostaff_staff_search():
 @app.route("/prostaff/one-on-ones")
 def prostaff_one_on_ones():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     return render_template("prostaff_one_on_ones.html", prostaff_page="one_on_ones")
 

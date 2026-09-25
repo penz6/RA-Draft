@@ -6,7 +6,7 @@
     <div class="eyebrow">{{ me.building_name or 'Residence Life' }}</div>
     <h1>Duty Swaps</h1>
   </div>
-  <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>
+  <span class="role-badge{% if me.role == 'ADMIN' or me.admin_lite %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ 'ADMIN' if me.admin_lite else me.role }}</span>
 </div>
 
 {% if me.role != 'ADMIN' and not closed_sessions %}

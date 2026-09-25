@@ -5,10 +5,11 @@
   <div>
     <div class="eyebrow">Administration</div>
     <h1>Users &amp; Buildings</h1>
-    <p>Manage users and buildings.</p>
+    <p>{% if is_admin_lite %}Provision RAs, promote RAs to HRAs, and review activity for your building.{% else %}Manage users and buildings.{% endif %}</p>
   </div>
   <span class="role-badge admin-role">ADMIN</span>
 </div>
+{% if not is_admin_lite %}
 <section class="card">
   <div class="section-head"><div><h2>Provision Area Coordinator</h2><p>Create a Prostaff account and assign it to one building.</p></div></div>
   <form class="admin-create-user grid-form" method="post" action="{{ url_for('provision_prostaff') }}">
@@ -99,9 +100,10 @@
     {% else %}<div class="empty-state compact"><p>No buildings yet.</p></div>{% endfor %}
   </div>
 </section>
+{% endif %}
 <section class="card">
   <div class="section-head">
-    <div><h2>Team Members</h2><p>Add team members, assign their role and building, or manage account access.</p></div>
+    <div><h2>Team Members</h2><p>{% if is_admin_lite %}Add RAs or promote an RA in your building to HRA.{% else %}Add team members, assign their role and building, or manage account access.{% endif %}</p></div>
     <span class="count-badge">{{ users|length }}</span>
   </div>
   <form class="admin-create-user grid-form" method="post" action="{{ url_for('add_user') }}">
@@ -109,10 +111,10 @@
     <label class="field">Name<input name="name" maxlength="120" required autocomplete="off" placeholder="Taylor Smith"></label>
     <label class="field">RWU Google email<input type="email" name="email" maxlength="254" required autocomplete="off" placeholder="taylor@g.rwu.edu"></label>
     <label class="field">Role
-      <select name="role" required><option value="RA" selected>RA</option><option value="HRA">HRA</option><option value="ADMIN">ADMIN</option></select>
+      <select name="role" required><option value="RA" selected>RA</option>{% if not is_admin_lite %}<option value="HRA">HRA</option><option value="ADMIN_LITE">ADMIN LITE</option><option value="ADMIN">ADMIN</option>{% endif %}</select>
     </label>
     <label class="field">Building
-      <select name="building_id"><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select>
+      <select name="building_id"{% if is_admin_lite %} disabled{% endif %}><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}"{% if is_admin_lite %} selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
     </label>
     <div class="form-actions full"><button class="button" type="submit">Create user</button></div>
   </form>
@@ -127,7 +129,7 @@
           <div class="user-identity-text">
             <div class="user-name-line">
               <strong>{{ u.name }}</strong>
-              {% if u.is_prostaff %}<span class="inline-role hra-role">PROSTAFF</span>{% elif u.role == 'ADMIN' %}<span class="inline-role admin-role">ADMIN</span>{% elif u.role == 'HRA' %}<span class="inline-role hra-role">HRA</span>{% else %}<span class="inline-role">{{ u.role }}</span>{% endif %}
+              {% if u.is_prostaff %}<span class="inline-role hra-role">PROSTAFF</span>{% elif u.role == 'ADMIN' or u.admin_lite %}<span class="inline-role admin-role">ADMIN</span>{% elif u.role == 'HRA' %}<span class="inline-role hra-role">HRA</span>{% else %}<span class="inline-role">{{ u.role }}</span>{% endif %}
             </div>
             <span class="user-email-text">{{ u.email }}</span>
             <div class="user-meta-line">
@@ -136,7 +138,7 @@
             </div>
           </div>
         </div>
-        <div class="admin-user-actions">
+        {% if not is_admin_lite %}<div class="admin-user-actions">
           {% if u.id != me.id and not u.disabled %}
           <form method="post" action="{{ url_for('impersonate_user', user_id=u.id) }}">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button secondary small impersonate-btn" type="submit">View as</button>
@@ -149,20 +151,20 @@
           <form class="admin-delete-form" method="post" action="{{ url_for('delete_user', user_id=u.id) }}">
             <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button danger small" type="submit" data-confirm="Delete {{ u.name }}? This cannot be undone." {% if u.id == me.id %}disabled aria-disabled="true" title="You cannot delete your own signed-in account"{% endif %}>Delete</button>
           </form>
-        </div>
+        </div>{% endif %}
       </div>
-      {% if not u.is_prostaff %}<form class="user-access-form" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
+      {% if not u.is_prostaff and (not is_admin_lite or u.role == 'RA') %}<form class="user-access-form" method="post" action="{{ url_for('edit_user', user_id=u.id) }}">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
         <div class="user-access-controls">
           <label class="field compact">Role
-            <select name="role"><option value="RA" {% if u.role == 'RA' %}selected{% endif %}>RA</option><option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option><option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option></select>
+            <select name="role">{% if is_admin_lite %}<option value="HRA">HRA</option>{% else %}<option value="RA" {% if u.role == 'RA' and not u.admin_lite %}selected{% endif %}>RA</option><option value="HRA" {% if u.role == 'HRA' %}selected{% endif %}>HRA</option><option value="ADMIN_LITE" {% if u.admin_lite %}selected{% endif %}>ADMIN LITE</option><option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>ADMIN</option>{% endif %}</select>
           </label>
           <label class="field compact">Building
-            <select name="building_id"><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
+            <select name="building_id"{% if is_admin_lite %} disabled{% endif %}><option value="">No building</option>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select>
           </label>
           <button class="button small" type="submit">Save changes</button>
         </div>
-      </form>{% else %}<form class="user-access-form" method="post" action="{{ url_for('assign_prostaff_building', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">Area Coordinator building<select name="building_id" required>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label><button class="button small" type="submit">Save building</button></div></form>
+      </form>{% elif not is_admin_lite %}<form class="user-access-form" method="post" action="{{ url_for('assign_prostaff_building', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">Area Coordinator building<select name="building_id" required>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label><button class="button small" type="submit">Save building</button></div></form>
       <form class="user-access-form" method="post" action="{{ url_for('reset_prostaff_password', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">New temporary password<input type="password" name="temporary_password" minlength="12" maxlength="128" required autocomplete="new-password"></label><button class="button secondary small" type="submit" data-confirm="Reset {{ u.name }}'s password and require a new password at next sign-in?">Reset password</button></div></form>{% endif %}
     </div>
     {% else %}<div class="empty-state compact"><p>No users exist yet.</p></div>{% endfor %}
