@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'RA' CHECK(role IN ('RA','HRA','ADMIN')),
+  admin_lite INTEGER NOT NULL DEFAULT 0 CHECK(admin_lite IN (0,1)),
   building_id INTEGER REFERENCES buildings(id),
   disabled INTEGER NOT NULL DEFAULT 0 CHECK(disabled IN (0,1)),
   picture_url TEXT,
@@ -478,6 +479,15 @@ def migrate_schema(conn):
             "ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL "
             "DEFAULT 0 CHECK(disabled IN (0,1))"
         )
+    if "admin_lite" not in user_columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN admin_lite INTEGER NOT NULL DEFAULT 0 "
+            "CHECK(admin_lite IN (0,1))"
+        )
+    # Admin Lite is an HRA with a small set of additional administrative
+    # capabilities. Upgrade accounts created by the original rollout, which
+    # stored RA as their base role, so they inherit all building-level HRA tools.
+    conn.execute("UPDATE users SET role='HRA' WHERE admin_lite=1 AND role='RA'")
     if "picture_url" not in user_columns:
         conn.execute("ALTER TABLE users ADD COLUMN picture_url TEXT")
     if "is_prostaff" not in user_columns:
@@ -868,7 +878,8 @@ def roles(*allowed):
             user = current_user()
             if not user:
                 return redirect(url_for("login"))
-            if user["role"] not in allowed:
+            has_admin_lite_access = user["admin_lite"] and "ADMIN_LITE" in allowed
+            if user["role"] not in allowed and not has_admin_lite_access:
                 abort(403)
             return fn(*args, **kwargs)
 

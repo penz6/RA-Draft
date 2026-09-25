@@ -129,7 +129,7 @@ def prostaff_set_password():
 @app.route("/prostaff")
 def prostaff_dashboard():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     # Preserve bookmarked filtered/calendar URLs from the original combined page.
     if request.args.get("one_on_one_month"):
@@ -139,13 +139,18 @@ def prostaff_dashboard():
     now = datetime.now(SCHOOL_TIMEZONE)
     local_today = now.date()
     duty_date = _duty_display_date(now)
-    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    building_scope = user["building_id"] if user["admin_lite"] else None
+    buildings = db().execute(
+        "SELECT * FROM buildings" + (" WHERE id=?" if building_scope else "") + " ORDER BY name",
+        (building_scope,) if building_scope else (),
+    ).fetchall()
+    tonight_where = " WHERE b.id=?" if building_scope else ""
     tonight = db().execute(
         "SELECT b.id building_id,b.name building_name,u.name,u.email,s.shift_start,s.shift_end "
         "FROM buildings b LEFT JOIN draft_sessions s ON s.building_id=b.id "
         "LEFT JOIN assignments a ON a.session_id=s.id AND a.duty_date=? "
-        "LEFT JOIN users u ON u.id=a.user_id ORDER BY b.name,u.name",
-        (duty_date.isoformat(),),
+        "LEFT JOIN users u ON u.id=a.user_id" + tonight_where + " ORDER BY b.name,u.name",
+        (duty_date.isoformat(), building_scope) if building_scope else (duty_date.isoformat(),),
     ).fetchall()
     return render_template("prostaff_dashboard.html", buildings=buildings, tonight=tonight,
                            duty_date=duty_date.isoformat(),
@@ -221,19 +226,23 @@ def consolidate_duty_schedule(schedule_rows):
 @app.route("/prostaff/schedule")
 def prostaff_schedule():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     selected = _schedule_month(request.args.get("month"))
     month_end = date(selected.year + (selected.month == 12), 1 if selected.month == 12 else selected.month + 1, 1)
     building_raw = request.args.get("building", "").strip()
     search = request.args.get("q", "").strip()[:120]
-    buildings = db().execute("SELECT * FROM buildings ORDER BY name").fetchall()
+    buildings = db().execute(
+        "SELECT * FROM buildings" + (" WHERE id=?" if user["admin_lite"] else "") + " ORDER BY name",
+        (user["building_id"],) if user["admin_lite"] else (),
+    ).fetchall()
     selected_building = int(building_raw) if building_raw.isdigit() else None
     escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     search_pattern = f"%{escaped}%"
+    scoped_building = user["building_id"] if user["admin_lite"] else selected_building
     params = [
         selected.isoformat(), month_end.isoformat(),
-        selected_building, selected_building,
+        scoped_building, scoped_building,
         search, search_pattern, search_pattern,
     ]
     schedule = db().execute(
@@ -261,7 +270,7 @@ def _prostaff_swap_batches(user):
     Area Coordinators are always restricted to their assigned building. Admin
     users may use the Prostaff view for support and can see all buildings.
     """
-    if user["is_prostaff"]:
+    if user["is_prostaff"] or user["admin_lite"]:
         if not user["building_id"]:
             return []
         scoped_building_id = user["building_id"]
@@ -324,11 +333,11 @@ def _prostaff_swap_batches(user):
 @app.route("/prostaff/swaps")
 def prostaff_swaps():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
 
     building = None
-    if user["is_prostaff"] and user["building_id"]:
+    if (user["is_prostaff"] or user["admin_lite"]) and user["building_id"]:
         building = db().execute(
             "SELECT id,name FROM buildings WHERE id=?",
             (user["building_id"],),
@@ -345,17 +354,19 @@ def prostaff_swaps():
 @app.route("/prostaff/api/staff-search")
 def prostaff_staff_search():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     q = request.args.get("q", "").strip()[:120]
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     search_pattern = f"%{escaped}%"
+    scoped_building = user["building_id"] if user["admin_lite"] else None
     rows = db().execute(
         "SELECT DISTINCT u.id, u.name, u.email FROM users u "
         "WHERE u.role IN ('RA','HRA','ADMIN') AND u.is_prostaff=0 AND u.disabled=0 "
+        "AND (? IS NULL OR u.building_id=?) "
         "AND (?='' OR u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\') "
         "ORDER BY u.name LIMIT 25",
-        (q, search_pattern, search_pattern),
+        (scoped_building, scoped_building, q, search_pattern, search_pattern),
     ).fetchall()
     return {"results": [{"id": r["id"], "name": r["name"], "email": r["email"]} for r in rows]}
 
@@ -363,7 +374,7 @@ def prostaff_staff_search():
 @app.route("/prostaff/one-on-ones")
 def prostaff_one_on_ones():
     user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN"):
+    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     return render_template("prostaff_one_on_ones.html", prostaff_page="one_on_ones")
 

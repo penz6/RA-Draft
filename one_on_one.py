@@ -132,9 +132,10 @@ def one_on_one_calendar_context(user):
         "FROM one_on_one_appointments o JOIN users u ON u.id=o.ra_user_id "
         "LEFT JOIN buildings b ON b.id=u.building_id"
     )
-    if user["is_prostaff"] and not user["building_id"]:
+    building_limited = bool(user["is_prostaff"] or user["admin_lite"])
+    if building_limited and not user["building_id"]:
         rows = []
-    elif user["is_prostaff"]:
+    elif building_limited:
         rows = db().execute(
             base_query + " WHERE u.building_id=? ORDER BY o.scheduled_at,u.name",
             (user["building_id"],),
@@ -152,11 +153,11 @@ def one_on_one_calendar_context(user):
             by_day.setdefault(occurrence.day, []).append(item)
     for items in by_day.values():
         items.sort(key=lambda item: (item["scheduled_at"], item["ra_name"]))
-    if user["is_prostaff"] and not user["building_id"]:
+    if building_limited and not user["building_id"]:
         recipients = []
     else:
-        recipient_scope = " AND u.building_id=?" if user["is_prostaff"] else ""
-        recipient_params = (user["building_id"],) if user["is_prostaff"] else ()
+        recipient_scope = " AND u.building_id=?" if building_limited else ""
+        recipient_params = (user["building_id"],) if building_limited else ()
         recipients = db().execute(
             "SELECT u.id,u.name,u.role,b.name building_name FROM users u "
             "LEFT JOIN buildings b ON b.id=u.building_id "
@@ -190,7 +191,7 @@ def _recurrence_label(row):
 def inject_one_on_ones():
     user = current_user()
     if user and request.endpoint in {"prostaff_dashboard", "prostaff_one_on_ones"} and (
-            user["is_prostaff"] or user["role"] == "ADMIN"):
+            user["is_prostaff"] or user["role"] == "ADMIN" or user["admin_lite"]):
         return {"one_on_one": None, **one_on_one_calendar_context(user)}
     if not user or user["is_prostaff"] or user["role"] not in ("RA", "HRA", "ADMIN"):
         return {"one_on_one": None}

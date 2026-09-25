@@ -2,13 +2,21 @@
   <div class="help-dialog-panel">
     <div class="help-dialog-head">
       <div>
-        <span class="role-badge{% if me.role == 'ADMIN' %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ me.role }}</span>
-        <h2 id="role-help-title">Your {{ me.role }} role</h2>
+        <span class="role-badge{% if me.role == 'ADMIN' or me.admin_lite %} admin-role{% elif me.role == 'HRA' %} hra-role{% endif %}">{{ 'ADMIN' if me.admin_lite else me.role }}</span>
+        <h2 id="role-help-title">Your {{ 'Admin' if me.admin_lite else me.role }} role</h2>
       </div>
       <button class="help-close" type="button" aria-label="Close guide" data-help-close>&times;</button>
     </div>
 
-    {% if me.role == 'RA' %}
+    {% if me.admin_lite %}
+    <ul class="help-permissions">
+      <li>Create and manage duty sessions for your assigned building, including participants and turn order.</li>
+      <li>Pick shifts when included in a session, or select dates on behalf of team members.</li>
+      <li>Pause or resume picking, skip turns, and manage shift assignments.</li>
+      <li>Provision new RAs and promote RAs to HRA within your assigned building.</li>
+      <li>Review audit history and use the read-only Prostaff view for your building.</li>
+    </ul>
+    {% elif me.role == 'RA' %}
     <ul class="help-permissions">
       <li>Select your assigned building when you first sign in.</li>
       <li>Check upcoming duty sessions, turn order, and the live calendar for your building.</li>

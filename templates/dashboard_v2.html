@@ -6,7 +6,7 @@
     <div class="rwu-hero-copy">
       <div class="rwu-hero-kicker">{% if me.building_name %}{{ me.building_name }}{% else %}RWU Residence Life{% endif %}</div>
       <h1>Welcome{% if me.name %}, {{ me.name.split()[0] }}{% endif %}</h1>
-      <p>{{ me.role }}{% if me.building_name %} · {{ me.building_name }}{% endif %}</p>
+      <p>{{ 'ADMIN' if me.admin_lite else me.role }}{% if me.building_name %} · {{ me.building_name }}{% endif %}</p>
     </div>
   </section>
 

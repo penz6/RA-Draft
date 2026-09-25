@@ -134,6 +134,11 @@ class ProstaffTestCase(unittest.TestCase):
                 "VALUES('swap-staff','swap-staff@rwu.edu','Area Coordinator','RA',?,1,0)",
                 (maple,),
             ).lastrowid
+            admin_lite = conn.execute(
+                "INSERT INTO users(google_sub,email,name,role,building_id,admin_lite) "
+                "VALUES('swap-admin-lite','swap-admin-lite@rwu.edu','Maple Admin Lite','HRA',?,1)",
+                (maple,),
+            ).lastrowid
 
             maple_requester = conn.execute(
                 "INSERT INTO users(google_sub,email,name,role,building_id) "
@@ -264,6 +269,13 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertNotIn("Cedar Target", html)
         self.assertNotIn("Approve request", html)
         self.assertNotIn("Reject", html)
+
+        self.login_as(admin_lite)
+        admin_lite_response = self.request("get", "/prostaff/swaps")
+        self.assertEqual(admin_lite_response.status_code, 200)
+        admin_lite_html = admin_lite_response.get_data(as_text=True)
+        self.assertIn("Maple Requester", admin_lite_html)
+        self.assertNotIn("Cedar Requester", admin_lite_html)
 
         self.login_as(maple_requester)
         self.assertEqual(self.request("get", "/prostaff/swaps").status_code, 403)
