@@ -10,9 +10,9 @@ from urllib.parse import urlsplit
 from pathlib import Path
 
 import requests
-from flask import g, render_template, request
+from flask import flash, g, redirect, render_template, request, url_for
 
-from core import app, current_user, login_required
+from core import app, audit, current_user, db, login_required, require_csrf
 from staff_event_schedule import SCHOOL_TIMEZONE
 
 app.config.setdefault("DEADLINES_JSON_URL", os.environ.get("DEADLINES_JSON_URL", "").strip())
@@ -137,3 +137,48 @@ def deadline_calendar():
         previous_month=(selected - timedelta(days=1)).strftime("%Y-%m"),
         next_month=(selected.replace(day=28) + timedelta(days=4)).strftime("%Y-%m"),
     )
+
+
+@app.route("/deadlines/email-preferences", methods=["POST"])
+@login_required
+def deadline_email_preferences():
+    require_csrf()
+    enabled = request.form.get("email_reminders") == "1"
+    user = current_user()
+    conn = db()
+    conn.execute(
+        "UPDATE users SET deadline_email_opt_in=?, "
+        "deadline_banner_dismissed=CASE WHEN ? THEN 1 ELSE deadline_banner_dismissed END "
+        "WHERE id=? AND disabled=0", (int(enabled), int(enabled), user["id"]),
+    )
+    audit("deadlines.email_preference", "user", user["id"], {"enabled": enabled})
+    conn.commit()
+    flash("Deadline email reminders are now on." if enabled else "Deadline email reminders are now off.", "success")
+    return redirect(url_for("deadline_calendar"))
+
+
+@app.route("/deadlines/dismiss-banner", methods=["POST"])
+@login_required
+def dismiss_deadline_banner():
+    require_csrf()
+    user = current_user()
+    conn = db()
+    conn.execute("UPDATE users SET deadline_banner_dismissed=1 WHERE id=? AND disabled=0", (user["id"],))
+    conn.commit()
+    destination = request.form.get("next", "")
+    safe_destination = url_for("dashboard")
+    if isinstance(destination, str) and destination:
+        try:
+            parsed = urlsplit(destination)
+        except ValueError:
+            parsed = None
+        if (
+            parsed is not None
+            and destination.startswith("/")
+            and not destination.startswith("//")
+            and "\\" not in destination
+            and not parsed.scheme
+            and not parsed.netloc
+        ):
+            safe_destination = destination
+    return redirect(safe_destination)

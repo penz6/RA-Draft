@@ -2,7 +2,7 @@ services:
   ra-draft:
     image: ghcr.io/penz6/ra-draft:latest
     restart: unless-stopped
-    environment:
+    environment: &ra-draft-environment
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env}
@@ -34,6 +34,30 @@ services:
       - no-new-privileges:true
     networks:
       - pangolin
+
+  deadline-reminders:
+    image: ghcr.io/penz6/ra-draft:latest
+    command: ["python", "-m", "deadline_reminders"]
+    restart: unless-stopped
+    environment: *ra-draft-environment
+    depends_on:
+      ra-draft:
+        condition: service_healthy
+    volumes:
+      - ra-draft-data:/data
+    networks:
+      - pangolin
+    healthcheck:
+      disable: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
 
 volumes:
   ra-draft-data:

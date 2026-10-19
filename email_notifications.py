@@ -8,7 +8,7 @@ from datetime import date
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from flask import render_template
+from flask import has_request_context, render_template
 
 from core import PUBLIC_HOST, app, db
 
@@ -57,7 +57,9 @@ def _build_message(*, recipient, subject, template, text_body, context):
     message["To"] = formataddr((recipient["name"], recipient["email"]))
     message["Subject"] = subject
     message.set_content(text_body)
-    message.add_alternative(render_template(template, **context), subtype="html")
+    html = (render_template(template, **context) if has_request_context()
+            else app.jinja_env.get_template(template).render(**context))
+    message.add_alternative(html, subtype="html")
     return message
 
 

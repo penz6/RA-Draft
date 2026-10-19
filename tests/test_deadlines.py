@@ -63,8 +63,11 @@ class DeadlineTests(unittest.TestCase):
         self.assertNotIn("Passed", page)
         self.assertLess(page.index(">Report<"), page.index(">Today<"))
         self.assertLess(page.index(">Today<"), page.index(">Later<"))
-        self.assertIn("9:00 PM EDT", page)
-        self.assertIn("Due today", page)
+        self.assertIn("9:00 PM", page)
+        self.assertNotIn("Submit report", page)
+        calendar = self.render_at_fixed_time("/deadlines?month=2026-10").get_data(as_text=True)
+        self.assertIn("Submit report", calendar)
+        self.assertIn("Due today", calendar)
 
     def test_calendar_month_filter_and_full_list(self):
         self.add_staff()
@@ -119,15 +122,16 @@ class DeadlineTests(unittest.TestCase):
 
     def test_repository_feed_matches_import_cutoff_and_sources(self):
         feed = json.loads((Path(__file__).resolve().parents[1] / "deadlines.json").read_text())
-        self.assertEqual(len(feed["deadlines"]), 28)
-        self.assertEqual(len(parse_deadlines(feed)), 28)
+        self.assertEqual(len(feed["deadlines"]), 25)
+        self.assertEqual(len(parse_deadlines(feed)), 25)
+        self.assertFalse(any(item["title"].startswith("Building CBA:") for item in feed["deadlines"]))
         for item in feed["deadlines"]:
             self.assertGreaterEqual(date.fromisoformat(item["due_date"]), date(2026, 10, 19))
             self.assertTrue(item["source"]["file"].endswith(".pdf"))
             self.assertGreater(item["source"]["page"], 0)
         with app.app_context(), patch("deadlines.requests.get") as fetch:
             state = load_deadlines()
-            self.assertEqual(len(state["items"]), 28)
+            self.assertEqual(len(state["items"]), 25)
             self.assertEqual(state["notice"], "")
             fetch.assert_not_called()
 

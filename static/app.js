@@ -3,6 +3,49 @@
 
   document.documentElement.classList.add("js");
 
+  // Fit complete deadline rows to the staff card's natural height at any width.
+  const deadlinePreview = document.querySelector("[data-deadline-preview]");
+  if (deadlinePreview) {
+    const staffCard = deadlinePreview.closest(".rwu-staff-events")?.querySelector('[data-card="combined-events"]');
+    const body = deadlinePreview.querySelector(".deadline-preview-body");
+    const rows = [...deadlinePreview.querySelectorAll(".deadline-preview-list li")];
+    let scheduled = false;
+    const fitDeadlines = () => {
+      scheduled = false;
+      if (staffCard) {
+        deadlinePreview.style.setProperty("--deadline-preview-height", `${staffCard.getBoundingClientRect().height}px`);
+      }
+      const bottom = body.getBoundingClientRect().bottom;
+      let full = false;
+      for (const row of rows) {
+        row.hidden = full;
+        if (!full && row.getBoundingClientRect().bottom > bottom + 0.5) {
+          row.hidden = true;
+          full = true;
+        }
+      }
+    };
+    const scheduleFit = () => {
+      if (!scheduled) {
+        scheduled = true;
+        requestAnimationFrame(fitDeadlines);
+      }
+    };
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(scheduleFit);
+      if (staffCard) observer.observe(staffCard);
+      observer.observe(body);
+    }
+    window.addEventListener("resize", scheduleFit);
+    document.fonts?.ready.then(scheduleFit);
+    fitDeadlines();
+  }
+
+  const deadlineEmailForm = document.querySelector("[data-deadline-email-form]");
+  deadlineEmailForm?.querySelector('[name="email_reminders"]').addEventListener("change", () => {
+    deadlineEmailForm.requestSubmit();
+  });
+
   const navToggle = document.querySelector("[data-nav-toggle]");
   const primaryNav = document.querySelector("[data-primary-nav]");
   if (navToggle && primaryNav) {
