@@ -63,8 +63,11 @@ class DeadlineTests(unittest.TestCase):
         self.assertNotIn("Passed", page)
         self.assertLess(page.index(">Report<"), page.index(">Today<"))
         self.assertLess(page.index(">Today<"), page.index(">Later<"))
-        self.assertIn("9:00 PM EDT", page)
-        self.assertIn("Due today", page)
+        self.assertIn("9:00 PM", page)
+        self.assertNotIn("Submit report", page)
+        calendar = self.render_at_fixed_time("/deadlines?month=2026-10").get_data(as_text=True)
+        self.assertIn("Submit report", calendar)
+        self.assertIn("Due today", calendar)
 
     def test_calendar_month_filter_and_full_list(self):
         self.add_staff()

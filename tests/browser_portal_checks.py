@@ -76,8 +76,23 @@ def run(destination):
                             expect(style(el).outlineWidth === '3px', 'visible self-assignment outline');
                         }
                         for (const widget of document.querySelectorAll('.deadline-widget')) {
-                            expect(style(widget).display === 'block', 'deadline widget uses vertical list layout');
-                            expect(widget.querySelectorAll('.deadline-list li').length === 2, 'upcoming list populated');
+                            const staff = document.querySelector('[data-card="combined-events"]');
+                            expect(Math.abs(widget.getBoundingClientRect().height - staff.getBoundingClientRect().height) < 1, 'deadline preview matches staff card height');
+                            const body = widget.querySelector('.deadline-preview-body').getBoundingClientRect();
+                            const rows = [...widget.querySelectorAll('.deadline-preview-list li')].filter(row => !row.hidden);
+                            expect(rows.length > 0, 'at least one upcoming deadline fits');
+                            expect(rows.every(row => row.getBoundingClientRect().bottom <= body.bottom + .5), 'only complete deadline rows are shown');
+                            const next = [...widget.querySelectorAll('.deadline-preview-list li')].find(row => row.hidden);
+                            if (next) {
+                                next.hidden = false;
+                                expect(next.getBoundingClientRect().bottom > body.bottom + .5, 'preview fills all available row space');
+                                next.hidden = true;
+                            }
+                            expect(!widget.querySelector('.deadline-preview-list p'), 'preview has no descriptions');
+                            expect(widget.querySelector('.deadline-preview-disclaimer').textContent.includes('*Refer to your AC'), 'disclaimer retained');
+                        }
+                        for (const link of document.querySelectorAll('.rwu-nav-link[href="/deadlines"]')) {
+                            expect(!!link.querySelector('svg.rwu-nav-icon[aria-hidden="true"]'), 'deadline navigation has icon');
                         }
                         for (const calendar of document.querySelectorAll('.deadline-calendar')) {
                             expect(calendar.querySelectorAll('th').length === 7, 'seven calendar weekdays');

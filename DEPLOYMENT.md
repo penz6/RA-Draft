@@ -211,9 +211,10 @@ of that day) or `due_at` (ISO 8601 datetime). Optional fields are `description`
 use America/New_York; explicit offsets are converted to that timezone. The feed
 is shared by all staff, including RA, HRA, administrators, and Prostaff.
 
-The RA dashboard shows the next five deadlines; the Deadlines navigation tab
-shows a monthly calendar and the full upcoming list. Passed deadlines are
-excluded. The feed refreshes on page requests at most once every five minutes
+The RA dashboard shows as many complete deadline rows as fit within the staff
+dinner and meeting widget’s height, with dates and titles only. The Deadlines
+navigation tab shows a monthly calendar and the full upcoming list with
+descriptions. Passed deadlines are excluded. The feed refreshes on page requests at most once every five minutes
 per worker. A failed refresh retains the last valid feed in that worker and
 shows a warning; retries are limited to once per minute. The cache is in memory
 and resets when the app restarts. Invalid entries reject the complete update,

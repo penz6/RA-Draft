@@ -1,9 +1,17 @@
-<article class="card rwu-staff-event-card deadline-widget" data-card="deadlines">
-  <div class="section-head compact"><div><div class="eyebrow">Stay on track</div><h2>Upcoming deadlines</h2></div><a class="button small ghost" href="{{ url_for('deadline_calendar') }}">View calendar</a></div>
-  <p class="empty-copy"><small>*Refer to your AC for confirmed deadlines.</small></p>
-  {% if deadline_notice %}<p class="notice" role="status">{{ deadline_notice }}</p>{% endif %}
-  {% if upcoming_deadlines %}
-    {% with deadline_items=upcoming_deadlines[:5] %}{% include 'deadline_list.html' %}{% endwith %}
-    {% if upcoming_deadlines|length > 5 %}<a href="{{ url_for('deadline_calendar') }}">View all {{ upcoming_deadlines|length }} deadlines</a>{% endif %}
-  {% elif not deadline_notice %}<p class="empty-copy">You’re all caught up. No upcoming deadlines.</p>{% endif %}
+<article class="card rwu-staff-event-card deadline-widget" data-card="deadlines" data-deadline-preview>
+  <div class="deadline-preview-heading"><h2>Upcoming deadlines</h2><a class="button small ghost" href="{{ url_for('deadline_calendar') }}">View all</a></div>
+  <div class="deadline-preview-body">
+    {% if deadline_notice %}<p class="deadline-preview-notice" role="status">{{ deadline_notice }}</p>{% endif %}
+    {% if upcoming_deadlines %}
+    <ul class="deadline-preview-list" aria-label="Upcoming deadlines">
+      {% for item in upcoming_deadlines %}
+      <li{% if not loop.first %} hidden{% endif %}>
+        <time datetime="{{ item.due.isoformat() }}">{{ item.due.strftime('%b %-d') }}{% if not item.all_day %} · {{ item.due.strftime('%-I:%M %p') }}{% endif %}</time>
+        <strong title="{{ item.title }}">{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</strong>
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif not deadline_notice %}<p class="empty-copy">You’re all caught up. No upcoming deadlines.</p>{% endif %}
+  </div>
+  <p class="deadline-preview-disclaimer"><small>*Refer to your AC for confirmed deadlines.</small></p>
 </article>
