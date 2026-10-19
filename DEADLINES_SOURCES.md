@@ -27,10 +27,10 @@ displays these to all staff. The assignment tracker says dates are subject to ch
 
 ## Source conflicts and exclusions
 
-- Explorations activity 1: the detailed guide (page 1) says September 30; the
-  assignment tracker says October 30. The detailed guide is used provisionally,
-  so this item is omitted as already past. Confirm with Residence Life before
-  adding an October 30 deadline.
+- Fall Explorations activity 1: the user confirmed on October 19, 2026 that this
+  deadline has already passed. It remains excluded from the upcoming feed.
+  The detailed guide (page 1) lists September 30, while the assignment tracker
+  lists October 30; the tracker date is not used to create an upcoming deadline.
 - Winter closing: the tracker lists December 4–12, while the Bulletin Boards
   guide (page 7) says residence halls close December 17 at 9 a.m. These could
   refer to different processes, but the PDFs do not establish that. Closing
