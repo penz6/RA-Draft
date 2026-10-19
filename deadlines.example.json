@@ -1,0 +1,15 @@
+{
+  "deadlines": [
+    {
+      "title": "Submit monthly programming report",
+      "due_at": "2026-11-01T17:00:00-05:00",
+      "description": "Submit your completed report before the end of the day.",
+      "url": "https://rwu.housing.cloud"
+    },
+    {
+      "title": "Complete semester training",
+      "due_date": "2026-11-06",
+      "description": "Finish all required training modules."
+    }
+  ]
+}

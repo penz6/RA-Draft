@@ -186,3 +186,40 @@ docker compose -f docker-compose.pangolin.yml pull
 docker compose -f docker-compose.pangolin.yml up -d --force-recreate
 docker image prune -f
 ```
+
+## Deadline tracker
+
+The curriculum feed lives in this repository at `deadlines.json`. It contains
+28 upcoming deadlines imported from the supplied 2026–2027 PDFs, with no dates
+before October 19, 2026. See `DEADLINES_SOURCES.md` for source pages, assumptions,
+and conflicting dates that need confirmation.
+
+Without `DEADLINES_JSON_URL`, the app reads the checked-out `deadlines.json` file,
+so local previews and direct deployments work immediately. The Compose file
+defaults to `https://raw.githubusercontent.com/penz6/RA-Draft/main/deadlines.json`
+to pick up feed edits from GitHub without an image rebuild. The feed is published
+on `main`. Set `DEADLINES_JSON_URL` to another
+public GitHub raw JSON file to override it. Restart/recreate the app after changing
+the setting. Do not use a GitHub `/blob/` page URL. Private repository feeds are
+not supported; use a public feed containing only information suitable for public access.
+
+Copy `deadlines.example.json` to the source repository to start. The feed may be
+an array or an object with a `deadlines` array. Each entry requires a `title`
+(up to 200 characters) and either `due_date` (`YYYY-MM-DD`, due through the end
+of that day) or `due_at` (ISO 8601 datetime). Optional fields are `description`
+(up to 4000 characters) and `url` (an HTTPS link). Datetimes without an offset
+use America/New_York; explicit offsets are converted to that timezone. The feed
+is shared by all staff, including RA, HRA, administrators, and Prostaff.
+
+The RA dashboard shows the next five deadlines; the Deadlines navigation tab
+shows a monthly calendar and the full upcoming list. Passed deadlines are
+excluded. The feed refreshes on page requests at most once every five minutes
+per worker. A failed refresh retains the last valid feed in that worker and
+shows a warning; retries are limited to once per minute. The cache is in memory
+and resets when the app restarts. Invalid entries reject the complete update,
+so malformed edits do not silently remove deadlines. Feeds are limited to 1 MiB
+and 2000 entries. A missing or invalid repository feed shows an unavailable message.
+
+One-on-one scheduling has been retired from both portals, including its create
+and delete endpoints. Existing appointment records remain in the database for
+retention; the app no longer displays or modifies them.

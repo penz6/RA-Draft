@@ -10,6 +10,7 @@
     </div>
   </section>
 
+  <section class="rwu-staff-events" aria-label="Staff events and deadlines">
   {% if building_profile %}
   {% set next_meeting = building_profile.staff_meeting_at|next_event(building_profile.staff_meeting_repeat_weeks) %}
   {% set next_dinner = building_profile.staff_dinner_at|next_event(building_profile.staff_dinner_repeat_weeks) %}
@@ -19,8 +20,6 @@
   {% set repeat_weeks = building_profile.staff_meeting_repeat_weeks if use_meeting else building_profile.staff_dinner_repeat_weeks %}
   {% set next_at = next_meeting if use_meeting else next_dinner %}
   {% set event_endpoint = 'update_staff_dinner' if next_dinner and not use_meeting else 'update_staff_meeting' %}
-  {% if me.role in ('HRA', 'ADMIN') or (next_at and location) or one_on_one %}
-  <section class="rwu-staff-events" aria-label="Staff events and one-on-ones">
     {% if me.role in ('HRA', 'ADMIN') or (next_at and location) %}
     <article class="card rwu-staff-event-card" data-card="combined-events">
       <div class="eyebrow">Staff Dinner &amp; Meeting</div>
@@ -32,17 +31,9 @@
     </article>
     {% endif %}
 
-    {% if me.role in ('HRA', 'ADMIN') or one_on_one %}
-    <article class="card rwu-staff-event-card" data-card="one-on-one">
-      <div class="eyebrow">One-on-one time</div>
-      {% if me.role in ('RA', 'HRA', 'ADMIN') %}
-        {% if one_on_one %}<div class="rwu-meeting-info"><h2>{{ one_on_one.scheduled_at|event_label }}</h2><p>{{ one_on_one.location }}</p><small>{{ one_on_one.recurrence_label }} · Scheduled by {{ one_on_one.scheduler_name }}</small></div>{% else %}<div class="rwu-meeting-info"><h2>Unavailable</h2></div>{% endif %}
-      {% else %}<p>One-on-one schedules are managed by Area Coordinators in the Prostaff View.</p>{% endif %}
-    </article>
-    {% endif %}
+  {% endif %}
+  {% include 'deadline_widget.html' %}
   </section>
-  {% endif %}
-  {% endif %}
 
   <section class="card dashboard-schedule-panel rwu-duty-panel">
     <div class="section-head compact">

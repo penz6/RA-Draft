@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme_overrides.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_polish.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='deadlines.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='portal_navy.css') }}">
   <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
@@ -90,6 +91,7 @@
           <span>How it works</span>
         </button>
         {% endif %}
+        <a class="rwu-nav-link{% if request.endpoint == 'deadline_calendar' %} is-active{% endif %}" href="{{ url_for('deadline_calendar') }}"{% if request.endpoint == 'deadline_calendar' %} aria-current="page"{% endif %}><span>Deadlines</span></a>
       </nav>
       <div class="rwu-external-links">
         <a href="https://rwu.housing.cloud" target="_blank" rel="noopener noreferrer">Housing Cloud <span aria-hidden="true">↗</span></a>

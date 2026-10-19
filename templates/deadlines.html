@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Deadlines | RWU Residence Life{% endblock %}
+{% block content %}
+<div class="dashboard-page deadline-page{% if me.is_prostaff %} prostaff-dashboard{% endif %}">
+  <div class="prostaff-page-heading"><div><div class="eyebrow">Residence Life</div><h1>Deadlines</h1><p>Plan ahead with upcoming deadlines. All dates and times use America/New_York.</p></div></div>
+  {% if me.is_prostaff or me.role == 'ADMIN' or me.admin_lite %}{% include 'prostaff_tabs.html' %}{% endif %}
+  {% if deadline_notice %}<p class="notice" role="status">{{ deadline_notice }}</p>{% endif %}
+  <section class="card deadline-calendar-panel" aria-label="Deadline calendar">
+    <div class="deadline-toolbar">
+      <h2>{{ month_label }}</h2>
+      <div class="deadline-month-links"><a class="button small secondary" href="{{ url_for('deadline_calendar', month=previous_month) }}" aria-label="Previous month">←</a><a class="button small secondary" href="{{ url_for('deadline_calendar') }}">This month</a><a class="button small secondary" href="{{ url_for('deadline_calendar', month=next_month) }}" aria-label="Next month">→</a></div>
+      <form method="get" class="rwu-month-picker"><label class="field compact">Month<input type="month" name="month" value="{{ selected_month }}" min="0002-01" max="9998-12" required></label><button class="button small secondary" type="submit">Go</button></form>
+    </div>
+    <div class="deadline-calendar-scroll" tabindex="0" aria-label="Scroll deadline calendar horizontally">
+      <table class="deadline-calendar"><caption class="sr-only">Upcoming deadlines for {{ month_label }}</caption>
+        <thead><tr>{% for label in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for week in deadline_weeks %}<tr>{% for day in week %}<td{% if not day %} class="is-empty"{% elif selected_month == deadline_today.strftime('%Y-%m') and day == deadline_today.day %} class="is-today" aria-current="date"{% endif %}>
+          {% if day %}<span class="deadline-day-number">{{ day }}</span>{% for item in deadline_by_day.get(day, []) %}<article class="deadline-calendar-event"><strong>{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</strong><time datetime="{{ item.due.isoformat() }}">{% if item.all_day %}All day{% else %}{{ item.due.strftime('%-I:%M %p %Z') }}{% endif %}</time>{% if item.description %}<p>{{ item.description }}</p>{% endif %}</article>{% endfor %}{% endif %}
+        </td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% if not deadline_by_day and not deadline_notice %}<p class="empty-copy">No upcoming deadlines in {{ month_label }}.</p>{% endif %}
+  </section>
+  <section class="card" aria-labelledby="upcoming-deadlines-title"><h2 id="upcoming-deadlines-title">All upcoming deadlines</h2>
+    {% if upcoming_deadlines %}{% with deadline_items=upcoming_deadlines %}{% include 'deadline_list.html' %}{% endwith %}{% elif not deadline_notice %}<p class="empty-copy">You’re all caught up. No upcoming deadlines.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}
