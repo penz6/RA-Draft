@@ -122,15 +122,16 @@ class DeadlineTests(unittest.TestCase):
 
     def test_repository_feed_matches_import_cutoff_and_sources(self):
         feed = json.loads((Path(__file__).resolve().parents[1] / "deadlines.json").read_text())
-        self.assertEqual(len(feed["deadlines"]), 28)
-        self.assertEqual(len(parse_deadlines(feed)), 28)
+        self.assertEqual(len(feed["deadlines"]), 25)
+        self.assertEqual(len(parse_deadlines(feed)), 25)
+        self.assertFalse(any(item["title"].startswith("Building CBA:") for item in feed["deadlines"]))
         for item in feed["deadlines"]:
             self.assertGreaterEqual(date.fromisoformat(item["due_date"]), date(2026, 10, 19))
             self.assertTrue(item["source"]["file"].endswith(".pdf"))
             self.assertGreater(item["source"]["page"], 0)
         with app.app_context(), patch("deadlines.requests.get") as fetch:
             state = load_deadlines()
-            self.assertEqual(len(state["items"]), 28)
+            self.assertEqual(len(state["items"]), 25)
             self.assertEqual(state["notice"], "")
             fetch.assert_not_called()
 

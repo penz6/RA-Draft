@@ -36,7 +36,8 @@ def isolate_prostaff_portal():
     allowed = {
         "prostaff_dashboard", "prostaff_schedule", "prostaff_swaps",
         "admin_analytics",
-        "prostaff_set_password", "deadline_calendar",
+        "prostaff_set_password", "deadline_calendar", "deadline_email_preferences",
+        "dismiss_deadline_banner",
         "stop_impersonation", "logout", "static",
         "prostaff_staff_search",
     }

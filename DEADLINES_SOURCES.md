@@ -10,8 +10,8 @@ Each entry includes its source filename and PDF page number. The PDFs themselves
 are not stored in this repository. Submission links come from the guides.
 Community Meeting and HawkTalk completion/reflection deadlines are combined
 where both are due on the same day. Activity windows are preserved in descriptions.
-Building CBA entries name the applicable building explicitly; the shared feed
-displays these to all staff. The assignment tracker says dates are subject to change.
+Building-wide CBA dates for Willow, Stonewall, and North were removed at the
+user’s request. The individual Activity/CBA assignment remains included. The assignment tracker says dates are subject to change.
 
 ## Included sources
 
@@ -21,7 +21,7 @@ displays these to all staff. The assignment tracker says dates are subject to ch
 | HawkTalks 26_27.pdf | Rounds 2–4 completion/reflection deadlines |
 | Door Decs.pdf | Spring decorations posting deadline |
 | Community Meetings 26_27.pdf | Fall meeting 2 and spring meetings 1–2 |
-| RA Assignment Tracker.pdf | Activity/CBA 2, newsletter 3, Willow/Stonewall/North building CBAs, November all-staff date |
+| RA Assignment Tracker.pdf | Activity/CBA 2, newsletter 3, November all-staff date |
 | Explorations 26_27.pdf | Fall activity 2 and spring activities 1–2 reflections |
 | Agreements 26-27.pdf | Spring initial agreements |
 

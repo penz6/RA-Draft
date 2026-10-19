@@ -4,15 +4,6 @@
   "imported_on": "2026-10-19",
   "deadlines": [
     {
-      "title": "Building CBA: Willow",
-      "due_date": "2026-10-22",
-      "description": "Building-specific CBA date for Willow staff. Confirm the time, location, and participation details with your supervisor.",
-      "source": {
-        "file": "RA Assignment Tracker.pdf",
-        "page": 1
-      }
-    },
-    {
       "title": "Bulletin Board #3: post in hall",
       "due_date": "2026-11-01",
       "description": "Post the approved Choose Your Own board in the hall. Submit a photo of the finalized board through HawkLink.",
@@ -21,24 +12,6 @@
         "page": 6
       },
       "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
-    },
-    {
-      "title": "Building CBA: North",
-      "due_date": "2026-11-05",
-      "description": "Building-specific CBA date for North staff. Confirm the time, location, and participation details with your supervisor.",
-      "source": {
-        "file": "RA Assignment Tracker.pdf",
-        "page": 1
-      }
-    },
-    {
-      "title": "Building CBA: Stonewall",
-      "due_date": "2026-11-05",
-      "description": "Building-specific CBA date for Stonewall staff. Confirm the time, location, and participation details with your supervisor.",
-      "source": {
-        "file": "RA Assignment Tracker.pdf",
-        "page": 1
-      }
     },
     {
       "title": "Newsletter #3: due",

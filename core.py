@@ -509,6 +509,19 @@ def migrate_schema(conn):
     if "prostaff_locked_until" not in user_columns:
         conn.execute("ALTER TABLE users ADD COLUMN prostaff_locked_until TEXT")
 
+    for column in ("deadline_email_opt_in", "deadline_banner_dismissed"):
+        if column not in user_columns:
+            statement = ("ALTER TABLE users ADD COLUMN " + column + " INTEGER NOT NULL "
+                         "DEFAULT 0 CHECK(" + column + " IN (0,1))")
+            conn.execute(statement)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS deadline_email_deliveries ("
+        "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+        "deadline_key TEXT NOT NULL, reminder_days INTEGER NOT NULL,"
+        "claim_token TEXT NOT NULL, lease_until TEXT NOT NULL, sent_at TEXT,"
+        "PRIMARY KEY(user_id,deadline_key,reminder_days))"
+    )
+
     # This belongs in the normal migration path rather than module import so
     # every process observes the same, fully initialized schema.
     conn.execute(

@@ -190,7 +190,7 @@ docker image prune -f
 ## Deadline tracker
 
 The curriculum feed lives in this repository at `deadlines.json`. It contains
-28 upcoming deadlines imported from the supplied 2026–2027 PDFs, with no dates
+25 upcoming deadlines imported from the supplied 2026–2027 PDFs, with no dates
 before October 19, 2026. See `DEADLINES_SOURCES.md` for source pages, assumptions,
 and conflicting dates that need confirmation.
 
@@ -224,3 +224,9 @@ and 2000 entries. A missing or invalid repository feed shows an unavailable mess
 One-on-one scheduling has been retired from both portals, including its create
 and delete endpoints. Existing appointment records remain in the database for
 retention; the app no longer displays or modifies them.
+
+Deadline reminder preferences and banner dismissal are saved per account with
+additive SQLite migrations. The updated Compose file also starts the dedicated
+`deadline-reminders` worker, using the existing mail settings. See
+`EMAIL_NOTIFICATIONS.md` for timing, delivery/retry behavior, and deployment
+instructions. The worker must be running for scheduled reminders to be sent.

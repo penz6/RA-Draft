@@ -93,6 +93,8 @@ def run(destination):
                         }
                         for (const link of document.querySelectorAll('.rwu-nav-link[href="/deadlines"]')) {
                             expect(!!link.querySelector('svg.rwu-nav-icon[aria-hidden="true"]'), 'deadline navigation has icon');
+                            const swaps = document.querySelector('.rwu-nav-link[href="/swaps"]');
+                            if (swaps) expect(swaps.nextElementSibling === link, 'deadlines directly follows duty swaps');
                         }
                         for (const calendar of document.querySelectorAll('.deadline-calendar')) {
                             expect(calendar.querySelectorAll('th').length === 7, 'seven calendar weekdays');

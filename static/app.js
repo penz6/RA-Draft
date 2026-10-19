@@ -41,6 +41,11 @@
     fitDeadlines();
   }
 
+  const deadlineEmailForm = document.querySelector("[data-deadline-email-form]");
+  deadlineEmailForm?.querySelector('[name="email_reminders"]').addEventListener("change", () => {
+    deadlineEmailForm.requestSubmit();
+  });
+
   const navToggle = document.querySelector("[data-nav-toggle]");
   const primaryNav = document.querySelector("[data-primary-nav]");
   if (navToggle && primaryNav) {
