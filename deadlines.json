@@ -1,0 +1,279 @@
+{
+  "academic_year": "2026-2027",
+  "timezone": "America/New_York",
+  "imported_on": "2026-10-19",
+  "deadlines": [
+    {
+      "title": "Building CBA: Willow",
+      "due_date": "2026-10-22",
+      "description": "Building-specific CBA date for Willow staff. Confirm the time, location, and participation details with your supervisor.",
+      "source": {
+        "file": "RA Assignment Tracker.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "Bulletin Board #3: post in hall",
+      "due_date": "2026-11-01",
+      "description": "Post the approved Choose Your Own board in the hall. Submit a photo of the finalized board through HawkLink.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 6
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Building CBA: North",
+      "due_date": "2026-11-05",
+      "description": "Building-specific CBA date for North staff. Confirm the time, location, and participation details with your supervisor.",
+      "source": {
+        "file": "RA Assignment Tracker.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "Building CBA: Stonewall",
+      "due_date": "2026-11-05",
+      "description": "Building-specific CBA date for Stonewall staff. Confirm the time, location, and participation details with your supervisor.",
+      "source": {
+        "file": "RA Assignment Tracker.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "Newsletter #3: due",
+      "due_date": "2026-11-08",
+      "description": "Complete the third fall newsletter by November 8. The assignment tracker does not specify a submission method.",
+      "source": {
+        "file": "RA Assignment Tracker.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "Bulletin Board #4: proposal due",
+      "due_date": "2026-11-15",
+      "description": "Submit the Closing Information board proposal through HawkLink for supervisor approval before posting.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 6
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "All-staff all-hands date",
+      "due_date": "2026-11-19",
+      "description": "All-staff date listed under All Hands Opening in the assignment tracker. Confirm the time and location with your supervisor.",
+      "source": {
+        "file": "RA Assignment Tracker.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "Fall Community Meeting #2: complete and submit reflection",
+      "due_date": "2026-11-30",
+      "description": "Hold the meeting in person between November 20 and November 30. Submit the Community Meeting Reflection through HawkLink by November 30.",
+      "source": {
+        "file": "Community Meetings 26_27.pdf",
+        "page": 6
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Fall Explorations Activity #2: reflection due",
+      "due_date": "2026-11-30",
+      "description": "Complete an educational Explorations activity and submit the reflection through HawkLink.",
+      "source": {
+        "file": "Explorations 26_27.pdf",
+        "page": 2
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #4: post in hall",
+      "due_date": "2026-12-01",
+      "description": "Post the approved Closing Information board in the hall. Submit a photo of the finalized board through HawkLink.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 6
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Fall Activity / CBA #2: due",
+      "due_date": "2026-12-01",
+      "description": "Complete the second fall Activity / CBA by December 1, as listed in the RA Fall Assignment Tracker.",
+      "source": {
+        "file": "RA Assignment Tracker.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "HawkTalks Round #2: complete and submit reflection",
+      "due_date": "2026-12-01",
+      "description": "Complete the Google Form round (October 13–December 1, 2026) and submit the reflection through HawkLink by the end of the round.",
+      "source": {
+        "file": "HawkTalks 26_27.pdf",
+        "page": 4
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #5: proposal due",
+      "due_date": "2026-12-10",
+      "description": "Submit the Self-Awareness and Identity Development board proposal through HawkLink for supervisor approval before posting.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 8
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #5: post in hall",
+      "due_date": "2027-01-23",
+      "description": "Post the approved Self-Awareness and Identity Development board in the hall. Submit a photo of the finalized board through HawkLink.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 8
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Spring door decorations: post on doors",
+      "due_date": "2027-01-23",
+      "description": "Post laminated door decorations with residents’ preferred names before their arrival.",
+      "source": {
+        "file": "Door Decs.pdf",
+        "page": 1
+      }
+    },
+    {
+      "title": "Spring Community Meeting #1: hold meeting and submit reflection",
+      "due_date": "2027-01-26",
+      "description": "Hold the meeting in person on January 26 and submit the Community Meeting Reflection through HawkLink that day.",
+      "source": {
+        "file": "Community Meetings 26_27.pdf",
+        "page": 7
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Spring roommate/suite agreements: due to supervisor",
+      "due_date": "2027-02-06",
+      "description": "Facilitate the agreement conversation in person, collect all required signatures, and submit the completed agreement using the method established by your Area Coordinator.",
+      "source": {
+        "file": "Agreements 26-27.pdf",
+        "page": 2
+      }
+    },
+    {
+      "title": "Bulletin Board #6: proposal due",
+      "due_date": "2027-02-15",
+      "description": "Submit the Academic & Professional Success board proposal through HawkLink for supervisor approval before posting.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 10
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #6: post in hall",
+      "due_date": "2027-03-01",
+      "description": "Post the approved Academic & Professional Success board in the hall. Submit a photo of the finalized board through HawkLink.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 10
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Spring Explorations Activity #1: reflection due",
+      "due_date": "2027-03-01",
+      "description": "Complete an educational Explorations activity and submit the reflection through HawkLink.",
+      "source": {
+        "file": "Explorations 26_27.pdf",
+        "page": 2
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #7: proposal due",
+      "due_date": "2027-03-12",
+      "description": "Submit the Title IX Topics board proposal through HawkLink for supervisor approval before posting.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 11
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "HawkTalks Round #3: complete and submit reflection",
+      "due_date": "2027-03-12",
+      "description": "Complete the in-person round (January 27–March 12, 2027) and submit the reflection through HawkLink by the end of the round.",
+      "source": {
+        "file": "HawkTalks 26_27.pdf",
+        "page": 5
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #7: post in hall",
+      "due_date": "2027-04-01",
+      "description": "Post the approved Title IX Topics board in the hall. Submit a photo of the finalized board through HawkLink.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 11
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #8: proposal due",
+      "due_date": "2027-04-15",
+      "description": "Submit the Closing Information board proposal through HawkLink for supervisor approval before posting.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 12
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Spring Explorations Activity #2: reflection due",
+      "due_date": "2027-04-30",
+      "description": "Complete an educational Explorations activity and submit the reflection through HawkLink.",
+      "source": {
+        "file": "Explorations 26_27.pdf",
+        "page": 2
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Bulletin Board #8: post in hall",
+      "due_date": "2027-05-01",
+      "description": "Post the approved Closing Information board in the hall. Submit a photo of the finalized board through HawkLink.",
+      "source": {
+        "file": "Bulletin Boards 26_27.pdf",
+        "page": 12
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "Spring Community Meeting #2: complete and submit reflection",
+      "due_date": "2027-05-01",
+      "description": "Hold the meeting in person between April 16 and May 1. Submit the Community Meeting Reflection through HawkLink by May 1.",
+      "source": {
+        "file": "Community Meetings 26_27.pdf",
+        "page": 7
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    },
+    {
+      "title": "HawkTalks Round #4: complete and submit reflection",
+      "due_date": "2027-05-05",
+      "description": "Complete the Google Form round (March 22–May 5, 2027) and submit the reflection through HawkLink by the end of the round.",
+      "source": {
+        "file": "HawkTalks 26_27.pdf",
+        "page": 7
+      },
+      "url": "https://hawklink.rwu.edu/forms/actioncenter/organization/drlh-resident-assistants"
+    }
+  ]
+}
