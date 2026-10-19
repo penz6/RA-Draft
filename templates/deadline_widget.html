@@ -1,5 +1,6 @@
 <article class="card rwu-staff-event-card deadline-widget" data-card="deadlines">
   <div class="section-head compact"><div><div class="eyebrow">Stay on track</div><h2>Upcoming deadlines</h2></div><a class="button small ghost" href="{{ url_for('deadline_calendar') }}">View calendar</a></div>
+  <p class="empty-copy"><small>Dates are subject to change. Refer to your Area Coordinator (AC) for confirmed deadlines.</small></p>
   {% if deadline_notice %}<p class="notice" role="status">{{ deadline_notice }}</p>{% endif %}
   {% if upcoming_deadlines %}
     {% with deadline_items=upcoming_deadlines[:5] %}{% include 'deadline_list.html' %}{% endwith %}
