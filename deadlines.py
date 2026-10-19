@@ -166,12 +166,19 @@ def dismiss_deadline_banner():
     conn.execute("UPDATE users SET deadline_banner_dismissed=1 WHERE id=? AND disabled=0", (user["id"],))
     conn.commit()
     destination = request.form.get("next", "")
-    try:
-        parsed = urlsplit(destination)
-    except ValueError:
-        destination = url_for("dashboard")
-        parsed = urlsplit(destination)
-    if (not destination.startswith("/") or destination.startswith("//")
-            or "\\" in destination or parsed.scheme or parsed.netloc):
-        destination = url_for("dashboard")
-    return redirect(destination)
+    safe_destination = url_for("dashboard")
+    if isinstance(destination, str) and destination:
+        try:
+            parsed = urlsplit(destination)
+        except ValueError:
+            parsed = None
+        if (
+            parsed is not None
+            and destination.startswith("/")
+            and not destination.startswith("//")
+            and "\\" not in destination
+            and not parsed.scheme
+            and not parsed.netloc
+        ):
+            safe_destination = destination
+    return redirect(safe_destination)
