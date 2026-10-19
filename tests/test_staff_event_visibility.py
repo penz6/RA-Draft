@@ -49,7 +49,7 @@ class StaffEventVisibilityTests(unittest.TestCase):
             self.assertIn(text, events)
         for text in ('Commons', 'Oct 21', '6:00 PM'):
             self.assertNotIn(text, events)
-        self.assertEqual(events.count('class="card rwu-staff-event-card"'), 1)
+        self.assertEqual(events.count('data-card="combined-events"'), 1)
         self.assertNotIn('One-on-one time', events)
         self.assertNotIn('rwu-meeting-editor', events)
         self.assertNotIn('<form', events)
@@ -87,7 +87,8 @@ class StaffEventVisibilityTests(unittest.TestCase):
             )
             db().commit()
         events = self.dashboard_events()
-        self.assertEqual(events, '')
+        self.assertNotIn('data-card="combined-events"', events)
+        self.assertIn('Upcoming deadlines', events)
         self.assertNotIn('Other lounge', events)
         with app.app_context():
             db().execute(
@@ -100,7 +101,7 @@ class StaffEventVisibilityTests(unittest.TestCase):
         self.assertIn('Maple Only', events)
         self.assertNotIn('Willow Only', events)
 
-    def test_ra_sees_only_a_scheduled_one_on_one(self):
+    def test_legacy_one_on_one_is_hidden_and_replaced_with_deadlines(self):
         hall = self.add_building('Maple')
         ra = self.add_ra(hall)
         scheduler = self.add_user(
@@ -119,9 +120,9 @@ class StaffEventVisibilityTests(unittest.TestCase):
         self.login_as(ra)
         events = self.dashboard_events()
         self.assertNotIn('Staff Dinner &amp; Meeting', events)
-        self.assertIn('One-on-one time', events)
-        self.assertIn('Coordinator office', events)
-        self.assertEqual(events.count('class="card rwu-staff-event-card"'), 1)
+        self.assertNotIn('One-on-one time', events)
+        self.assertNotIn('Coordinator office', events)
+        self.assertIn('Upcoming deadlines', events)
 
     def test_hra_keeps_edit_controls_for_own_building(self):
         hall = self.add_building('Maple')

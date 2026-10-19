@@ -1,0 +1,10 @@
+<ul class="deadline-list">
+  {% for item in deadline_items %}
+  <li>
+    <time datetime="{{ item.due.isoformat() }}">{{ item.label }}</time>
+    <strong>{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</strong>
+    {% if item.day == deadline_today %}<span class="pill small">Due today</span>{% endif %}
+    {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+  </li>
+  {% endfor %}
+</ul>

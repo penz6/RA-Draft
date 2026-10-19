@@ -4,6 +4,8 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -18,6 +20,8 @@ from test_admin_management import AdminManagementTestCase
 import main
 from core import app, db
 from flask import url_for
+from deadlines import parse_deadlines
+from staff_event_schedule import SCHOOL_TIMEZONE
 
 
 def render_pages(destination):
@@ -72,7 +76,16 @@ def render_pages(destination):
     # /login initiates Google OAuth; / is the actual public sign-in page.
     save('login', 'index')
     save('onboarding', 'onboarding', new_ra)
-    save('dashboard', 'dashboard', admin)
+    today = datetime.now(SCHOOL_TIMEZONE).date()
+    deadline_items = parse_deadlines([
+        {'title': 'Monthly report', 'due_date': today.isoformat(),
+         'description': 'Submit your programming report to Residence Life.'},
+        {'title': 'Training completion', 'due_date': (today + timedelta(days=3)).isoformat()},
+    ])
+    with patch('deadlines.load_deadlines', return_value={'items': deadline_items, 'notice': ''}):
+        save('dashboard', 'dashboard', admin)
+        save('deadlines-ra', 'deadline_calendar', ra)
+        save('deadlines-prostaff', 'deadline_calendar', prostaff)
     save('admin', 'admin', admin)
     save('admin-analytics', 'admin_analytics', admin)
     save('hra-analytics', 'hra_analytics', hra)
@@ -83,7 +96,7 @@ def render_pages(destination):
     save('swap-home', 'swap_home', admin)
     save('swaps', 'building_swap_page', ra, building_id=hall)
     save('prostaff-swaps', 'prostaff_swaps', prostaff)
-    print('Rendered 13 application pages with sample data.')
+    print('Rendered 15 application pages with sample data.')
 
 
 if __name__ == '__main__':

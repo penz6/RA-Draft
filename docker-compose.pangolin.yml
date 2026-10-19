@@ -9,6 +9,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET in .env}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       PROXY_HOPS: ${PROXY_HOPS:-1}
+      DEADLINES_JSON_URL: ${DEADLINES_JSON_URL:-https://raw.githubusercontent.com/penz6/RA-Draft/main/deadlines.json}
       DATABASE_PATH: /data/ra_draft.db
       WEB_THREADS: ${WEB_THREADS:-32}
       SSE_MAX_CONNECTIONS_PER_USER: ${SSE_MAX_CONNECTIONS_PER_USER:-4}

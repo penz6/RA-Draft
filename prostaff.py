@@ -34,10 +34,10 @@ def isolate_prostaff_portal():
     if not user or not user["is_prostaff"]:
         return None
     allowed = {
-        "prostaff_dashboard", "prostaff_schedule", "prostaff_one_on_ones", "prostaff_swaps",
+        "prostaff_dashboard", "prostaff_schedule", "prostaff_swaps",
         "admin_analytics",
-        "prostaff_set_password", "schedule_one_on_one",
-        "delete_one_on_one", "stop_impersonation", "logout", "static",
+        "prostaff_set_password", "deadline_calendar",
+        "stop_impersonation", "logout", "static",
         "prostaff_staff_search",
     }
     is_impersonated = isinstance(session.get("impersonator_uid"), int)
@@ -133,8 +133,6 @@ def prostaff_dashboard():
     if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
         abort(403)
     # Preserve bookmarked filtered/calendar URLs from the original combined page.
-    if request.args.get("one_on_one_month"):
-        return prostaff_one_on_ones()
     if request.args.get("q") or request.args.get("building") or request.args.get("month"):
         return prostaff_schedule()
     now = datetime.now(SCHOOL_TIMEZONE)
@@ -364,14 +362,6 @@ def prostaff_staff_search():
         (q, search_pattern, search_pattern),
     ).fetchall()
     return {"results": [{"id": r["id"], "name": r["name"], "email": r["email"]} for r in rows]}
-
-
-@app.route("/prostaff/one-on-ones")
-def prostaff_one_on_ones():
-    user = current_user()
-    if not user or (not user["is_prostaff"] and user["role"] != "ADMIN" and not user["admin_lite"]):
-        abort(403)
-    return render_template("prostaff_one_on_ones.html", prostaff_page="one_on_ones")
 
 
 @app.route("/admin/prostaff", methods=["POST"])

@@ -21,8 +21,8 @@ def run(destination):
     screenshots = destination / 'screenshots'
     screenshots.mkdir(exist_ok=True)
     pages = sorted(destination.glob('*.html'))
-    if len(pages) != 13:
-        raise AssertionError(f'Expected 13 rendered pages, found {len(pages)}')
+    if len(pages) != 15:
+        raise AssertionError(f'Expected 15 rendered pages, found {len(pages)}')
     try:
         with sync_playwright() as playwright:
             launch = {'headless': True}
@@ -75,6 +75,16 @@ def run(destination):
                             expect(style(el).outlineColor === 'rgb(21, 128, 61)', 'green self-assignment outline');
                             expect(style(el).outlineWidth === '3px', 'visible self-assignment outline');
                         }
+                        for (const widget of document.querySelectorAll('.deadline-widget')) {
+                            expect(style(widget).display === 'block', 'deadline widget uses vertical list layout');
+                            expect(widget.querySelectorAll('.deadline-list li').length === 2, 'upcoming list populated');
+                        }
+                        for (const calendar of document.querySelectorAll('.deadline-calendar')) {
+                            expect(calendar.querySelectorAll('th').length === 7, 'seven calendar weekdays');
+                            expect(calendar.querySelectorAll('.deadline-calendar-event').length >= 1, 'calendar contains deadlines');
+                            expect(document.querySelector('.deadline-list').children.length === 2, 'full deadline list populated');
+                            expect(document.querySelector('.rwu-nav-link[aria-current="page"]').textContent.includes('Deadlines'), 'active deadline navigation');
+                        }
                         expect(document.documentElement.scrollWidth <= window.innerWidth + 1, 'page horizontal overflow');
                         return errors;
                     }''')
@@ -117,7 +127,7 @@ def run(destination):
     (destination / 'browser-results.json').write_text(json.dumps({'page_checks': checked, 'failures': failures}, indent=2))
     if failures:
         raise AssertionError('\n'.join(failures))
-    print(f'Passed {checked} full-page Chromium checks (13 pages at 3 viewport widths).')
+    print(f'Passed {checked} full-page Chromium checks (15 pages at 3 viewport widths).')
 
 
 if __name__ == '__main__':

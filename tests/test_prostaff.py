@@ -116,9 +116,9 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertEqual(calendar.status_code, 200)
         self.assertIn(b"Duty schedule for", calendar.data)
         self.assertIn(b"Alex RA", calendar.data)
-        one_on_ones = self.request("get", "/prostaff/one-on-ones")
-        self.assertEqual(one_on_ones.status_code, 200)
-        self.assertIn(b"Set a one-on-one time", one_on_ones.data)
+        deadlines = self.request("get", "/deadlines")
+        self.assertEqual(deadlines.status_code, 200)
+        self.assertIn(b"Upcoming deadlines for", deadlines.data)
 
     def test_prostaff_duty_swaps_are_read_only_and_building_scoped(self):
         with app.app_context():
@@ -385,36 +385,6 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertNotIn(b"Current Night RA", page.data)
         self.assertIn(b"Wed, Oct 14", page.data)
         self.assertIn(b"previous duty night until 8:00 AM", page.data)
-
-    def test_one_on_one_header_readability_and_theme_alignment(self):
-        with app.app_context():
-            building = db().execute("INSERT INTO buildings(name) VALUES('Willow')").lastrowid
-            staff = db().execute(
-                "INSERT INTO users(google_sub,email,name,role,building_id,is_prostaff,password_must_change) "
-                "VALUES('ps2','ps2@example.edu','Pro Staff','RA',?,1,0)",
-                (building,),
-            ).lastrowid
-            db().commit()
-        self.login_as(staff)
-        res = self.request("get", "/prostaff/one-on-ones")
-        self.assertEqual(res.status_code, 200)
-        html = res.get_data(as_text=True)
-        self.assertIn("prostaff-page-heading", html)
-        self.assertIn("One-on-one schedule", html)
-        self.assertIn("Prostaff tools · Willow", html)
-        self.assertNotIn("prostaff-hero-mark", html)
-        self.assertNotIn("prostaff-one-on-one-hero", html)
-        self.assertNotIn(">1:1<", html)
-
-        # Verify static file definitions
-        root = Path(__file__).resolve().parents[1]
-        tmpl = (root / "templates/prostaff_one_on_ones.html").read_text(encoding="utf-8")
-        css = (root / "static/rwu_theme_overrides.css").read_text(encoding="utf-8")
-        self.assertNotIn("prostaff-hero-mark", tmpl)
-        self.assertNotIn("prostaff-one-on-one-hero", tmpl)
-        self.assertNotIn(">1:1<", tmpl)
-        self.assertNotIn(".prostaff-hero-mark", css)
-        self.assertNotIn(".prostaff-one-on-one-hero", css)
 
     def test_consolidate_duty_schedule_helper(self):
         # Empty input
