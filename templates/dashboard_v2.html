@@ -11,6 +11,7 @@
   </section>
 
   <section class="rwu-staff-events" aria-label="Staff events and deadlines">
+  {% set has_staff_event = false %}
   {% if building_profile %}
   {% set next_meeting = building_profile.staff_meeting_at|next_event(building_profile.staff_meeting_repeat_weeks) %}
   {% set next_dinner = building_profile.staff_dinner_at|next_event(building_profile.staff_dinner_repeat_weeks) %}
@@ -20,7 +21,8 @@
   {% set repeat_weeks = building_profile.staff_meeting_repeat_weeks if use_meeting else building_profile.staff_dinner_repeat_weeks %}
   {% set next_at = next_meeting if use_meeting else next_dinner %}
   {% set event_endpoint = 'update_staff_dinner' if next_dinner and not use_meeting else 'update_staff_meeting' %}
-    {% if me.role in ('HRA', 'ADMIN') or (next_at and location) %}
+    {% set has_staff_event = me.role in ('HRA', 'ADMIN') or (next_at and location) %}
+    {% if has_staff_event %}
     <article class="card rwu-staff-event-card" data-card="combined-events">
       <div class="eyebrow">Staff Dinner &amp; Meeting</div>
       <div class="rwu-meeting-info">{% if next_at and location %}<h2>{{ next_at|event_label }}</h2><p>{{ location }}{% if repeat_weeks %} · {{ repeat_weeks|repeat_label }}{% endif %}</p>{% else %}<h2>Not scheduled</h2>{% endif %}</div>
@@ -32,7 +34,7 @@
     {% endif %}
 
   {% endif %}
-  {% include 'deadline_widget.html' %}
+  {% with deadline_preview_limit=3 if has_staff_event else 4 %}{% include 'deadline_widget.html' %}{% endwith %}
   </section>
 
   <section class="card dashboard-schedule-panel rwu-duty-panel">

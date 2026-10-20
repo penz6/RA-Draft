@@ -3,44 +3,6 @@
 
   document.documentElement.classList.add("js");
 
-  // Fit complete deadline rows to the staff card's natural height at any width.
-  const deadlinePreview = document.querySelector("[data-deadline-preview]");
-  if (deadlinePreview) {
-    const staffCard = deadlinePreview.closest(".rwu-staff-events")?.querySelector('[data-card="combined-events"]');
-    const body = deadlinePreview.querySelector(".deadline-preview-body");
-    const rows = [...deadlinePreview.querySelectorAll(".deadline-preview-list li")];
-    let scheduled = false;
-    const fitDeadlines = () => {
-      scheduled = false;
-      if (staffCard) {
-        deadlinePreview.style.setProperty("--deadline-preview-height", `${staffCard.getBoundingClientRect().height}px`);
-      }
-      const bottom = body.getBoundingClientRect().bottom;
-      let full = false;
-      for (const row of rows) {
-        row.hidden = full;
-        if (!full && row.getBoundingClientRect().bottom > bottom + 0.5) {
-          row.hidden = true;
-          full = true;
-        }
-      }
-    };
-    const scheduleFit = () => {
-      if (!scheduled) {
-        scheduled = true;
-        requestAnimationFrame(fitDeadlines);
-      }
-    };
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(scheduleFit);
-      if (staffCard) observer.observe(staffCard);
-      observer.observe(body);
-    }
-    window.addEventListener("resize", scheduleFit);
-    document.fonts?.ready.then(scheduleFit);
-    fitDeadlines();
-  }
-
   const deadlineEmailForm = document.querySelector("[data-deadline-email-form]");
   deadlineEmailForm?.querySelector('[name="email_reminders"]').addEventListener("change", () => {
     deadlineEmailForm.requestSubmit();
@@ -346,12 +308,15 @@
       dayCells.forEach((dayCell) => {
         const events = Array.from(dayCell.querySelectorAll("[data-duty-event]"));
         let searchEmpty = dayCell.querySelector(".is-search-empty");
+        const more = dayCell.querySelector("[data-calendar-more]");
+        const updateMore = count => { if (more) more.textContent = count > 2 ? `+${count - 2} more` : ""; };
 
         if (!events.length) {
           return;
         }
 
         if (!query) {
+          updateMore(events.length);
           events.forEach((ev) => {
             ev.hidden = false;
             ev.classList.remove("is-search-match");
@@ -378,6 +343,7 @@
           }
         });
 
+        updateMore(visibleCount);
         if (visibleCount === 0) {
           if (!searchEmpty) {
             searchEmpty = document.createElement("small");

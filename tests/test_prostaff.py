@@ -470,7 +470,7 @@ class ProstaffTestCase(unittest.TestCase):
         self.assertIn('<small class="empty-copy">No duty</small>', html)
 
         # Exactly 1 entry for Maple on Day 15
-        self.assertEqual(html.count("Alex RA &amp; Sam RA"), 1)
+        self.assertEqual(html.count("<span>Alex RA &amp; Sam RA</span>"), 1)
 
     def test_prostaff_and_admin_lite_see_campus_wide_duty_coverage(self):
         today = date.today()

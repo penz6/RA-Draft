@@ -12,6 +12,14 @@ from core import app, capacities_for, current_user, db, login_required, roles
 from runtime_policy import school_today
 
 
+def deadline_email_opt_ins(conn, building_id=None):
+    """Count active subscribers in the analytics viewer's selected scope."""
+    return conn.execute(
+        'SELECT COUNT(*) FROM users WHERE disabled=0 AND deadline_email_opt_in=1 '
+        'AND (? IS NULL OR building_id=?)', (building_id, building_id),
+    ).fetchone()[0]
+
+
 @app.route('/admin/analytics')
 @login_required
 def admin_analytics():
@@ -69,7 +77,8 @@ def admin_analytics():
     )}
     required = sum(r['required'] for r in reports)
     filled = sum(r['filled'] for r in reports)
-    metrics = dict(assignments=len(assignments),
+    metrics = dict(deadline_email_opt_ins=deadline_email_opt_ins(conn, building_id),
+                   assignments=len(assignments),
                    open_sessions=sum(s['status'] == 'OPEN' for s in sessions),
                    coverage=round(100 * filled / required) if required else None,
                    required=required, filled=filled,
@@ -156,6 +165,7 @@ def hra_analytics():
     required = sum(r['required'] for r in reports)
     filled = sum(r['filled'] for r in reports)
     metrics = dict(
+        deadline_email_opt_ins=deadline_email_opt_ins(conn, building_id),
         assignments=len(assignments),
         open_sessions=sum(s['status'] == 'OPEN' for s in sessions),
         coverage=round(100 * filled / required) if required else None,

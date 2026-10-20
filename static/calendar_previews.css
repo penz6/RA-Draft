@@ -1,0 +1,24 @@
+/* Content never determines a calendar day's height. */
+.rwu-portal .calendar-cell,.rwu-portal .calendar-day,.rwu-portal .prostaff-calendar-day{height:112px;min-height:112px;max-height:112px;min-width:0}
+.rwu-portal .calendar-cell>.calendar-day{width:100%;overflow:hidden}
+.rwu-portal .calendar-cell{border-radius:10px}
+.rwu-portal .calendar-cell[data-calendar-readonly]>.calendar-day{pointer-events:none}
+.rwu-portal .calendar-cell:focus-visible,.rwu-portal [data-calendar-readonly]:focus-visible{outline:3px solid var(--rwu-blue,#23678c);outline-offset:2px}
+.rwu-portal .calendar-assignees{min-height:0;overflow:hidden}
+.rwu-portal .calendar-day-head,.rwu-portal .calendar-capacity{flex-shrink:0}
+.rwu-portal .deadline-calendar td{padding:0;height:112px}
+.calendar-date-preview{display:flex;flex-direction:column;align-items:stretch;gap:.3rem;width:100%;height:112px;padding:.5rem;border:0;color:inherit;background:transparent;text-align:left;font:inherit;cursor:pointer}
+.calendar-date-preview .deadline-day-number{align-self:flex-start}
+.calendar-cell-summary{height:44px;min-height:44px;overflow:hidden}
+.calendar-summary-line,.rwu-portal .calendar-cell-summary>.prostaff-duty-event{display:block;height:22px;min-height:22px;max-height:22px;line-height:22px;padding:0 .25rem;margin:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.75rem}
+.rwu-portal .calendar-cell-summary>.prostaff-duty-event[hidden]{display:none!important}
+.calendar-summary-line{background:var(--rwu-hover,#edf6fa);border-left:3px solid var(--rwu-blue,#23678c)}
+.rwu-portal .calendar-cell-summary>.prostaff-duty-event strong{display:inline;margin-right:.3rem}
+.calendar-cell-more{font-size:.7rem;line-height:1.2;color:var(--rwu-muted,#536174)}
+.calendar-detail-popover{position:fixed;inset:auto;margin:0;width:min(360px,calc(100vw - 24px));max-height:min(400px,calc(100vh - 24px));overflow:auto;padding:1rem;border:1px solid var(--rwu-line,#bccdd9);border-radius:12px;color:var(--rwu-text,#173247);background:var(--rwu-paper,#e8eef2);box-shadow:0 10px 30px #01295f33;z-index:10000}
+.calendar-detail-popover:not(:popover-open)[hidden]{display:none}
+.calendar-detail-popover h3{margin:0 2rem .65rem 0;font-size:1rem}
+.calendar-detail-popover p{margin:.4rem 0;white-space:pre-line;overflow-wrap:anywhere}
+.calendar-detail-popover a{color:inherit;text-decoration:underline}
+.calendar-detail-popover .calendar-detail-close{float:right;padding:.1rem .4rem;min-width:30px;min-height:30px;border:0;background:transparent;color:inherit;font-size:1.25rem;cursor:pointer}
+.calendar-detail-popover .deadline-calendar-event,.calendar-duty-details{border-bottom:1px solid var(--rwu-line,#bccdd9);padding:.5rem 0;margin:0;background:transparent}

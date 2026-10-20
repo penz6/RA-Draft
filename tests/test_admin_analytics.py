@@ -65,6 +65,30 @@ class AdminAnalyticsTests(unittest.TestCase):
         self.assertIn(b'<h1>Welcome, Admin</h1>', dashboard.data)
         self.assertIn(b'<details class="card create-session-card', dashboard.data)
 
+    def test_deadline_opt_ins_respect_active_accounts_and_building_scope(self):
+        admin = self.add_admin()
+        maple = self.add_building('Maple')
+        cedar = self.add_building('Cedar')
+        hra = self.add_user(sub='analytics-hra', email='analytics-hra@rwu.edu', name='Maple HRA', role='HRA', building_id=maple)
+        users = [self.add_user(sub='subscriber-' + str(index), email='subscriber-' + str(index) + '@rwu.edu', name='Subscriber', building_id=building)
+                 for index, building in enumerate((maple, cedar, None, maple))]
+        with app.app_context():
+            conn = db()
+            conn.executemany('UPDATE users SET deadline_email_opt_in=1 WHERE id=?', [(uid,) for uid in users])
+            conn.execute('UPDATE users SET disabled=1 WHERE id=?', (users[-1],))
+            conn.commit()
+        self.login_as(admin)
+        metric = lambda count: ('data-deadline-opt-ins><span>Deadline email opt-ins</span><strong>' + str(count) + '</strong>').encode()
+        self.assertIn(metric(3), self.request('get', '/admin/analytics').data)
+        self.assertIn(metric(1), self.request('get', '/admin/analytics?building_id=' + str(maple)).data)
+        self.assertIn(metric(1), self.request('get', '/admin/analytics?building_id=' + str(cedar)).data)
+        self.login_as(hra)
+        self.assertIn(metric(1), self.request('get', '/hra/analytics').data)
+        with app.app_context():
+            db().execute('UPDATE users SET deadline_email_opt_in=0 WHERE id=?', (users[0],))
+            db().commit()
+        self.assertIn(metric(0), self.request('get', '/hra/analytics').data)
+
     def test_logins_per_week(self):
         admin = self.add_admin()
         with app.app_context():

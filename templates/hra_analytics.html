@@ -6,6 +6,7 @@
   <a class="button secondary" href="{{ url_for('dashboard') }}">&larr; Dashboard</a>
 </div>
 <div class="overview-grid">
+  <div class="overview-stat" data-deadline-opt-ins><span>Deadline email opt-ins</span><strong>{{ metrics.deadline_email_opt_ins }}</strong><small>Active accounts subscribed to deadline reminders</small></div>
   <div class="overview-stat"><span>Staffing coverage</span><strong>{{ metrics.coverage|string + '%' if metrics.coverage is not none else '—' }}</strong><small>{{ metrics.filled }} of {{ metrics.required }} required slots filled</small></div>
   <div class="overview-stat"><span>Upcoming open slots</span><strong>{{ metrics.upcoming_open }}</strong><small>Unfilled slots from today onward</small></div>
   <div class="overview-stat"><span>Assigned shifts</span><strong>{{ metrics.assignments }}</strong><small>Across {{ reports|length }} sessions</small></div>

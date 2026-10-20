@@ -8,6 +8,7 @@ import sys
 import threading
 from playwright.sync_api import sync_playwright
 from swap_building_browser_checks import check_swap_building_selector
+from browser_calendar_checks import check_calendar_previews
 
 
 def run(destination):
@@ -21,8 +22,8 @@ def run(destination):
     screenshots = destination / 'screenshots'
     screenshots.mkdir(exist_ok=True)
     pages = sorted(destination.glob('*.html'))
-    if len(pages) != 15:
-        raise AssertionError(f'Expected 15 rendered pages, found {len(pages)}')
+    if len(pages) != 17:
+        raise AssertionError(f'Expected 17 rendered pages, found {len(pages)}')
     try:
         with sync_playwright() as playwright:
             launch = {'headless': True}
@@ -77,16 +78,14 @@ def run(destination):
                         }
                         for (const widget of document.querySelectorAll('.deadline-widget')) {
                             const staff = document.querySelector('[data-card="combined-events"]');
-                            expect(Math.abs(widget.getBoundingClientRect().height - staff.getBoundingClientRect().height) < 1, 'deadline preview matches staff card height');
-                            const body = widget.querySelector('.deadline-preview-body').getBoundingClientRect();
-                            const rows = [...widget.querySelectorAll('.deadline-preview-list li')].filter(row => !row.hidden);
-                            expect(rows.length > 0, 'at least one upcoming deadline fits');
-                            expect(rows.every(row => row.getBoundingClientRect().bottom <= body.bottom + .5), 'only complete deadline rows are shown');
-                            const next = [...widget.querySelectorAll('.deadline-preview-list li')].find(row => row.hidden);
-                            if (next) {
-                                next.hidden = false;
-                                expect(next.getBoundingClientRect().bottom > body.bottom + .5, 'preview fills all available row space');
-                                next.hidden = true;
+                            if (staff) expect(Math.abs(widget.getBoundingClientRect().height - staff.getBoundingClientRect().height) < 1, 'deadline preview matches staff card height');
+                            const rows = [...widget.querySelectorAll('.deadline-preview-list li')];
+                            expect(rows.length === (staff ? 3 : 4) && rows.every(row => !row.hidden), 'three deadlines with staff events, four without');
+                            const other = document.querySelector('.dashboard-schedule-panel .section-head a.button');
+                            if (other) {
+                                const previewButton = widget.querySelector('a.button');
+                                expect(Math.abs(previewButton.getBoundingClientRect().height - other.getBoundingClientRect().height) < 1, 'view all buttons match height');
+                                expect(Math.abs(previewButton.getBoundingClientRect().width - other.getBoundingClientRect().width) < 1, 'view all buttons match width');
                             }
                             expect(!widget.querySelector('.deadline-preview-list p'), 'preview has no descriptions');
                             expect(widget.querySelector('.deadline-preview-disclaimer').textContent.includes('*Refer to your AC'), 'disclaimer retained');
@@ -98,9 +97,16 @@ def run(destination):
                         }
                         for (const calendar of document.querySelectorAll('.deadline-calendar')) {
                             expect(calendar.querySelectorAll('th').length === 7, 'seven calendar weekdays');
-                            expect(calendar.querySelectorAll('.deadline-calendar-event').length >= 1, 'calendar contains deadlines');
-                            expect(document.querySelector('.deadline-list').children.length === 2, 'full deadline list populated');
+                            expect([...calendar.querySelectorAll('template')].some(t => t.content.querySelector('.deadline-calendar-event')), 'calendar contains deadline details');
+                            expect(document.querySelector('.deadline-list').children.length === 4, 'full deadline list populated');
                             expect(document.querySelector('.rwu-nav-link[aria-current="page"]').textContent.includes('Deadlines'), 'active deadline navigation');
+                        }
+                        for (const selector of ['.deadline-calendar td', '.prostaff-calendar-day', '.calendar-cell']) {
+                            const cells = [...document.querySelectorAll(selector)];
+                            if (cells.length) {
+                                const heights = cells.map(cell => cell.getBoundingClientRect().height);
+                                expect(Math.max(...heights) - Math.min(...heights) < 1, 'uniform calendar day heights: ' + selector);
+                            }
                         }
                         expect(document.documentElement.scrollWidth <= window.innerWidth + 1, 'page horizontal overflow');
                         return errors;
@@ -108,6 +114,7 @@ def run(destination):
                     failures.extend(f'{html.stem}/{width}: {error}' for error in result)
                     if html.stem == 'swap-home':
                         failures.extend(f'{html.stem}/{width}: {error}' for error in check_swap_building_selector(page))
+                    failures.extend(f'{html.stem}/{width}: {error}' for error in check_calendar_previews(page))
                     checked += 1
                     if width in (1440, 390):
                         page.screenshot(path=str(screenshots / f'{html.stem}-{width}.png'), full_page=True)
@@ -144,7 +151,7 @@ def run(destination):
     (destination / 'browser-results.json').write_text(json.dumps({'page_checks': checked, 'failures': failures}, indent=2))
     if failures:
         raise AssertionError('\n'.join(failures))
-    print(f'Passed {checked} full-page Chromium checks (15 pages at 3 viewport widths).')
+    print(f'Passed {checked} full-page Chromium checks (17 pages at 3 viewport widths).')
 
 
 if __name__ == '__main__':

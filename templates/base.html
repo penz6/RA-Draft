@@ -17,10 +17,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_theme_overrides.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='rwu_polish.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='deadlines.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='calendar_previews.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='portal_navy.css') }}">
   <script src="{{ url_for('static', filename='live_stream.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   <script src="{{ url_for('static', filename='session_live_ui.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='calendar_previews.js') }}" defer></script>
 </head>
 <body class="{% if me %}rwu-portal{% else %}rwu-public{% endif %}">
   <a class="skip-link" href="#main-content">Skip to main content</a>

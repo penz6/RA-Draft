@@ -43,6 +43,7 @@ class DeadlineTests(unittest.TestCase):
     def feed(self):
         return parse_deadlines([
             {"title": "Later", "due_date": "2026-11-06"},
+            {"title": "Fourth", "due_date": "2026-12-01"},
             {"title": "Report", "due_at": "2026-10-20T01:00:00Z", "description": "Submit report"},
             {"title": "Passed", "due_at": "2026-10-19T08:00:00-04:00"},
             {"title": "Today", "due_date": "2026-10-19"},
@@ -56,7 +57,11 @@ class DeadlineTests(unittest.TestCase):
             return self.request("get", path)
 
     def test_ra_list_replaces_widget_and_excludes_passed_deadlines(self):
-        self.add_staff()
+        uid = self.add_staff()
+        with app.app_context():
+            building = db().execute("SELECT building_id FROM users WHERE id=?", (uid,)).fetchone()[0]
+            db().execute("UPDATE buildings SET staff_meeting_at='2026-10-20T19:00', staff_meeting_location='Lounge' WHERE id=?", (building,))
+            db().commit()
         page = self.render_at_fixed_time("/dashboard").get_data(as_text=True)
         self.assertIn('data-card="deadlines"', page)
         self.assertNotIn("One-on-one", page)
@@ -65,9 +70,18 @@ class DeadlineTests(unittest.TestCase):
         self.assertLess(page.index(">Today<"), page.index(">Later<"))
         self.assertIn("9:00 PM", page)
         self.assertNotIn("Submit report", page)
+        self.assertNotIn(">Fourth<", page)
         calendar = self.render_at_fixed_time("/deadlines?month=2026-10").get_data(as_text=True)
         self.assertIn("Submit report", calendar)
         self.assertIn("Due today", calendar)
+        self.assertIn(">Fourth<", calendar)
+
+    def test_four_deadlines_when_there_is_no_staff_event_widget(self):
+        self.add_staff()
+        page = self.render_at_fixed_time("/dashboard").get_data(as_text=True)
+        self.assertNotIn('data-card="combined-events"', page)
+        self.assertIn(">Fourth<", page)
+        self.assertEqual(page.count('<strong title='), 4)
 
     def test_calendar_month_filter_and_full_list(self):
         self.add_staff()
@@ -123,6 +137,7 @@ class DeadlineTests(unittest.TestCase):
     def test_repository_feed_matches_import_cutoff_and_sources(self):
         feed = json.loads((Path(__file__).resolve().parents[1] / "deadlines.json").read_text())
         self.assertEqual(len(feed["deadlines"]), 25)
+        self.assertFalse(any("hawklink.rwu.edu" in item.get("url", "") for item in feed["deadlines"]))
         self.assertEqual(len(parse_deadlines(feed)), 25)
         self.assertFalse(any(item["title"].startswith("Building CBA:") for item in feed["deadlines"]))
         for item in feed["deadlines"]:

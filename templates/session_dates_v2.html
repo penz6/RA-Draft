@@ -47,6 +47,9 @@
                 {% set kind_override = d in date_kind_overrides %}
                 {% set full = no_duty or filled >= capacity %}
                 {% set self_allowed = d in selectable_dates %}
+                {% set locked = draft.status != 'OPEN' or draft.picking_paused or full or (not can_manage and not self_allowed) %}
+                <div class="calendar-cell{% if not month_state.first_rendered %} calendar-start-{{ loop.index }}{% endif %}" role="gridcell" data-calendar-preview{% if locked %} tabindex="0" data-calendar-readonly{% endif %}>
+                <template data-calendar-details><h3>{{ d|date_label }}</h3><p>{{ date_kind_labels[date_kind] }} · {% if no_duty %}No staffing required{% else %}{{ filled }}/{{ capacity }} staffed{% endif %}</p>{% if assigned %}<ul>{% for person in assigned %}<li>{{ person.name }}</li>{% endfor %}</ul>{% elif not no_duty %}<p>Open shift</p>{% endif %}</template>
                 <button class="calendar-day{% if not month_state.first_rendered %} calendar-start-{{ loop.index }}{% endif %}{% if date_kind == 'WEEKDAY' %} is-weekday{% elif date_kind == 'WEEKEND' %} is-weekend{% endif %}{% if full %} is-full{% endif %}{% if no_duty %} is-no-duty{% endif %}{% if self_allowed %} is-self-selectable{% endif %}{% if d in self_assigned_dates %} is-self-assigned{% endif %}" type="button" data-calendar-day data-date="{{ d }}" data-date-label="{{ d|date_label }}" data-full="{{ 'true' if full else 'false' }}" data-no-duty="{{ 'true' if no_duty else 'false' }}" data-self-selectable="{{ 'true' if self_allowed else 'false' }}" data-assigned-user-ids="{{ assignment_user_ids.get(d, '') }}" {% if draft.status != 'OPEN' or draft.picking_paused or full or (not can_manage and not self_allowed) %}disabled{% endif %} aria-label="{{ d|date_label }}: {% if no_duty %}no one needed{% else %}{{ filled }} of {{ capacity }} assigned{% if assigned %}; {{ assigned|map(attribute='name')|join(', ') }}{% endif %}{% endif %}">
                   <span class="calendar-day-head">
                     <strong>{{ d[8:10]|int }}</strong>
@@ -81,6 +84,7 @@
                     {% endif %}
                   </span>
                 </button>
+                </div>
                 {% set month_state.first_rendered = true %}
               {% endif %}
             {% endfor %}
