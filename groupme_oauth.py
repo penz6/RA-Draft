@@ -97,10 +97,26 @@ def groupme_connect(building_id):
     conn.commit()
     session["groupme_oauth_flow"] = flow_id
     session["groupme_oauth_state"] = nonce
+    # Complete the form navigation on our own origin. Browsers can apply
+    # form-action 'self' to external redirects anywhere in a form's chain.
+    return redirect(url_for("groupme_authorize"), code=303)
+
+
+@app.route("/groupme/authorize")
+@login_required
+def groupme_authorize():
+    flow = _flow()
+    if not flow:
+        return _setup_error("This GroupMe connection attempt expired. Please start again.")
+    if flow["token_ciphertext"]:
+        return redirect(url_for("groupme_choose_group"))
+    if not app.config["GROUPME_CLIENT_ID"]:
+        return _setup_error("GroupMe connection is not configured yet. Contact your administrator.", flow)
     # GroupMe's documented authorization URL; no invented scopes/code exchange.
-    return redirect("https://oauth.groupme.com/oauth/authorize?" + urlencode({
-        "client_id": app.config["GROUPME_CLIENT_ID"], "state": nonce,
-    }))
+    authorization_url = "https://oauth.groupme.com/oauth/authorize?" + urlencode({
+        "client_id": app.config["GROUPME_CLIENT_ID"], "state": session["groupme_oauth_state"],
+    })
+    return render_template("groupme_authorize.html", authorization_url=authorization_url)
 
 
 @app.route("/groupme/callback")
