@@ -68,12 +68,13 @@ jobs:
           mkdir -p artifacts
           docker run --rm --user "$(id -u):$(id -g)" --volume "$PWD/artifacts:/artifacts" ra-draft:ci python tests/render_portal_pages.py /artifacts
 
-      - name: Check complete pages in Chromium
+      - name: Check portal pages and GroupMe connection in Chromium
         run: |
           python3 -m venv /tmp/portal-browser-venv
-          /tmp/portal-browser-venv/bin/pip install playwright==1.57.0
+          /tmp/portal-browser-venv/bin/pip install -r requirements.txt playwright==1.57.0
           /tmp/portal-browser-venv/bin/python -m playwright install --with-deps chromium
           /tmp/portal-browser-venv/bin/python tests/browser_portal_checks.py artifacts
+          /tmp/portal-browser-venv/bin/python tests/browser_groupme_connect_checks.py
 
       - name: Upload portal previews and browser results
         if: always()

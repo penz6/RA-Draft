@@ -81,7 +81,11 @@ can remove the token. Do not enable callback URL analytics or request tracing
 that records credentials.
 
 A connection attempt is tied to the signed-in user, initiating browser session,
-and building, expires after ten minutes, and can only be completed once. The
+and building. The Connect form first completes on a same-origin handoff page,
+which navigates to GroupMe using an ordinary link/navigation. This avoids browser
+blocking of external form redirects while keeping `form-action 'self'`. A
+visible **Continue to GroupMe** link also works without JavaScript. Each attempt
+expires after ten minutes and can only be completed once. The
 database uses an independently generated random flow ID, separate from the
 OAuth nonce. Both are held in the signed browser session; the nonce is not
 hashed for database lookups. The

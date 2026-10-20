@@ -1,6 +1,8 @@
 """Mocked GroupMe authorization, account confirmation, and bot registration."""
 
 import hashlib
+from html import unescape
+import re
 import unittest
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import MagicMock, patch
@@ -32,9 +34,39 @@ class GroupMeOAuthTests(unittest.TestCase):
 
     def start(self):
         response = self.post(f"/buildings/{self.hall}/groupme/connect")
-        params = parse_qs(urlsplit(response.location).query)
+        self.assertEqual(response.status_code, 303)
+        self.assertTrue(response.location.endswith("/groupme/authorize"))
+        page = self.request("get", response.location)
+        self.assertEqual(page.status_code, 200)
+        match = re.search(r'id="groupme-authorize-link" href="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        authorization_url = unescape(match.group(1))
+        self.assertEqual(urlsplit(authorization_url).netloc, "oauth.groupme.com")
+        params = parse_qs(urlsplit(authorization_url).query)
         self.assertEqual(params["client_id"], ["test-groupme-client"])
         return params["state"][0]
+
+    def test_authorization_handoff_keeps_strict_csp_and_fallback_link(self):
+        self.start()
+        page = self.request("get", "/groupme/authorize?next=https://attacker.example")
+        self.assertIn("form-action 'self';", page.headers["Content-Security-Policy"])
+        self.assertEqual(page.headers["Referrer-Policy"], "no-referrer")
+        self.assertIn("no-store", page.headers["Cache-Control"])
+        self.assertIn(b"Continue to GroupMe", page.data)
+        self.assertIn(b"groupme_authorize.js", page.data)
+        self.assertNotIn(b"attacker.example", page.data)
+
+    def test_authorization_handoff_requires_an_active_setup_and_honors_expiry(self):
+        self.assertTrue(self.request("get", "/groupme/authorize").location.endswith("/deadlines"))
+        self.start()
+        with app.app_context():
+            db().execute("UPDATE groupme_oauth_flows SET expires_at=0")
+            db().commit()
+        self.assertTrue(self.request("get", "/groupme/authorize").location.endswith("/deadlines"))
+
+    def test_returning_to_handoff_after_authorization_resumes_group_selection(self):
+        self.ready()
+        self.assertTrue(self.request("get", "/groupme/authorize").location.endswith("/groupme/select"))
 
     def complete(self, *, state=None):
         def provider(method, path, token, **kwargs):
