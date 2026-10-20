@@ -101,6 +101,10 @@ def run(destination):
                             expect(document.querySelector('.deadline-list').children.length === 4, 'full deadline list populated');
                             expect(document.querySelector('.rwu-nav-link[aria-current="page"]').textContent.includes('Deadlines'), 'active deadline navigation');
                         }
+                        for (const form of document.querySelectorAll('[data-deadline-email-form]')) {
+                            expect(!form.querySelector('button'), 'email preference has no redundant save button');
+                            expect(form.textContent.includes('Changes save automatically.'), 'email preference explains automatic saving');
+                        }
                         for (const selector of ['.deadline-calendar td', '.prostaff-calendar-day', '.calendar-cell']) {
                             const cells = [...document.querySelectorAll(selector)];
                             if (cells.length) {
