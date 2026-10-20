@@ -3,7 +3,7 @@
 import hashlib
 
 EMAIL_REMINDER_DAYS = (7, 0)
-GROUPME_REMINDER_DAYS = (7, -7)
+GROUPME_REMINDER_DAYS = (7, 0)
 
 
 def reminder_key(item):
@@ -15,6 +15,4 @@ def reminder_key(item):
 def reminder_label(days):
     if days == 7:
         return "Due in 1 week"
-    if days == -7:
-        return "Was due 1 week ago"
     return "Due today"

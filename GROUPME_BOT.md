@@ -47,22 +47,20 @@ and enter the private Bot ID. Saving never sends a test message automatically.
 
 ## Schedule and messages
 
-GroupMe posts at 9 a.m. America/New_York **seven calendar days before and seven
-calendar days after** each deadline. Email sends seven days before and **on** the
-due date. No day-of GroupMe posts. One short post per matching deadline:
+GroupMe posts at 9 a.m. America/New_York **seven calendar days before and on**
+each deadline's due date. Email uses the same schedule. One short post per
+matching deadline:
 
 ```text
 📅 Due in 1 week
 Bulletin Boards
-Due Oct 26, 2026 · All day
+Due Oct 26, 2026
 ```
 
-The later post starts with `📅 Was due 1 week ago`. Posts contain only the title
-and due date/time from the shared JSON feed, with no descriptions or links.
+The day-of post starts with `📅 Due today`. Posts contain only the title and
+calendar date from the shared JSON feed, with no time, descriptions, or links.
 They do not indicate personal completion status. No duty assignments, swaps,
-or group conversations are sent. Past deadlines must remain in the feed at
-least seven days for the later reminder; old dates omitted from the original
-PDF import are not added back.
+or group conversations are sent.
 
 ## Authorization and credentials
 

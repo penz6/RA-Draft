@@ -36,7 +36,7 @@ class GroupMeBotTests(unittest.TestCase):
 
     def state(self):
         return {"notice": "", "items": parse_deadlines([
-            {"title": "Next week", "due_date": "2026-10-26", "description": "Never post this description", "url": "https://example.com/private"},
+            {"title": "Next week", "due_at": "2026-10-26T18:30:00-04:00", "description": "Never post this description", "url": "https://example.com/private"},
             {"title": "Last week", "due_date": "2026-10-12"},
             {"title": "Today", "due_date": "2026-10-19"},
             {"title": "In three days", "due_date": "2026-10-22"},
@@ -159,16 +159,18 @@ class GroupMeBotTests(unittest.TestCase):
         self.assertEqual(count, 0)
         post.assert_not_called()
 
-    def test_one_week_before_and_after_only_with_minimal_calendar_messages(self):
+    def test_one_week_before_and_day_of_only_with_date_only_messages(self):
         self.connection()
         count, post = self.run_worker()
         self.assertEqual(count, 2)
         messages = [call.args[1] for call in post.call_args_list]
         self.assertTrue(all(text.startswith("📅 ") and len(text) < 1000 for text in messages))
-        self.assertTrue(any("Was due 1 week ago\nLast week" in text for text in messages))
+        self.assertTrue(any("Due today\nToday\nDue Oct 19, 2026" in text for text in messages))
         self.assertTrue(any("Due in 1 week\nNext week" in text for text in messages))
+        self.assertTrue(any(text.endswith("Due Oct 26, 2026") for text in messages))
         self.assertTrue(all("description" not in text and "https://" not in text for text in messages))
-        self.assertTrue(all("Today" not in text and "In three days" not in text for text in messages))
+        self.assertTrue(all("6:30" not in text and "EDT" not in text and "All day" not in text for text in messages))
+        self.assertTrue(all("Last week" not in text and "In three days" not in text for text in messages))
 
     def test_receipts_persist_and_prevent_repeated_success(self):
         self.connection()

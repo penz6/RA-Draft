@@ -213,9 +213,10 @@ def groupme_settings(building_id):
 
 
 def deadline_message(item, days):
-    # Only titles and dates; no descriptions, links, or duty notifications.
+    # Only titles and calendar dates; no times, descriptions, links, or duty
+    # notifications.
     title = " ".join(item["title"].split())[:200]
-    return f"📅 {reminder_label(days)}\n{title}\nDue {item['label']}"
+    return f"📅 {reminder_label(days)}\n{title}\nDue {item['day']:%b %d, %Y}"
 
 
 def _claim(connection, item, days, now):
