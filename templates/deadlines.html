@@ -10,10 +10,62 @@
     <form method="post" action="{{ url_for('deadline_email_preferences') }}" data-deadline-email-form>
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <label class="deadline-email-checkbox"><input type="checkbox" name="email_reminders" value="1"{% if me.deadline_email_opt_in %} checked{% endif %}> Get email reminders about upcoming deadlines</label>
-      <p>We’ll email {{ me.email }} three days before and on the day of each deadline, at 9 a.m. Eastern. Uncheck this box to opt out.</p>
+      <p>We’ll email {{ me.email }} one week before and on the day of each deadline, at 9 a.m. Eastern. Uncheck this box to opt out.</p>
       <button class="button small secondary" type="submit">Save preference</button>
     </form>
   </section>
+  {% if groupme_building_id %}
+  <section class="card deadline-groupme-settings" aria-labelledby="groupme-heading">
+    <h2 id="groupme-heading">GroupMe reminders · {{ groupme_building_name }}</h2>
+    {% if me.role == 'ADMIN' %}
+    <form method="get" class="deadline-groupme-building-picker">
+      <label class="field">Building<select name="groupme_building">{% for building in groupme_buildings %}<option value="{{ building.id }}"{% if building.id == groupme_building_id %} selected{% endif %}>{{ building.name }}</option>{% endfor %}</select></label>
+      <input type="hidden" name="month" value="{{ selected_month }}">
+      <button class="button small secondary" type="submit">Manage building</button>
+    </form>
+    {% endif %}
+    <p>Post deadlines to this building’s group one week before and one week after each due date, at 9 a.m. Eastern. Each message starts with 📅 and includes only the deadline title and due date.</p>
+    {% if groupme_oauth_ready %}
+    <p>Connect your GroupMe account, choose your building’s chat, and confirm to add “RA Deadlines.”</p>
+    <form method="post" action="{{ url_for('groupme_connect', building_id=groupme_building_id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button small secondary" type="submit">{% if groupme_connection %}Reconnect or change chat{% else %}Connect GroupMe{% endif %}</button></form>
+    {% else %}<p>GroupMe connection is not configured yet. Contact your administrator.</p>{% endif %}
+    {% if groupme_connection %}
+    <p role="status"><strong>{% if not groupme_authorized %}Paused — save the settings to confirm this building’s connection.{% elif groupme_connection.enabled %}Connected · reminders on{% else %}Connected · reminders off{% endif %}</strong></p>
+    {% if groupme_connection.group_name %}<p>Chat: <strong>{{ groupme_connection.group_name }}</strong></p>{% endif %}
+    {% if groupme_connection.last_error %}<p class="notice" role="status">{{ groupme_connection.last_error }}</p>{% endif %}
+    {% if groupme_connection.last_sent_at %}<p><small>Last successful post: <time datetime="{{ groupme_connection.last_sent_at }}">{{ groupme_connection.last_sent_at }}</time></small></p>{% endif %}
+    {% endif %}
+    {% if groupme_connection or me.role == 'ADMIN' %}
+    <details>
+      <summary>{% if groupme_connection %}Manage connection{% else %}Manual setup (Admin){% endif %}</summary>
+      {% if me.role == 'ADMIN' %}
+      <ol>
+        <li>Have the HRA add your GroupMe account to this building’s group, then sign in to <a href="https://dev.groupme.com/bots" target="_blank" rel="noopener noreferrer">GroupMe’s bot developer page</a> with your account.</li>
+        <li>Create an active bot for that group, named “RA Deadlines.” Repeat for each building’s group using the same name. Leave the callback URL blank; an avatar is optional.</li>
+        <li>Copy its <strong>Bot ID</strong> below. Keep it private. See the <a href="https://dev.groupme.com/tutorials/bots" target="_blank" rel="noopener noreferrer">official setup guide</a>.</li>
+      </ol>
+      {% endif %}
+      <form method="post" action="{{ url_for('groupme_settings', building_id=groupme_building_id) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="save">
+        {% if me.role == 'ADMIN' %}
+        <label class="field">Bot ID<input type="password" name="bot_id" autocomplete="new-password" minlength="8" maxlength="200" spellcheck="false"{% if not groupme_connection %} required{% endif %} aria-describedby="groupme-secret-help"></label>
+        <p id="groupme-secret-help"><small>{% if groupme_connection %}Leave blank to keep the saved Bot ID. {% endif %}Your saved Bot ID is never displayed.</small></p>
+        {% endif %}
+        <label class="deadline-email-checkbox"><input type="checkbox" name="groupme_reminders" value="1"{% if not groupme_connection or groupme_connection.enabled %} checked{% endif %}> Enable deadline reminders for this group</label>
+        <p><small>Saving enables scheduled posts when checked. Use “Send test message” after saving to check the group connection.</small></p>
+        <button class="button small secondary" type="submit">Save GroupMe settings</button>
+      </form>
+      {% if groupme_connection %}
+      <div class="deadline-groupme-actions">
+        <form method="post" action="{{ url_for('groupme_settings', building_id=groupme_building_id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button small secondary" name="action" value="test" type="submit">Send test message</button></form>
+        <form method="post" action="{{ url_for('groupme_settings', building_id=groupme_building_id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button small secondary" name="action" value="disconnect" type="submit">Disconnect GroupMe</button></form>
+      </div>
+      {% endif %}
+    </details>
+    {% endif %}
+  </section>
+  {% endif %}
   {% if deadline_notice %}<p class="notice" role="status">{{ deadline_notice }}</p>{% endif %}
   <section class="card deadline-calendar-panel" aria-label="Deadline calendar">
     <div class="deadline-toolbar">

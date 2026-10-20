@@ -65,9 +65,10 @@ def render_pages(destination):
             extra_session = conn.execute("INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) VALUES(?,?,?,?,?,'CLOSED')", ('October coverage', extra_hall, '2026-10-01', '2026-10-07', admin)).lastrowid
             conn.execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (extra_session, ra, '2026-10-01', admin))
         conn.commit()
-    def save(name, endpoint, user=None, **values):
+    def save(name, endpoint, user=None, keep_session=False, **values):
         with fixture.client.session_transaction() as session:
-            session.clear()
+            if not keep_session:
+                session.clear()
         if user is not None:
             fixture.login_as(user)
         with app.test_request_context(base_url='https://ci.local'):
@@ -95,6 +96,15 @@ def render_pages(destination):
         save('dashboard-no-staff', 'dashboard', no_staff_ra)
         save('deadlines-ra', 'deadline_calendar', ra)
         save('deadlines-prostaff', 'deadline_calendar', prostaff)
+        with patch.dict(app.config, GROUPME_CLIENT_ID='preview-client'):
+            save('deadlines-admin', 'deadline_calendar', admin)
+            save('deadlines-hra', 'deadline_calendar', hra)
+            fixture.request('post', f'/buildings/{hall}/groupme/connect', data={'csrf': 'admin-management-csrf'})
+            with patch('groupme_oauth._api', side_effect=[
+                {'id': '123', 'name': 'Alex Morgan'}, [{'id': '456', 'name': 'Maple Hall Staff'}],
+            ]):
+                fixture.request('post', '/groupme/oauth/complete', data={'csrf': 'admin-management-csrf', 'access_token': 'preview-token'})
+            save('groupme-select', 'groupme_choose_group', hra, keep_session=True)
     save('admin', 'admin', admin)
     save('admin-analytics', 'admin_analytics', admin)
     save('hra-analytics', 'hra_analytics', hra)
@@ -106,7 +116,7 @@ def render_pages(destination):
     save('swaps', 'building_swap_page', ra, building_id=hall)
     save('prostaff-swaps', 'prostaff_swaps', prostaff)
     save('prostaff-schedule', 'prostaff_schedule', prostaff, month='2026-10')
-    print('Rendered 17 application pages with sample data.')
+    print('Rendered 20 application pages with sample data.')
 
 
 if __name__ == '__main__':

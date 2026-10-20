@@ -14,7 +14,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Test submit lifecycle
-        run: node tests/test_submit_lifecycle.mjs
+        run: |
+          node tests/test_submit_lifecycle.mjs
+          node tests/test_groupme_oauth_callback.mjs
 
       - name: Build image
         run: docker build --tag ra-draft:ci .

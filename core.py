@@ -522,6 +522,29 @@ def migrate_schema(conn):
         "PRIMARY KEY(user_id,deadline_key,reminder_days))"
     )
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS building_groupme_bots ("
+        "building_id INTEGER PRIMARY KEY REFERENCES buildings(id) ON DELETE CASCADE,"
+        "bot_ciphertext TEXT NOT NULL, bot_hash TEXT NOT NULL UNIQUE,"
+        "enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),"
+        "configured_by INTEGER REFERENCES users(id) ON DELETE SET NULL,"
+        "last_test_at REAL NOT NULL DEFAULT 0, last_sent_at TEXT, last_error TEXT, group_name TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS groupme_oauth_flows ("
+        "state_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+        "building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,"
+        "expires_at REAL NOT NULL, token_ciphertext TEXT, account_name TEXT, account_id TEXT,"
+        "groups_json TEXT, original_bot_hash TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS groupme_deadline_deliveries ("
+        "building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,"
+        "bot_hash TEXT NOT NULL, deadline_key TEXT NOT NULL, reminder_days INTEGER NOT NULL,"
+        "claim_token TEXT NOT NULL, lease_until TEXT NOT NULL, sent_at TEXT,"
+        "PRIMARY KEY(building_id,bot_hash,deadline_key,reminder_days))"
+    )
+
     # This belongs in the normal migration path rather than module import so
     # every process observes the same, fully initialized schema.
     conn.execute(
@@ -691,7 +714,9 @@ def security_headers(response):
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Referrer-Policy"] = (
+        "no-referrer" if request.path.startswith("/groupme/") else "strict-origin-when-cross-origin"
+    )
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"

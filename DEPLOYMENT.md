@@ -230,3 +230,12 @@ additive SQLite migrations. The updated Compose file also starts the dedicated
 `deadline-reminders` worker, using the existing mail settings. See
 `EMAIL_NOTIFICATIONS.md` for timing, delivery/retry behavior, and deployment
 instructions. The worker must be running for scheduled reminders to be sent.
+
+The same worker also sends [GroupMe deadline reminders](GROUPME_BOT.md),
+independently of email settings. Register one GroupMe application, set its
+HTTPS callback to `/groupme/callback`, and configure `GROUPME_CLIENT_ID`. HRAs
+can then authorize the application and select their building’s chat from the
+Deadlines page. The app creates a bot for that chat; HRAs do not handle Bot IDs.
+Admins can also connect manually registered bots. The web app and worker need
+outbound HTTPS access to `api.groupme.com:443`. Keep callback query strings out
+of proxy/access logs because GroupMe’s documented OAuth response contains a token.

@@ -1,0 +1,19 @@
+"""Shared reminder identity and channel-specific schedules."""
+
+import hashlib
+
+EMAIL_REMINDER_DAYS = (7, 0)
+GROUPME_REMINDER_DAYS = (7, -7)
+
+
+def reminder_key(item):
+    value = f"{item['title']}\n{item['due'].isoformat()}"
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def reminder_label(days):
+    if days == 7:
+        return "Due in 1 week"
+    if days == -7:
+        return "Was due 1 week ago"
+    return "Due today"
