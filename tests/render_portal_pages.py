@@ -36,6 +36,7 @@ def render_pages(destination):
     ra = fixture.add_user(sub='ra-preview', email='alex@g.rwu.edu', name='Alex Rivera', building_id=hall)
     partner = fixture.add_user(sub='partner-preview', email='jordan@g.rwu.edu', name='Jordan Ellis', building_id=hall)
     prostaff = fixture.add_user(sub='prostaff-preview', email='coordinator@rwu.edu', name='Morgan Coordinator', building_id=hall)
+    no_staff_ra = fixture.add_user(sub='no-staff-preview', email='no-staff@g.rwu.edu', name='Jamie Resident', building_id=fixture.add_building('No Events Hall'))
     new_ra = fixture.add_user(sub='new-preview', email='sam@g.rwu.edu', name='Sam Lee')
     inactive = fixture.add_user(sub='inactive-preview', email='casey@g.rwu.edu', name='Casey Park', building_id=hall)
     with app.app_context():
@@ -43,6 +44,7 @@ def render_pages(destination):
         conn.execute('UPDATE users SET building_id=? WHERE id=?', (hall, admin))
         conn.execute('UPDATE users SET is_prostaff=1,password_must_change=0 WHERE id=?', (prostaff,))
         conn.execute('UPDATE users SET disabled=1 WHERE id=?', (inactive,))
+        conn.execute('UPDATE users SET deadline_email_opt_in=1 WHERE id IN (?,?)', (ra, prostaff))
         conn.execute("UPDATE buildings SET accent_color='#ffffff',staff_meeting_at='2026-09-01T19:00',staff_meeting_location='Maple Lounge',staff_meeting_repeat_weeks=2,staff_dinner_at='2026-09-02T18:00',staff_dinner_location='Commons',staff_dinner_repeat_weeks=1 WHERE id=?", (hall,))
         opened = conn.execute("INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status,capacity,date_order) VALUES(?,?,?,?,?,'OPEN',2,'CHRONOLOGICAL')", ('September duty', hall, '2026-09-01', '2026-09-14', admin)).lastrowid
         closed = conn.execute("INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status,capacity) VALUES(?,?,?,?,?,'CLOSED',2)", ('October duty', hall, '2026-10-01', '2026-10-07', admin)).lastrowid
@@ -58,6 +60,10 @@ def render_pages(destination):
             (closed, ra, assignments[(ra, '2026-10-01')], partner, assignments[(partner, '2026-10-02')]),
         )
         conn.execute("INSERT INTO session_date_overrides(session_id,duty_date,date_kind,updated_by) VALUES(?,?,'NO_DUTY',?)", (opened,'2026-09-10',admin))
+        for index, name in enumerate(('Cedar', 'North Campus', 'Stonewall', 'Almeida')):
+            extra_hall = conn.execute('INSERT INTO buildings(name) VALUES(?)', (name,)).lastrowid
+            extra_session = conn.execute("INSERT INTO draft_sessions(name,building_id,start_date,end_date,created_by,status) VALUES(?,?,?,?,?,'CLOSED')", ('October coverage', extra_hall, '2026-10-01', '2026-10-07', admin)).lastrowid
+            conn.execute("INSERT INTO assignments(session_id,user_id,duty_date,created_by) VALUES(?,?,?,?)", (extra_session, ra, '2026-10-01', admin))
         conn.commit()
     def save(name, endpoint, user=None, **values):
         with fixture.client.session_transaction() as session:
@@ -81,9 +87,12 @@ def render_pages(destination):
         {'title': 'Monthly report', 'due_date': today.isoformat(),
          'description': 'Submit your programming report to Residence Life.'},
         {'title': 'Training completion', 'due_date': (today + timedelta(days=3)).isoformat()},
+        {'title': 'Safety review', 'due_date': today.isoformat(), 'description': 'Review the procedures with your supervisor. ' * 35},
+        {'title': 'Staff reflection', 'due_date': today.isoformat(), 'description': 'Submit your reflection.'},
     ])
     with patch('deadlines.load_deadlines', return_value={'items': deadline_items, 'notice': ''}):
         save('dashboard', 'dashboard', admin)
+        save('dashboard-no-staff', 'dashboard', no_staff_ra)
         save('deadlines-ra', 'deadline_calendar', ra)
         save('deadlines-prostaff', 'deadline_calendar', prostaff)
     save('admin', 'admin', admin)
@@ -96,7 +105,8 @@ def render_pages(destination):
     save('swap-home', 'swap_home', admin)
     save('swaps', 'building_swap_page', ra, building_id=hall)
     save('prostaff-swaps', 'prostaff_swaps', prostaff)
-    print('Rendered 15 application pages with sample data.')
+    save('prostaff-schedule', 'prostaff_schedule', prostaff, month='2026-10')
+    print('Rendered 17 application pages with sample data.')
 
 
 if __name__ == '__main__':

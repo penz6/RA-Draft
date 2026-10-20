@@ -25,7 +25,17 @@
       <table class="deadline-calendar"><caption class="sr-only">Upcoming deadlines for {{ month_label }}</caption>
         <thead><tr>{% for label in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
         <tbody>{% for week in deadline_weeks %}<tr>{% for day in week %}<td{% if not day %} class="is-empty"{% elif selected_month == deadline_today.strftime('%Y-%m') and day == deadline_today.day %} class="is-today" aria-current="date"{% endif %}>
-          {% if day %}<span class="deadline-day-number">{{ day }}</span>{% for item in deadline_by_day.get(day, []) %}<article class="deadline-calendar-event"><strong>{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</strong><time datetime="{{ item.due.isoformat() }}">{% if item.all_day %}All day{% else %}{{ item.due.strftime('%-I:%M %p %Z') }}{% endif %}</time>{% if item.description %}<p>{{ item.description }}</p>{% endif %}</article>{% endfor %}{% endif %}
+          {% if day %}
+          <button type="button" class="calendar-date-preview" data-calendar-preview data-calendar-readonly aria-label="{{ month_label }} {{ day }}: {{ deadline_by_day.get(day, [])|length }} deadlines; view details">
+            <span class="deadline-day-number">{{ day }}</span>
+            <span class="calendar-cell-summary">{% for item in deadline_by_day.get(day, [])[:2] %}<span class="calendar-summary-line">{{ item.title }}</span>{% endfor %}</span>
+            {% if deadline_by_day.get(day, [])|length > 2 %}<small class="calendar-cell-more">+{{ deadline_by_day.get(day, [])|length - 2 }} more</small>{% endif %}
+            <template data-calendar-details>
+              <h3>{{ month_label }} {{ day }}</h3>
+              {% for item in deadline_by_day.get(day, []) %}<article class="deadline-calendar-event"><strong>{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</strong><time datetime="{{ item.due.isoformat() }}">{{ item.label }}</time>{% if item.description %}<p>{{ item.description }}</p>{% endif %}</article>{% else %}<p>No upcoming deadlines.</p>{% endfor %}
+            </template>
+          </button>
+          {% endif %}
         </td>{% endfor %}</tr>{% endfor %}</tbody>
       </table>
     </div>

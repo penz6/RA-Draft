@@ -15,7 +15,14 @@
     <div class="section-head"><div><div class="eyebrow">Duty coverage</div><h2>{{ schedule_month_label }}</h2></div></div>
     <div class="prostaff-duty-calendar" role="grid" aria-label="Duty schedule for {{ schedule_month_label }}" data-duty-calendar>
       {% for label in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<strong class="prostaff-calendar-heading">{{ label }}</strong>{% endfor %}
-      {% for week in schedule_weeks %}{% for day in week %}<div class="prostaff-calendar-day{% if not day %} is-empty{% endif %}" role="gridcell"{% if day %} data-day="{{ day }}"{% endif %}>{% if day %}<span class="prostaff-calendar-date">{{ day }}</span>{% for item in schedule_by_day.get(day, []) %}<article class="prostaff-duty-event" data-duty-event data-staff-search="{{ item.search_terms }}"><strong>{{ item.building_name }}</strong><span>{{ item.names }}</span></article>{% else %}<small class="empty-copy">No duty</small>{% endfor %}{% endif %}</div>{% endfor %}{% endfor %}
+      {% for week in schedule_weeks %}{% for day in week %}
+      <div class="prostaff-calendar-day{% if not day %} is-empty{% endif %}" role="gridcell"{% if day %} data-day="{{ day }}" tabindex="0" data-calendar-preview data-calendar-readonly aria-label="{{ schedule_month_label }} {{ day }}; duty details"{% endif %}>
+        {% if day %}<span class="prostaff-calendar-date">{{ day }}</span>
+        <div class="calendar-cell-summary">{% for item in schedule_by_day.get(day, []) %}<article class="prostaff-duty-event" data-duty-event data-staff-search="{{ item.search_terms }}"><strong>{{ item.building_name }}</strong><span>{{ item.names }}</span></article>{% else %}<small class="empty-copy">No duty</small>{% endfor %}</div>
+        <small class="calendar-cell-more" data-calendar-more>{% if schedule_by_day.get(day, [])|length > 2 %}+{{ schedule_by_day.get(day, [])|length - 2 }} more{% endif %}</small>
+        <template data-calendar-details><h3>{{ schedule_month_label }} {{ day }}</h3>{% for item in schedule_by_day.get(day, []) %}<article class="calendar-duty-details" data-staff-search="{{ item.search_terms }}"><strong>{{ item.building_name }}</strong><p>{{ item.names }}</p></article>{% else %}<p>No duty scheduled.</p>{% endfor %}</template>
+        {% endif %}
+      </div>{% endfor %}{% endfor %}
     </div>
   </section>
 </div>

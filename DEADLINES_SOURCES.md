@@ -7,7 +7,7 @@ No time was invented where a source supplied only a date; those entries remain
 due through the end of the day in America/New_York.
 
 Each entry includes its source filename and PDF page number. The PDFs themselves
-are not stored in this repository. Submission links come from the guides.
+are not stored in this repository. HawkLink URLs were removed at the user’s request because those links are forbidden.
 Community Meeting and HawkTalk completion/reflection deadlines are combined
 where both are due on the same day. Activity windows are preserved in descriptions.
 Building-wide CBA dates for Willow, Stonewall, and North were removed at the

@@ -3,9 +3,10 @@
   <div class="deadline-preview-body">
     {% if deadline_notice %}<p class="deadline-preview-notice" role="status">{{ deadline_notice }}</p>{% endif %}
     {% if upcoming_deadlines %}
+    {% set preview_count = deadline_preview_limit|default(3) %}
     <ul class="deadline-preview-list" aria-label="Upcoming deadlines">
-      {% for item in upcoming_deadlines %}
-      <li{% if not loop.first %} hidden{% endif %}>
+      {% for item in upcoming_deadlines[:preview_count] %}
+      <li>
         <time datetime="{{ item.due.isoformat() }}">{{ item.due.strftime('%b %-d') }}{% if not item.all_day %} · {{ item.due.strftime('%-I:%M %p') }}{% endif %}</time>
         <strong title="{{ item.title }}">{% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}</strong>
       </li>
