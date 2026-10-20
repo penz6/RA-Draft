@@ -18,7 +18,7 @@ import portal_app  # noqa: E402,F401
 from core import app, db, next_picker  # noqa: E402
 
 
-class SessionPauseTestCase(unittest.TestCase):
+class SessionPauseFixture:
     def setUp(self):
         app.config.update(TESTING=True, SERVER_NAME="ci.local")
         self.client = app.test_client()
@@ -84,6 +84,7 @@ class SessionPauseTestCase(unittest.TestCase):
             **kwargs,
         )
 
+class SessionPauseTestCase(SessionPauseFixture, unittest.TestCase):
     def test_pause_freezes_current_turn_until_resumed(self):
         csrf = self.login_as(self.hra_id)
         response = self.request(

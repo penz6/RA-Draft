@@ -1,8 +1,9 @@
 import test_session_pause
+import unittest
 from core import app, db, next_picker
 
 
-class PhaseOrderConfirmationTests(test_session_pause.SessionPauseTestCase):
+class PhaseOrderConfirmationTests(test_session_pause.SessionPauseFixture, unittest.TestCase):
     def configure_phase(self, rule='WEEKDAYS_FIRST', capacity=1, end='2026-09-05'):
         with app.app_context():
             db().execute('UPDATE draft_sessions SET start_date=?,end_date=?,date_order=?,capacity=? WHERE id=?',

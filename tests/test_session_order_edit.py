@@ -1,8 +1,10 @@
-from test_session_pause import SessionPauseTestCase
+import unittest
+
+from test_session_pause import SessionPauseFixture
 from core import app, db, next_picker
 
 
-class SessionOrderEditTests(SessionPauseTestCase):
+class SessionOrderEditTests(SessionPauseFixture, unittest.TestCase):
     def start_edit(self):
         csrf = self.login_as(self.hra_id)
         response = self.request('post', f'/sessions/{self.session_id}/order/start', data={'csrf': csrf})
