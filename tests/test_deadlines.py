@@ -72,6 +72,8 @@ class DeadlineTests(unittest.TestCase):
         self.assertNotIn("Submit report", page)
         self.assertNotIn(">Fourth<", page)
         calendar = self.render_at_fixed_time("/deadlines?month=2026-10").get_data(as_text=True)
+        self.assertIn("Plan ahead with upcoming deadlines.", calendar)
+        self.assertNotIn("All dates and times use America/New_York.", calendar)
         self.assertIn("Submit report", calendar)
         self.assertIn("Due today", calendar)
         self.assertIn(">Fourth<", calendar)

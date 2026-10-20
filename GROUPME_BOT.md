@@ -118,8 +118,9 @@ Upgrading an earlier build of this PR renames the setup record's `state_hash`
 column to `flow_id`. In-progress OAuth attempts from that build must be restarted;
 existing connected bots and reminder receipts are preserved.
 
-Bot posts use JSON `bot_id` and `text` at `POST /v3/bots/post`; only `201 Created`
-is success. Requests have timeouts, do not follow redirects, and show generic
+Bot posts use JSON `bot_id` and `text` at `POST /v3/bots/post`; GroupMe's
+`202 Accepted` acknowledgement (and the legacy `201 Created` response) is
+success. Requests have timeouts, do not follow redirects, and show generic
 errors without logging credentials or provider response bodies. Plain Unicode
 📅 needs no PowerUp attachment. Messages stay below the documented 1,000-character
 group-message limit. GroupMe's developer/API terms apply to the application.

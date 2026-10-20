@@ -242,16 +242,16 @@ class GroupMeBotTests(unittest.TestCase):
             deadline_reminders.run_reminder_cycle()
             groupme.assert_called_once()
 
-    def test_documented_json_post_and_only_201_is_success(self):
+    def test_documented_json_post_accepts_groupme_acknowledgement(self):
         with app.app_context():
             encrypted = bot._cipher().encrypt(b"private-bot-1234").decode()
             response = MagicMock()
             response.__enter__.return_value = response
-            for status in (201, 200, 302, 400, 429, 500):
+            for status in (201, 202, 200, 302, 400, 429, 500):
                 response.status_code = status
                 with patch.object(bot.requests, "post", return_value=response) as post:
                     delivered, error = bot.post_message(encrypted, "📅 Test")
-                self.assertEqual(delivered, status == 201)
+                self.assertEqual(delivered, status in (201, 202))
                 post.assert_called_once_with("https://api.groupme.com/v3/bots/post",
                     json={"bot_id": "private-bot-1234", "text": "📅 Test"}, timeout=(3, 10), allow_redirects=False)
                 self.assertNotIn("private-bot", error or "")
