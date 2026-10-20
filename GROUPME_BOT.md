@@ -96,6 +96,17 @@ completion/cancellation/error or expiration cleanup (worker scans every five
 minutes). Only the encrypted Bot ID is retained for ongoing posting. Rotating
 `SECRET_KEY` requires reconnecting saved bots.
 
+Credential encryption uses Fernet's authenticated encryption with a 32-byte key
+derived from the random application secret using HKDF-SHA-256 and a dedicated
+GroupMe encryption context. The app secret must be cryptographically random
+(for example, `openssl rand -hex 32`), not a human-chosen password; HKDF does not
+stretch weak passwords. New credentials use this key. The previous derivation
+is retained only to decrypt existing credentials, so an update does not require
+reconnecting bots or disrupt delivery receipts. Reconnecting/replacing a Bot ID
+encrypts it with the new key. SHA-256 fingerprints identify bots, public
+deadlines, and random OAuth nonces; they are not password hashes or substitutes
+for credential encryption. Local Prostaff passwords use Werkzeug's scrypt.
+
 Bot posts use JSON `bot_id` and `text` at `POST /v3/bots/post`; only `201 Created`
 is success. Requests have timeouts, do not follow redirects, and show generic
 errors without logging credentials or provider response bodies. Plain Unicode

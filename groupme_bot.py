@@ -15,7 +15,9 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import requests
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from flask import abort, flash, redirect, request, url_for
 
 from core import app, audit, current_user, db, login_required, require_csrf
@@ -29,10 +31,22 @@ app.config.setdefault("GROUPME_CLIENT_ID", os.environ.get("GROUPME_CLIENT_ID", "
 
 
 def _cipher():
+    """Derive an encryption key from the random application master secret.
+
+    This is cryptographic key derivation, not password hashing. SECRET_KEY must
+    be randomly generated as described in DEPLOYMENT.md. The legacy key is
+    decrypt-only compatibility; MultiFernet always encrypts with the first key.
+    """
     secret = app.config["SECRET_KEY"]
     if isinstance(secret, str):
         secret = secret.encode()
-    return Fernet(base64.urlsafe_b64encode(hashlib.sha256(secret + b"\0groupme-bot").digest()))
+    key = HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=None,
+        info=b"ra-draft/groupme/credential-encryption/v2",
+    ).derive(secret)
+    primary = Fernet(base64.urlsafe_b64encode(key))
+    legacy = Fernet(base64.urlsafe_b64encode(hashlib.sha256(secret + b"\0groupme-bot").digest()))
+    return MultiFernet([primary, legacy])
 
 
 def _can_manage(user, building_id):

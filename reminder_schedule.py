@@ -7,6 +7,7 @@ GROUPME_REMINDER_DAYS = (7, -7)
 
 
 def reminder_key(item):
+    # Public-content fingerprint for delivery deduplication, not a credential.
     value = f"{item['title']}\n{item['due'].isoformat()}"
     return hashlib.sha256(value.encode()).hexdigest()
 

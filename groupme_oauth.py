@@ -49,6 +49,7 @@ def _flow():
     row = db().execute(
         "SELECT f.*,b.name AS building_name FROM groupme_oauth_flows f "
         "JOIN buildings b ON b.id=f.building_id WHERE f.state_hash=? AND f.user_id=? AND f.expires_at>?",
+        # The nonce is 32 random bytes, not a human-chosen password.
         (hashlib.sha256(nonce.encode()).hexdigest(), user["id"], time.time()),
     ).fetchone()
     if not row or not _can_manage(user, row["building_id"]):
