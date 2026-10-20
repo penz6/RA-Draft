@@ -111,7 +111,9 @@ def post_message(bot_ciphertext, text):
     try:
         with requests.post(POST_URL, json={"bot_id": bot_id, "text": text},
                            timeout=(3, 10), allow_redirects=False) as response:
-            if response.status_code == 201:
+            # GroupMe acknowledges bot posts with 202 Accepted. Keep accepting
+            # 201 as well for compatibility with older/mocked provider behavior.
+            if response.status_code in (201, 202):
                 return True, None
             if response.status_code in (400, 401, 403, 404):
                 return False, "GroupMe rejected the post. Reconnect GroupMe or ask an administrator to check that the bot is active."

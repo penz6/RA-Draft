@@ -22,6 +22,9 @@ def check_calendar_previews(page):
     panel.wait_for(state='visible')
     if expected and expected not in panel.inner_text():
         errors.append('hover preview omits complete details')
+    event = panel.locator('.deadline-calendar-event').first
+    if event.count() and event.evaluate('(el) => parseFloat(getComputedStyle(el).paddingLeft)') < 6:
+        errors.append('deadline preview text collides with its left accent')
     bounds = panel.bounding_box()
     viewport = page.viewport_size
     if not (bounds['x'] >= 0 and bounds['y'] >= 0 and bounds['x'] + bounds['width'] <= viewport['width'] + 1 and bounds['y'] + bounds['height'] <= viewport['height'] + 1):

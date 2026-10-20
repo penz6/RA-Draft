@@ -21,4 +21,4 @@
 .calendar-detail-popover p{margin:.4rem 0;white-space:pre-line;overflow-wrap:anywhere}
 .calendar-detail-popover a{color:inherit;text-decoration:underline}
 .calendar-detail-popover .calendar-detail-close{float:right;padding:.1rem .4rem;min-width:30px;min-height:30px;border:0;background:transparent;color:inherit;font-size:1.25rem;cursor:pointer}
-.calendar-detail-popover .deadline-calendar-event,.calendar-duty-details{border-bottom:1px solid var(--rwu-line,#bccdd9);padding:.5rem 0;margin:0;background:transparent}
+.calendar-detail-popover .deadline-calendar-event,.calendar-duty-details{border-bottom:1px solid var(--rwu-line,#bccdd9);padding:.5rem .5rem .5rem .65rem;margin:0;background:transparent}

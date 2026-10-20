@@ -2,7 +2,7 @@
 {% block title %}Deadlines | RWU Residence Life{% endblock %}
 {% block content %}
 <div class="dashboard-page deadline-page{% if me.is_prostaff %} prostaff-dashboard{% endif %}">
-  <div class="prostaff-page-heading"><div><div class="eyebrow">Residence Life</div><h1>Deadlines</h1><p>Plan ahead with upcoming deadlines. All dates and times use America/New_York.</p></div></div>
+  <div class="prostaff-page-heading"><div><div class="eyebrow">Residence Life</div><h1>Deadlines</h1><p>Plan ahead with upcoming deadlines.</p></div></div>
   <p class="empty-copy"><small>*Refer to your AC for confirmed deadlines.</small></p>
   {% if me.is_prostaff or me.role == 'ADMIN' or me.admin_lite %}{% include 'prostaff_tabs.html' %}{% endif %}
   <section class="card deadline-email-settings" aria-labelledby="deadline-email-heading">
