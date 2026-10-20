@@ -74,6 +74,8 @@ class DeadlineTests(unittest.TestCase):
         calendar = self.render_at_fixed_time("/deadlines?month=2026-10").get_data(as_text=True)
         self.assertIn("Plan ahead with upcoming deadlines.", calendar)
         self.assertNotIn("All dates and times use America/New_York.", calendar)
+        self.assertIn("Changes save automatically.", calendar)
+        self.assertIn('<noscript><button class="button small secondary" type="submit">Save preference</button></noscript>', calendar)
         self.assertIn("Submit report", calendar)
         self.assertIn("Due today", calendar)
         self.assertIn(">Fourth<", calendar)

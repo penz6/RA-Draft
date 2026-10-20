@@ -10,8 +10,8 @@
     <form method="post" action="{{ url_for('deadline_email_preferences') }}" data-deadline-email-form>
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
       <label class="deadline-email-checkbox"><input type="checkbox" name="email_reminders" value="1"{% if me.deadline_email_opt_in %} checked{% endif %}> Get email reminders about upcoming deadlines</label>
-      <p>We’ll email {{ me.email }} one week before and on the day of each deadline, at 9 a.m. Eastern. Uncheck this box to opt out.</p>
-      <button class="button small secondary" type="submit">Save preference</button>
+      <p>We’ll email {{ me.email }} one week before and on the day of each deadline, at 9 a.m. Eastern. Changes save automatically.</p>
+      <noscript><button class="button small secondary" type="submit">Save preference</button></noscript>
     </form>
   </section>
   {% if groupme_building_id %}
