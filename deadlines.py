@@ -168,17 +168,23 @@ def dismiss_deadline_banner():
     destination = request.form.get("next", "")
     safe_destination = url_for("dashboard")
     if isinstance(destination, str) and destination:
+        candidate = destination.strip()
         try:
-            parsed = urlsplit(destination)
+            parsed = urlsplit(candidate)
         except ValueError:
             parsed = None
         if (
             parsed is not None
-            and destination.startswith("/")
-            and not destination.startswith("//")
-            and "\\" not in destination
+            and candidate.startswith("/")
+            and not candidate.startswith("//")
+            and "\\" not in candidate
             and not parsed.scheme
             and not parsed.netloc
+            and "\x00" not in candidate
+            and "\r" not in candidate
+            and "\n" not in candidate
         ):
-            safe_destination = destination
+            safe_destination = parsed.path or "/"
+            if parsed.query:
+                safe_destination = f"{safe_destination}?{parsed.query}"
     return redirect(safe_destination)
