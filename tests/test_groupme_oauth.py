@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import MagicMock, patch
 
 from test_admin_management import AdminManagementTestCase
-from core import app, db
+from core import app, db, migrate_schema
 import groupme_oauth as oauth
 from groupme_bot import _cipher
 
@@ -85,7 +85,7 @@ class GroupMeOAuthTests(unittest.TestCase):
         nonce = self.ready()
         with app.app_context():
             flow = db().execute("SELECT * FROM groupme_oauth_flows").fetchone()
-            self.assertNotEqual(flow["state_hash"], nonce)
+            self.assertNotEqual(flow["flow_id"], nonce)
             self.assertNotIn("temporary-account-token", flow["token_ciphertext"])
             self.assertEqual(_cipher().decrypt(flow["token_ciphertext"].encode()), b"temporary-account-token")
         with patch.object(oauth, "_api", return_value={"bot": {"bot_id": "registered-bot-1234"}}) as provider:
@@ -106,6 +106,7 @@ class GroupMeOAuthTests(unittest.TestCase):
             self.assertNotIn("registered-bot", audit)
         with self.client.session_transaction() as session:
             self.assertNotIn("groupme_oauth_flow", session)
+            self.assertNotIn("groupme_oauth_state", session)
             self.assertNotIn("temporary-account-token", str(dict(session)))
         with patch.object(oauth, "_api") as provider:
             self.post("/groupme/select", group_id="456", confirm_account="1")
@@ -176,6 +177,55 @@ class GroupMeOAuthTests(unittest.TestCase):
         with patch.object(oauth, "_api") as provider:
             self.post("/groupme/select", group_id="456", confirm_account="1")
             provider.assert_not_called()
+
+    def test_internal_flow_id_is_independent_of_oauth_state(self):
+        nonce = self.start()
+        with self.client.session_transaction() as session:
+            flow_id = session["groupme_oauth_flow"]
+            self.assertEqual(session["groupme_oauth_state"], nonce)
+        with app.app_context():
+            flow = db().execute("SELECT * FROM groupme_oauth_flows").fetchone()
+            self.assertEqual(flow["flow_id"], flow_id)
+            self.assertNotIn(nonce, str(tuple(flow)))
+        # The authorization server sees the nonce, which cannot select a row.
+        with self.client.session_transaction() as session:
+            session["groupme_oauth_flow"] = nonce
+        self.assertNotIn(b'id="groupme-oauth-complete"', self.request("get", "/groupme/callback").data)
+
+    def test_flow_id_without_session_nonce_or_for_another_user_is_rejected(self):
+        nonce = self.start()
+        with self.client.session_transaction() as session:
+            flow_id = session["groupme_oauth_flow"]
+            session.pop("groupme_oauth_state")
+        self.assertNotIn(b'id="groupme-oauth-complete"', self.request("get", "/groupme/callback").data)
+        other = self.add_user(sub="other-hra", email="other-hra@rwu.edu", name="Other HRA", role="HRA", building_id=self.hall)
+        self.login_as(other)
+        with self.client.session_transaction() as session:
+            session["groupme_oauth_flow"] = flow_id
+            session["groupme_oauth_state"] = nonce
+        self.assertNotIn(b'id="groupme-oauth-complete"', self.request("get", "/groupme/callback").data)
+
+    def test_restarted_attempt_rejects_old_state_and_clears_both_session_values(self):
+        old_state = self.start()
+        self.start()
+        with patch.object(oauth, "_api") as provider:
+            self.post("/groupme/oauth/complete", access_token="temporary-account-token", state=old_state)
+            provider.assert_not_called()
+        with self.client.session_transaction() as session:
+            self.assertNotIn("groupme_oauth_flow", session)
+            self.assertNotIn("groupme_oauth_state", session)
+
+    def test_schema_upgrade_preserves_flow_records_and_is_idempotent(self):
+        self.start()
+        with app.app_context():
+            conn = db()
+            flow_id = conn.execute("SELECT flow_id FROM groupme_oauth_flows").fetchone()[0]
+            conn.execute("ALTER TABLE groupme_oauth_flows RENAME COLUMN flow_id TO state_hash")
+            migrate_schema(conn)
+            migrate_schema(conn)
+            self.assertEqual(conn.execute("SELECT flow_id FROM groupme_oauth_flows").fetchone()[0], flow_id)
+            self.assertNotIn("state_hash", {row["name"] for row in conn.execute("PRAGMA table_info(groupme_oauth_flows)")})
+            conn.commit()
 
 
 del AdminManagementTestCase

@@ -42,15 +42,15 @@ def _api(method, path, token, *, params=None, payload=None):
 
 
 def _flow():
-    nonce = session.get("groupme_oauth_flow", "")
+    flow_id = session.get("groupme_oauth_flow", "")
+    nonce = session.get("groupme_oauth_state", "")
     user = current_user()
-    if not isinstance(nonce, str) or not nonce or not user:
+    if not isinstance(flow_id, str) or not flow_id or not isinstance(nonce, str) or not nonce or not user:
         return None
     row = db().execute(
         "SELECT f.*,b.name AS building_name FROM groupme_oauth_flows f "
-        "JOIN buildings b ON b.id=f.building_id WHERE f.state_hash=? AND f.user_id=? AND f.expires_at>?",
-        # The nonce is 32 random bytes, not a human-chosen password.
-        (hashlib.sha256(nonce.encode()).hexdigest(), user["id"], time.time()),
+        "JOIN buildings b ON b.id=f.building_id WHERE f.flow_id=? AND f.user_id=? AND f.expires_at>?",
+        (flow_id, user["id"], time.time()),
     ).fetchone()
     if not row or not _can_manage(user, row["building_id"]):
         return None
@@ -59,9 +59,10 @@ def _flow():
 
 def _clear_flow(flow):
     if flow:
-        db().execute("DELETE FROM groupme_oauth_flows WHERE state_hash=?", (flow["state_hash"],))
+        db().execute("DELETE FROM groupme_oauth_flows WHERE flow_id=?", (flow["flow_id"],))
         db().commit()
     session.pop("groupme_oauth_flow", None)
+    session.pop("groupme_oauth_state", None)
 
 
 def _setup_error(message, flow=None):
@@ -81,17 +82,21 @@ def groupme_connect(building_id):
     if not app.config["GROUPME_CLIENT_ID"]:
         return _setup_error("GroupMe connection is not configured yet. Contact your administrator.")
     nonce = secrets.token_urlsafe(32)
+    # A separate random record ID keeps the OAuth nonce out of database keys.
+    # Both values are bound to the signed browser session, user and building.
+    flow_id = secrets.token_urlsafe(32)
     conn = db()
     conn.execute("DELETE FROM groupme_oauth_flows WHERE user_id=? OR expires_at<?",
                  (current_user()["id"], time.time()))
     original = conn.execute("SELECT bot_hash FROM building_groupme_bots WHERE building_id=?", (building_id,)).fetchone()
     conn.execute(
-        "INSERT INTO groupme_oauth_flows(state_hash,user_id,building_id,expires_at,original_bot_hash) VALUES(?,?,?,?,?)",
-        (hashlib.sha256(nonce.encode()).hexdigest(), current_user()["id"], building_id,
+        "INSERT INTO groupme_oauth_flows(flow_id,user_id,building_id,expires_at,original_bot_hash) VALUES(?,?,?,?,?)",
+        (flow_id, current_user()["id"], building_id,
          time.time() + 600, original["bot_hash"] if original else None),
     )
     conn.commit()
-    session["groupme_oauth_flow"] = nonce
+    session["groupme_oauth_flow"] = flow_id
+    session["groupme_oauth_state"] = nonce
     # GroupMe's documented authorization URL; no invented scopes/code exchange.
     return redirect("https://oauth.groupme.com/oauth/authorize?" + urlencode({
         "client_id": app.config["GROUPME_CLIENT_ID"], "state": nonce,
@@ -115,7 +120,7 @@ def groupme_oauth_complete():
     echoed_state = request.form.get("state", "")
     # The official tutorial does not promise state echo. Reject a mismatched
     # echo; when absent, require explicit account/group confirmation below.
-    if echoed_state and not secrets.compare_digest(echoed_state.encode(), session["groupme_oauth_flow"].encode()):
+    if echoed_state and not secrets.compare_digest(echoed_state.encode(), session["groupme_oauth_state"].encode()):
         return _setup_error("GroupMe connection could not be verified. Please start again.", flow)
     token = request.form.get("access_token", "")
     if not re.fullmatch(r"[A-Za-z0-9._~+/-]{8,2048}={0,2}", token):
@@ -143,9 +148,9 @@ def groupme_oauth_complete():
         return _setup_error(str(error), flow)
     changed = db().execute(
         "UPDATE groupme_oauth_flows SET token_ciphertext=?,account_name=?,account_id=?,groups_json=? "
-        "WHERE state_hash=? AND token_ciphertext IS NULL AND expires_at>?",
+        "WHERE flow_id=? AND token_ciphertext IS NULL AND expires_at>?",
         (_cipher().encrypt(token.encode()).decode(), str(account["name"])[:200], account["id"][:64],
-         json.dumps(groups), flow["state_hash"], time.time()),
+         json.dumps(groups), flow["flow_id"], time.time()),
     ).rowcount
     db().commit()
     if not changed:
@@ -177,10 +182,11 @@ def groupme_choose_group():
         conn.rollback()
         return _setup_error("The building’s connection changed. Please reconnect.", flow)
     # Consume before the provider write, so double submits cannot create bots.
-    consumed = conn.execute("DELETE FROM groupme_oauth_flows WHERE state_hash=? AND expires_at>?",
-                            (flow["state_hash"], time.time())).rowcount
+    consumed = conn.execute("DELETE FROM groupme_oauth_flows WHERE flow_id=? AND expires_at>?",
+                            (flow["flow_id"], time.time())).rowcount
     conn.commit()
     session.pop("groupme_oauth_flow", None)
+    session.pop("groupme_oauth_state", None)
     if not consumed:
         return _setup_error("This GroupMe connection attempt expired. Please start again.")
     try:

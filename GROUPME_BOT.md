@@ -82,6 +82,9 @@ that records credentials.
 
 A connection attempt is tied to the signed-in user, initiating browser session,
 and building, expires after ten minutes, and can only be completed once. The
+database uses an independently generated random flow ID, separate from the
+OAuth nonce. Both are held in the signed browser session; the nonce is not
+hashed for database lookups. The
 app sends OAuth `state` and rejects a mismatched returned value. The official
 tutorial does not promise a state echo, so the documented callback without it
 is supported; explicit account identity and group confirmation are required
@@ -103,9 +106,13 @@ GroupMe encryption context. The app secret must be cryptographically random
 stretch weak passwords. New credentials use this key. The previous derivation
 is retained only to decrypt existing credentials, so an update does not require
 reconnecting bots or disrupt delivery receipts. Reconnecting/replacing a Bot ID
-encrypts it with the new key. SHA-256 fingerprints identify bots, public
-deadlines, and random OAuth nonces; they are not password hashes or substitutes
+encrypts it with the new key. SHA-256 fingerprints identify bots and public
+deadlines; they are not password hashes or substitutes
 for credential encryption. Local Prostaff passwords use Werkzeug's scrypt.
+
+Upgrading an earlier build of this PR renames the setup record's `state_hash`
+column to `flow_id`. In-progress OAuth attempts from that build must be restarted;
+existing connected bots and reminder receipts are preserved.
 
 Bot posts use JSON `bot_id` and `text` at `POST /v3/bots/post`; only `201 Created`
 is success. Requests have timeouts, do not follow redirects, and show generic

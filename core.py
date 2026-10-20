@@ -532,11 +532,16 @@ def migrate_schema(conn):
     )
     conn.execute(
         "CREATE TABLE IF NOT EXISTS groupme_oauth_flows ("
-        "state_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+        "flow_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
         "building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,"
         "expires_at REAL NOT NULL, token_ciphertext TEXT, account_name TEXT, account_id TEXT,"
         "groups_json TEXT, original_bot_hash TEXT)"
     )
+    flow_columns = {row["name"] for row in conn.execute("PRAGMA table_info(groupme_oauth_flows)")}
+    if "state_hash" in flow_columns:
+        # Upgrade earlier feature builds. Existing attempts expire shortly and
+        # must restart; connected bots and delivery receipts are unaffected.
+        conn.execute("ALTER TABLE groupme_oauth_flows RENAME COLUMN state_hash TO flow_id")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS groupme_deadline_deliveries ("
         "building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,"
