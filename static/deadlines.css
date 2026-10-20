@@ -25,3 +25,5 @@
 
 @media(pointer:coarse){.dashboard-page .deadline-preview-heading .button{min-height:44px}}
 @media(max-width:900px){.rwu-portal .rwu-staff-event-card{min-height:190px}}
+.deadline-groupme-settings h2{margin-top:0}.deadline-groupme-settings p,.deadline-groupme-settings li{font-size:.9rem;overflow-wrap:anywhere}.deadline-groupme-settings summary{cursor:pointer;font-weight:700}.deadline-groupme-settings .field{max-width:32rem}.deadline-groupme-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem}.deadline-groupme-actions form{margin:0}
+.deadline-groupme-building-picker{display:flex;align-items:end;gap:.75rem;flex-wrap:wrap}.deadline-groupme-building-picker .field{flex:1;min-width:180px}

@@ -33,7 +33,8 @@ class DeadlineReminderTests(unittest.TestCase):
     def state(self):
         return {"notice": "", "items": parse_deadlines([
             {"title": "Today <test>", "due_date": "2026-10-19", "description": "Submit report"},
-            {"title": "Three days", "due_date": "2026-10-22"},
+            {"title": "One week", "due_date": "2026-10-26"},
+            {"title": "Old three-day offset", "due_date": "2026-10-22"},
             {"title": "Tomorrow", "due_date": "2026-10-20"},
             {"title": "Passed", "due_date": "2026-10-18"},
             {"title": "Earlier today", "due_at": "2026-10-19T08:00:00-04:00"},
@@ -104,7 +105,7 @@ class DeadlineReminderTests(unittest.TestCase):
             })
             self.assertTrue(response.location.endswith("/dashboard"))
 
-    def test_only_opted_in_enabled_accounts_get_today_and_three_day_digest(self):
+    def test_only_opted_in_enabled_accounts_get_today_and_one_week_digest(self):
         self.user(opted_in=True)
         self.user(sub="not-opted-in")
         self.user(sub="disabled", opted_in=True, disabled=True)
@@ -115,8 +116,9 @@ class DeadlineReminderTests(unittest.TestCase):
         html = message.get_body(preferencelist=("html",)).get_content()
         self.assertEqual(message["To"], "Alex RA <reminder@rwu.edu>")
         self.assertIn("Due today: Today <test>", plain)
-        self.assertIn("Due in 3 days: Three days", plain)
+        self.assertIn("Due in 1 week: One week", plain)
         self.assertNotIn("Tomorrow", plain)
+        self.assertNotIn("Old three-day offset", plain)
         self.assertNotIn("Passed", plain)
         self.assertNotIn("Earlier today", plain)
         self.assertIn("Today &lt;test&gt;", html)
@@ -129,11 +131,11 @@ class DeadlineReminderTests(unittest.TestCase):
         sent, sender = self.run_worker(lambda messages: 1)
         self.assertEqual(sent, 0)
         sender.assert_not_called()
-        # The same deadline gets its separate day-of reminder three days later.
+        # The same deadline gets its separate day-of reminder one week later.
         sent, sender = self.run_worker(lambda messages: 1,
-                                      datetime(2026, 10, 22, 9, tzinfo=SCHOOL_TIMEZONE))
+                                      datetime(2026, 10, 26, 9, tzinfo=SCHOOL_TIMEZONE))
         self.assertEqual(sent, 1)
-        self.assertIn("Due today: Three days", sender.call_args.args[0][0].get_body(preferencelist=("plain",)).get_content())
+        self.assertIn("Due today: One week", sender.call_args.args[0][0].get_body(preferencelist=("plain",)).get_content())
 
     def test_failed_smtp_can_retry_without_marking_sent(self):
         self.user(opted_in=True)
@@ -163,10 +165,10 @@ class DeadlineReminderTests(unittest.TestCase):
         state["notice"] = "Showing stale data"
         self.assertEqual(self.run_worker(lambda messages: 1, state=state)[0], 0)
 
-    def test_three_calendar_days_across_dst_change(self):
+    def test_seven_calendar_days_across_dst_change(self):
         self.user(opted_in=True)
         state = {"notice": "", "items": parse_deadlines([{"title": "After DST", "due_date": "2026-11-02"}])}
-        sent, _ = self.run_worker(lambda messages: 1, datetime(2026, 10, 30, 9, tzinfo=SCHOOL_TIMEZONE), state)
+        sent, _ = self.run_worker(lambda messages: 1, datetime(2026, 10, 26, 9, tzinfo=SCHOOL_TIMEZONE), state)
         self.assertEqual(sent, 1)
 
     def test_opt_out_after_claim_is_respected_before_smtp(self):

@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Connecting GroupMe</title><script src="{{ url_for('static', filename='groupme_oauth_callback.js') }}" defer></script></head>
+<body><main><h1>Connecting GroupMe</h1>
+{% if flow_valid %}<p id="groupme-callback-status">Returning to your deadline settings…</p>
+<form id="groupme-oauth-complete" method="post" action="{{ url_for('groupme_oauth_complete') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="access_token"><input type="hidden" name="state"></form>
+{% else %}<p>This connection attempt expired. Return to Deadlines and connect again.</p>{% endif %}
+<noscript>JavaScript is required to finish connecting GroupMe.</noscript><a href="{{ url_for('deadline_calendar') }}">Return to Deadlines</a>
+</main></body></html>

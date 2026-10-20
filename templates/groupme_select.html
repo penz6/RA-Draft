@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Connect GroupMe | RWU Residence Life{% endblock %}
+{% block content %}
+<div class="dashboard-page deadline-page"><section class="card deadline-groupme-settings">
+  <h1>Connect GroupMe · {{ flow.building_name }}</h1>
+  <p>GroupMe account: <strong>{{ flow.account_name }}</strong> (ID {{ flow.account_id }}).</p>
+  <p>Choose your building’s chat. We’ll add “RA Deadlines” and enable reminders one week before and one week after each deadline, at 9 a.m. Eastern. Posts contain 📅, the title, and the due date.</p>
+  <form method="post" action="{{ url_for('groupme_choose_group') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label class="field">GroupMe chat<select name="group_id" required><option value="">Choose a chat</option>{% for group in groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select></label>
+    <label class="deadline-email-checkbox"><input type="checkbox" name="confirm_account" value="1" required> This is my GroupMe account, and I want reminders sent to the selected chat.</label>
+    <p><small>If this isn’t your account, cancel and sign in to your own GroupMe account before trying again.</small></p>
+    <button class="button" type="submit">Add RA Deadlines to this chat</button>
+  </form>
+  <form method="post" action="{{ url_for('groupme_choose_group') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="button small secondary" name="action" value="cancel" type="submit">Cancel</button></form>
+</section></div>
+{% endblock %}

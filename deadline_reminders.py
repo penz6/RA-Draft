@@ -1,6 +1,5 @@
 """Persistent, opt-in deadline reminders. Run as a separate Compose worker."""
 
-import hashlib
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -9,12 +8,7 @@ import email_notifications as mail
 from core import app, db
 from deadlines import load_deadlines
 from staff_event_schedule import SCHOOL_TIMEZONE
-
-
-def reminder_key(item):
-    # Include the due date/time so a rescheduled deadline gets fresh reminders.
-    value = f"{item['title']}\n{item['due'].isoformat()}"
-    return hashlib.sha256(value.encode()).hexdigest()
+from reminder_schedule import reminder_key, EMAIL_REMINDER_DAYS, reminder_label
 
 
 def _claim(user_id, candidates, now):
@@ -50,7 +44,7 @@ def _claim(user_id, candidates, now):
 
 def _message(recipient, reminders):
     url = mail._public_url("/deadlines")
-    entries = [{**item, "when": "Due today" if days == 0 else "Due in 3 days"}
+    entries = [{**item, "when": reminder_label(days)}
                for item, days in reminders]
     lines = "\n".join(f"- {item['when']}: {item['title']} — {item['label']}" for item in entries)
     first_name = mail._first_name(recipient["name"])
@@ -82,7 +76,7 @@ def send_due_reminders(now=None):
     for item in state["items"]:
         days = (item["day"] - local.date()).days
         key = reminder_key(item)
-        if days in (0, 3) and item["due"] >= local and key not in seen:
+        if days in EMAIL_REMINDER_DAYS and item["due"] >= local and key not in seen:
             candidates.append((item, days))
             seen.add(key)
     if not candidates:
@@ -122,13 +116,19 @@ def send_due_reminders(now=None):
     return sent
 
 
-def main():
-    while True:
+def run_reminder_cycle():
+    from groupme_bot import send_due_groupme_reminders
+    for sender in (send_due_reminders, send_due_groupme_reminders):
         try:
             with app.app_context():
-                send_due_reminders()
+                sender()
         except Exception:
-            app.logger.exception("Deadline reminder worker failed; will retry")
+            app.logger.exception("A deadline reminder channel failed; will retry")
+
+
+def main():
+    while True:
+        run_reminder_cycle()
         time.sleep(300)
 
 

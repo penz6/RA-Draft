@@ -7,6 +7,7 @@ services:
       PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID in .env}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET in .env}
+      GROUPME_CLIENT_ID: ${GROUPME_CLIENT_ID:-}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       PROXY_HOPS: ${PROXY_HOPS:-1}
       DEADLINES_JSON_URL: ${DEADLINES_JSON_URL:-https://raw.githubusercontent.com/penz6/RA-Draft/main/deadlines.json}

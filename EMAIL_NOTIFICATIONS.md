@@ -43,7 +43,7 @@ checkbox opts out. The banner’s × button permanently dismisses it for that ac
 across devices without subscribing. Opting in also dismisses the announcement.
 
 Reminders go to the account’s existing email address at 9 a.m. America/New_York
-three calendar days before and on the due date. Multiple matching deadlines are
+seven calendar days before and on the due date. Multiple matching deadlines are
 grouped into one email per user per scan. Dates use the school timezone across
 EST/EDT changes. There are no retroactive reminders for prior days or timed
 deadlines that have already passed. Opting in after 9 a.m. can receive that day’s
@@ -63,7 +63,8 @@ docker compose -f docker-compose.pangolin.yml up -d
 For a deployment without Compose, run `python -m deadline_reminders` as a
 supervised background process with the same environment and database path as the
 web app. `MAIL_ENABLED=1` and the existing SMTP credentials are required for
-sending; when mail is disabled the worker sends nothing. It does not rely on
+sending email; when mail is disabled the worker skips email. Connected, enabled
+[GroupMe bots](GROUPME_BOT.md) run independently of SMTP. It does not rely on
 visiting the site or keeping a browser tab open.
 
 Delivery receipts persist in SQLite, so normal restarts and overlapping workers
