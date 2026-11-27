@@ -47,6 +47,12 @@
       </div>
       {% endif %}
     </div>
+    {% if me.building_id %}
+    <p><strong>On duty · {{ duty_night|date_label }}</strong> &mdash; {{ on_duty|map(attribute='name')|join(', ') or 'No one scheduled' }}</p>
+    {% endif %}
+    {% if me.busy_banner_dismissed %}
+    <a class="back-link" href="{{ url_for('busy_days') }}">My busy days</a>
+    {% endif %}
     {% if upcoming_shifts %}
     <div class="upcoming-shifts-grid preview-grid">
       {% for shift in upcoming_shifts[:3] %}

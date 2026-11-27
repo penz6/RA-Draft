@@ -119,14 +119,16 @@ class DeadlineTests(unittest.TestCase):
         self.assertTrue({"schedule_one_on_one", "delete_one_on_one", "prostaff_one_on_ones"}.isdisjoint(endpoints))
         self.assertNotIn(b"one-on-one", self.request("get", "/prostaff").data)
 
-    def test_feed_requires_login_and_preserves_first_login_password_gate(self):
+    def test_feed_requires_login_and_signs_out_pending_legacy_accounts(self):
         self.assertEqual(self.request("get", "/deadlines").status_code, 302)
         uid = self.add_staff(prostaff=True)
         with app.app_context():
             db().execute("UPDATE users SET password_must_change=1 WHERE id=?", (uid,))
             db().commit()
         response = self.request("get", "/deadlines")
-        self.assertTrue(response.location.endswith("/prostaff/set-password"))
+        self.assertEqual(response.location, "/")
+        with self.client.session_transaction() as sess:
+            self.assertNotIn("uid", sess)
 
     def test_repository_empty_and_failure_states_are_distinct(self):
         self.add_staff()

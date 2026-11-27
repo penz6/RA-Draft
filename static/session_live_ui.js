@@ -134,7 +134,7 @@
     const selfDialog = calendar.querySelector("[data-self-pick-dialog]");
     if (!selfDialog) return;
     selfDialog.querySelector("[data-self-pick-date]").value = dayButton.dataset.date;
-    selfDialog.querySelector("[data-self-pick-label]").textContent = dayButton.dataset.dateLabel;
+    selfDialog.querySelector("[data-self-pick-label]").textContent = dayButton.dataset.dateLabel + (dayButton.hasAttribute("data-busy-day") ? " · You marked this day as busy." : "");
     showDialog(selfDialog);
   });
 

@@ -3,6 +3,7 @@
 import secrets
 from flask import abort, flash, redirect, render_template, request, url_for
 
+from busy_days import busy_dates_for
 from core import (
     app,
     audit,
@@ -258,6 +259,7 @@ def swap_page(session_id):
             "swap_page.html",
             me=user,
             draft=row,
+            busy_dates=busy_dates_for(user["id"]),
             my_picks=my_picks,
             other_picks=other_picks,
             other_participants=other_participants,

@@ -127,18 +127,12 @@
         <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
         {% endfor %}
       {% endwith %}
-      {% if me and not me.deadline_banner_dismissed and not me.deadline_email_opt_in and request.endpoint != 'prostaff_set_password' %}
-      <aside class="deadline-email-banner" aria-label="New deadline email reminders">
-        <p><strong>New:</strong> Get email reminders about upcoming deadlines.</p>
-        <form method="post" action="{{ url_for('deadline_email_preferences') }}">
+      {% if me and request.endpoint == 'dashboard' and not me.busy_banner_dismissed %}
+      <aside class="deadline-email-banner" aria-label="Busy days announcement">
+        <p>Have dates you’d prefer to avoid on duty? Mark them in <a href="{{ url_for('busy_days') }}">My busy days</a>.</p>
+        <form method="post" action="{{ url_for('busy_days') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="email_reminders" value="1">
-          <button class="button small" type="submit">Opt in to reminders</button>
-        </form>
-        <form method="post" action="{{ url_for('dismiss_deadline_banner') }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-          <input type="hidden" name="next" value="{{ request.full_path }}">
-          <button class="deadline-banner-close" type="submit" aria-label="Permanently dismiss email reminders announcement">&times;</button>
+          <button class="deadline-banner-close" name="action" value="dismiss" aria-label="Dismiss busy days announcement">&times;</button>
         </form>
       </aside>
       {% endif %}

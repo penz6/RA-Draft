@@ -56,7 +56,7 @@
         <div class="swap-pairs-list">
           {% for pair in batch.pairs %}
           <div class="swap-pair">
-            <span class="swap-pair-from"><small>{{ batch.requester_name }}</small><br><strong>{{ pair.requester_date|date_label }}</strong></span>
+            <span class="swap-pair-from"><small>{{ batch.requester_name }}</small><br><strong>{{ pair.requester_date|date_label }}</strong>{% if pair.requester_date in busy_dates %} · Your busy day{% endif %}</span>
             <span class="swap-arrow" aria-hidden="true">&harr;</span>
             <span class="swap-pair-to"><small>You</small><br><strong>{{ pair.target_date|date_label }}</strong></span>
           </div>
@@ -157,7 +157,7 @@
         data-swap-partner-pick
         data-assignment-id="{{ pick.id }}"
         data-user-id="{{ pick.user_id }}"
-        data-date-label="{{ pick.duty_date|date_label }}"
+        data-date-label="{{ pick.duty_date|date_label }}{% if pick.duty_date in busy_dates %} · Your busy day{% endif %}"
         data-session-name="{{ pick.session_name }}"
         data-raw-date="{{ pick.duty_date }}"></span>
       {% endfor %}
