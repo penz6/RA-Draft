@@ -360,11 +360,13 @@ class BackendAdversarialTestCase(unittest.TestCase):
         self.login_as(users["disabled_staff"])
         self.assertEqual(self.request("get", "/prostaff/api/staff-search").status_code, 403)
 
-        # 4. Prostaff with pending password change -> redirected to /prostaff/set-password
+        # 4. Prostaff with pending password change -> signed out
         self.login_as(users["must_change_staff"])
         res = self.request("get", "/prostaff/api/staff-search")
         self.assertEqual(res.status_code, 302)
-        self.assertTrue(res.location.endswith("/prostaff/set-password"))
+        self.assertEqual(res.location, "/")
+        with self.client.session_transaction() as sess:
+            self.assertNotIn("uid", sess)
 
         # 5. Active Prostaff -> 200
         self.login_as(users["prostaff"])

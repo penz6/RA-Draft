@@ -3,6 +3,7 @@
 from collections import defaultdict
 from flask import abort, redirect, render_template, url_for
 
+from busy_days import busy_dates_for
 from core import (
     DATE_KIND_LABELS,
     app,
@@ -90,6 +91,7 @@ def _session_template_context(session_id, user):
     live_version = session_state_version(row, user)
 
     return {
+        "busy_dates": busy_dates_for(user["id"]),
         "me": user,
         "draft": row,
         "people": people,

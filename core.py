@@ -196,6 +196,11 @@ CREATE TABLE IF NOT EXISTS session_order (
   PRIMARY KEY(session_id, user_id),
   UNIQUE(session_id, position)
 );
+CREATE TABLE IF NOT EXISTS busy_dates (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  duty_date TEXT NOT NULL,
+  PRIMARY KEY(user_id,duty_date)
+);
 CREATE TABLE IF NOT EXISTS assignments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES draft_sessions(id) ON DELETE CASCADE,
@@ -509,7 +514,7 @@ def migrate_schema(conn):
     if "prostaff_locked_until" not in user_columns:
         conn.execute("ALTER TABLE users ADD COLUMN prostaff_locked_until TEXT")
 
-    for column in ("deadline_email_opt_in", "deadline_banner_dismissed"):
+    for column in ("deadline_email_opt_in", "deadline_banner_dismissed", "busy_banner_dismissed"):
         if column not in user_columns:
             statement = ("ALTER TABLE users ADD COLUMN " + column + " INTEGER NOT NULL "
                          "DEFAULT 0 CHECK(" + column + " IN (0,1))")

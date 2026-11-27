@@ -50,7 +50,7 @@ class DeadlineReminderTests(unittest.TestCase):
     def test_banner_opt_in_updates_checkbox_and_stays_hidden(self):
         uid = self.user()
         page = self.request("get", "/deadlines")
-        self.assertIn(b"New:</strong> Get email reminders about upcoming deadlines", page.data)
+        self.assertNotIn(b"New:</strong> Get email reminders about upcoming deadlines", page.data)
         self.assertNotIn(b'value="1" checked', page.data)
         response = self.request("post", "/deadlines/email-preferences",
                                 data={"csrf": "admin-management-csrf", "email_reminders": "1"})

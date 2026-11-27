@@ -311,11 +311,19 @@ def dashboard():
     buildings = conn.execute("SELECT * FROM buildings ORDER BY name").fetchall()
     live_version = dashboard_state_version(user)
     upcoming_shifts = user_upcoming_shifts(user["id"])
+    duty_night = _duty_display_date().isoformat()
+    on_duty = conn.execute(
+        "SELECT DISTINCT u.id,u.name FROM assignments a JOIN users u ON u.id=a.user_id "
+        "JOIN draft_sessions s ON s.id=a.session_id WHERE s.building_id=? AND a.duty_date=? "
+        "ORDER BY u.name,u.id", (user["building_id"], duty_night),
+    ).fetchall()
     conn.commit()
 
     return render_template(
         "dashboard_v2.html",
         me=user,
+        duty_night=duty_night,
+        on_duty=on_duty,
         sessions=sessions,
         buildings=buildings,
         participants=participants,
@@ -379,7 +387,8 @@ def dashboard_live_fragments():
 
 
 import round_robin  # noqa: E402,F401
-import prostaff  # noqa: E402,F401
+from prostaff import _duty_display_date
+import busy_days  # noqa: E402,F401
 from live_updates import dashboard_state_version  # noqa: E402
 import building_settings  # noqa: E402,F401
 import deadlines  # noqa: E402,F401

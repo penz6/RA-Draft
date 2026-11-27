@@ -11,17 +11,6 @@
 </div>
 {% if not is_admin_lite %}
 <section class="card">
-  <div class="section-head"><div><h2>Provision Area Coordinator</h2><p>Create a Prostaff account and assign it to one building.</p></div></div>
-  <form class="admin-create-user grid-form" method="post" action="{{ url_for('provision_prostaff') }}">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <label class="field">Name<input name="name" maxlength="120" required></label>
-    <label class="field">Email<input type="email" name="email" maxlength="254" required autocomplete="off"></label>
-    <label class="field">Temporary password<input type="password" name="temporary_password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
-    <label class="field">Assigned building<select name="building_id" required><option value="">Choose a building</option>{% for b in buildings %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></label>
-    <div class="form-actions full"><button class="button" type="submit">Create Area Coordinator</button></div>
-  </form>
-</section>
-<section class="card">
   <div class="section-head">
     <div><h2>Buildings</h2></div>
     <span class="count-badge">{{ buildings|length }}</span>
@@ -134,7 +123,7 @@
             <span class="user-email-text">{{ u.email }}</span>
             <div class="user-meta-line">
               <small>Joined {{ u.created_at[:10] }}</small>
-              {% if u.disabled %}<span class="account-state disabled">Disabled</span>{% elif u.is_prostaff and u.password_must_change %}<span class="account-state pending">Temporary password · Change required</span>{% elif u.is_prostaff %}<span class="account-state">Prostaff password set</span>{% elif u.pending_google %}<span class="account-state pending">Invited · Awaiting sign-in</span>{% else %}<span class="account-state">Google verified</span>{% endif %}
+              {% if u.disabled %}<span class="account-state disabled">Disabled</span>{% elif u.is_prostaff %}<span class="account-state">Legacy Prostaff account</span>{% elif u.pending_google %}<span class="account-state pending">Invited · Awaiting sign-in</span>{% else %}<span class="account-state">Google verified</span>{% endif %}
             </div>
           </div>
         </div>
@@ -165,7 +154,7 @@
           <button class="button small" type="submit">Save changes</button>
         </div>
       </form>{% elif not is_admin_lite %}<form class="user-access-form" method="post" action="{{ url_for('assign_prostaff_building', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">Area Coordinator building<select name="building_id" required>{% for b in buildings %}<option value="{{ b.id }}" {% if u.building_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></label><button class="button small" type="submit">Save building</button></div></form>
-      <form class="user-access-form" method="post" action="{{ url_for('reset_prostaff_password', user_id=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><div class="user-access-controls"><label class="field compact">New temporary password<input type="password" name="temporary_password" minlength="12" maxlength="128" required autocomplete="new-password"></label><button class="button secondary small" type="submit" data-confirm="Reset {{ u.name }}'s password and require a new password at next sign-in?">Reset password</button></div></form>{% endif %}
+      {% endif %}
     </div>
     {% else %}<div class="empty-state compact"><p>No users exist yet.</p></div>{% endfor %}
   </div>
