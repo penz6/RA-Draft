@@ -360,15 +360,11 @@ def session_state_version(row, viewer):
     """Return the viewer-aware session fingerprint used by HTML and SSE."""
     session_id = row["id"]
     people = _rows(
-        "SELECT u.id,u.name,u.email,u.role,u.picture_url,o.position,"
-        "(SELECT COUNT(*) FROM assignments a "
-        " WHERE a.session_id=o.session_id AND a.user_id=o.user_id) assignment_count,"
-        "CASE WHEN EXISTS(SELECT 1 FROM session_deferrals d "
-        " WHERE d.session_id=o.session_id AND d.user_id=o.user_id) THEN 1 ELSE 0 END deferred "
+        "SELECT u.id,u.name,u.email,u.role,u.picture_url,o.position "
         "FROM session_order o JOIN users u ON u.id=o.user_id "
         "WHERE o.session_id=? ORDER BY o.position",
         (session_id,),
-        ("id", "name", "email", "role", "picture_url", "position", "assignment_count", "deferred"),
+        ("id", "name", "email", "role", "picture_url", "position"),
     )
     assignments = _rows(
         "SELECT a.id,a.user_id,u.name user_name,u.role user_role,"

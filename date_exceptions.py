@@ -180,18 +180,17 @@ def session_complete(row):
     )
 
 
-def selectable_dates(row, user_id):
+def open_phase_dates(row):
     session_id = _session_id(row)
     if session_id is None:
         return []
     counts = assignment_counts(session_id)
     capacities = capacities_for(row)
     kinds = date_kinds_for(row)
-    assigned_dates = user_assignment_dates(session_id, user_id)
 
     globally_open = [
         duty_date
-        for duty_date in dates_for(row)
+        for duty_date in capacities
         if capacities[duty_date] > 0
         and counts.get(duty_date, 0) < capacities[duty_date]
     ]
@@ -214,6 +213,12 @@ def selectable_dates(row, user_id):
         if weekend_phase:
             globally_open = weekend_phase
 
+    return globally_open
+
+
+def selectable_dates(row, user_id):
+    assigned_dates = user_assignment_dates(_session_id(row), user_id)
+    globally_open = open_phase_dates(row)
     return [
         duty_date
         for duty_date in globally_open

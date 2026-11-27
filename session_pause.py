@@ -11,6 +11,7 @@ import secrets
 import sqlite3
 
 import core
+from date_exceptions import open_phase_dates
 import live_updates
 from core import DB_PATH, configure_connection
 
@@ -103,7 +104,8 @@ def ordered_people(session_id):
 
 def next_picker(session_id):
     row = core.session_row(session_id)
-    if not row or core.session_complete(row):
+    available = set(open_phase_dates(row)) if row else set()
+    if not available:
         return None
 
     active = core.db().execute(
@@ -119,7 +121,7 @@ def next_picker(session_id):
     rotated = [item for item in active if item["position"] >= start_position]
     rotated.extend(item for item in active if item["position"] < start_position)
     for participant in rotated:
-        if core.selectable_dates(row, participant["id"]):
+        if available.difference(core.user_assignment_dates(session_id, participant["id"])):
             return participant
     return None
 

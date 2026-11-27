@@ -1,7 +1,7 @@
 from flask import abort, flash, redirect, request, url_for
 
 from core import app, audit, can_manage, current_user, db, require_csrf, roles, session_row
-from email_notifications import send_session_closed_notifications
+import email_notifications as mail
 from session_pause import pause_for_phase_confirmation
 import swap_email_hooks  # noqa: F401
 import swap_view_helpers  # noqa: F401
@@ -57,16 +57,19 @@ def session_status(session_id):
             "cleared_picking_pause": bool(row["picking_paused"]),
         },
     )
-    pause_for_phase_confirmation(session_id)
+    if status == "OPEN":
+        pause_for_phase_confirmation(session_id)
     conn.commit()
 
-    if notify_closed:
+    response = redirect(url_for("view_session", session_id=session_id))
+    if notify_closed and mail.MAIL_ENABLED:
         try:
-            send_session_closed_notifications(session_id)
+            messages = mail.prepare_session_closed_messages(session_id)
+            response.call_on_close(lambda: mail._deliver(messages))
         except Exception:  # Email must never change an already-committed session result.
             app.logger.exception("Could not prepare or dispatch RA Draft schedule emails.")
 
-    return redirect(url_for("view_session", session_id=session_id))
+    return response
 
 
 import session_date_rules  # noqa: E402,F401

@@ -8,8 +8,6 @@ from datetime import date
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from flask import has_request_context, render_template
-
 from core import PUBLIC_HOST, app, db
 
 
@@ -57,8 +55,7 @@ def _build_message(*, recipient, subject, template, text_body, context):
     message["To"] = formataddr((recipient["name"], recipient["email"]))
     message["Subject"] = subject
     message.set_content(text_body)
-    html = (render_template(template, **context) if has_request_context()
-            else app.jinja_env.get_template(template).render(**context))
+    html = app.jinja_env.get_template(template).render(**context)
     message.add_alternative(html, subtype="html")
     return message
 
@@ -101,11 +98,11 @@ def _session_details(session_id):
     ).fetchone()
 
 
-def send_session_closed_notifications(session_id):
-    """Email every participant their finalized duty dates when a session closes."""
+def prepare_session_closed_messages(session_id):
+    """Capture the recipients and finalized schedule before returning the close response."""
     session = _session_details(session_id)
     if not session:
-        return 0
+        return []
 
     conn = db()
     participants = conn.execute(
@@ -192,7 +189,7 @@ def send_session_closed_notifications(session_id):
             )
         )
 
-    return _deliver(messages)
+    return messages
 
 
 def _swap_details(batch_id):
