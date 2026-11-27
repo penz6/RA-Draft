@@ -18,7 +18,6 @@ os.environ.setdefault(
 
 import portal_app  # noqa: E402,F401
 import email_notifications  # noqa: E402
-import session_status as session_status_module  # noqa: E402
 import swap_email_hooks  # noqa: E402
 from core import app, db  # noqa: E402
 
@@ -108,13 +107,8 @@ class EmailNotificationTestCase(unittest.TestCase):
         data = self.create_session(status="CLOSED")
         with app.test_request_context("/", base_url="https://ci.local"):
             with patch.object(email_notifications, "MAIL_USERNAME", "ra.draft@gmail.com"):
-                with patch.object(email_notifications, "_deliver", return_value=2) as deliver:
-                    sent = email_notifications.send_session_closed_notifications(
-                        data["session_id"]
-                    )
+                messages = email_notifications.prepare_session_closed_messages(data["session_id"])
 
-        self.assertEqual(sent, 2)
-        messages = deliver.call_args.args[0]
         self.assertEqual(len(messages), 2)
         alice_message = next(
             message for message in messages if "alice@g.rwu.edu" in message["To"]
@@ -132,17 +126,17 @@ class EmailNotificationTestCase(unittest.TestCase):
         data = self.create_session(status="OPEN")
         csrf = self.login_as(data["hra_id"])
 
-        with patch.object(
-            session_status_module, "send_session_closed_notifications"
-        ) as notify:
+        with patch.object(email_notifications, "MAIL_ENABLED", True), patch.object(email_notifications, "_deliver") as notify:
             response = self.request(
                 "post",
                 f"/sessions/{data['session_id']}/status",
                 data={"csrf": csrf, "status": "CLOSED"},
             )
 
+            notify.assert_not_called()
+            response.close()
         self.assertEqual(response.status_code, 302)
-        notify.assert_called_once_with(data["session_id"])
+        notify.assert_called_once()
         with app.app_context():
             status = db().execute(
                 "SELECT status FROM draft_sessions WHERE id=?",
@@ -154,7 +148,7 @@ class EmailNotificationTestCase(unittest.TestCase):
         data = self.create_session(status="OPEN")
         csrf = self.login_as(data["hra_id"])
 
-        with patch.object(session_status_module, "send_session_closed_notifications") as notify:
+        with patch.object(email_notifications, "MAIL_ENABLED", True), patch.object(email_notifications, "_deliver") as notify:
             for status in ("CLOSED", "OPEN", "CLOSED"):
                 response = self.request(
                     "post",
@@ -162,8 +156,9 @@ class EmailNotificationTestCase(unittest.TestCase):
                     data={"csrf": csrf, "status": status},
                 )
                 self.assertEqual(response.status_code, 302)
+                response.close()
 
-        notify.assert_called_once_with(data["session_id"])
+        notify.assert_called_once()
         with app.app_context():
             session_item = db().execute(
                 "SELECT status,first_closed_at FROM draft_sessions WHERE id=?",

@@ -17,17 +17,12 @@ from core import (
     current_user,
     date_kind_overrides,
     date_kinds_for,
-    dates_for,
-    filled_slots,
     login_required,
     next_picker,
     ordered_people,
-    participant_count,
     selectable_dates,
     selection_phase_label,
-    session_complete,
     session_row,
-    total_slots,
     user_upcoming_shifts,
     db,
 )
@@ -68,7 +63,6 @@ def _session_template_context(session_id, user):
 
     counts = assignment_counts(session_id)
     dates = calendar_dates(row)
-    ordered_dates = dates_for(row)
     capacities = capacities_for(row)
     overrides = capacity_overrides(session_id)
     kinds = date_kinds_for(row)
@@ -82,10 +76,9 @@ def _session_template_context(session_id, user):
         and current_picker["id"] == user["id"]
         else set()
     )
-    complete = session_complete(row)
-    filled = filled_slots(session_id)
-    slots = total_slots(row)
-    people_count = participant_count(session_id)
+    complete = all(counts.get(day, 0) >= capacity for day, capacity in capacities.items())
+    filled = sum(counts.values())
+    slots = sum(capacities.values())
     manager_allowed = can_manage(user, row)
     phase_label = selection_phase_label(row)
     live_version = session_state_version(row, user)
@@ -98,7 +91,6 @@ def _session_template_context(session_id, user):
         "picks": picks,
         "counts": counts,
         "dates": dates,
-        "ordered_dates": ordered_dates,
         "months": calendar_months(row),
         "capacities": capacities,
         "capacity_overrides": overrides,
@@ -118,16 +110,10 @@ def _session_template_context(session_id, user):
         "selectable_dates": self_selectable,
         "next": current_picker,
         "can_manage": manager_allowed,
-        "participant_count": people_count,
+        "participant_count": len(people),
         "assigned_count": filled,
         "total_slot_count": slots,
         "open_slot_count": max(slots - filled, 0),
-        "available_date_count": sum(
-            1
-            for duty_date in dates
-            if capacities[duty_date] > 0
-            and counts.get(duty_date, 0) < capacities[duty_date]
-        ),
         "schedule_complete": complete,
         "selection_phase": phase_label,
         "live_version": live_version,
@@ -191,13 +177,17 @@ def session_live_fragments(session_id):
     if context is None:
         return redirect(url_for("login"))
     try:
+        app.update_template_context(context)
         fragments = {
-            "heading": render_template("session_heading_live_v2.html", **context),
-            "summary": render_template("session_summary_live_v2.html", **context),
-            "status": render_template("session_status_live_v2.html", **context),
-            "turn_order": render_template("session_order_v2.html", **context),
-            "calendar": render_template("session_dates_v2.html", **context),
-            "assignments": render_template("session_assignments_v2.html", **context),
+            name: app.jinja_env.get_template(template).render(context)
+            for name, template in (
+                ("heading", "session_heading_live_v2.html"),
+                ("summary", "session_summary_live_v2.html"),
+                ("status", "session_status_live_v2.html"),
+                ("turn_order", "session_order_v2.html"),
+                ("calendar", "session_dates_v2.html"),
+                ("assignments", "session_assignments_v2.html"),
+            )
         }
         version = context["live_version"]
     except BaseException:
